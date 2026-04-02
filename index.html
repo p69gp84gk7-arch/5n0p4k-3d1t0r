@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Snowpark Designer Pro - TIF Multi-Couches</title>
+    <title>Snowpark Designer Pro - Normes & TIF</title>
     <link rel="stylesheet" href="./style.css">
   </head>
   <body>
@@ -21,7 +21,20 @@
       </div>
 
       <div class="control-group">
-        <label>3. Gestion des Couches :</label>
+        <label>3. Outils de Conception :</label>
+        <button id="btn-draw" class="action-btn">✏️ Tracer un Saut (4 clics)</button>
+        <button id="btn-clear" class="action-btn btn-red">🧹 Effacer</button>
+        
+        <div id="norm-panel" class="hidden">
+            <h4>Analyse du Saut</h4>
+            <p>Vitesse élan : <b id="stat-vitesse">--</b> km/h</p>
+            <p>Distance vol : <b id="stat-vol">--</b> m</p>
+            <div id="stat-status" class="status-badge">En attente...</div>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>4. Couches :</label>
         <div id="layers-list">
           <p style="font-size: 0.8rem; color: #888;">Aucun TIF chargé</p>
         </div>
