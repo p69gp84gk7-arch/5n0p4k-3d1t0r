@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Snowpark Designer Pro</title>
+    <title>Snowpark Designer Pro - TIF Multi-Couches</title>
     <link rel="stylesheet" href="./style.css">
   </head>
   <body>
@@ -11,8 +11,8 @@
       <h2>Snowpark Designer</h2>
       
       <div class="control-group">
-        <label for="mnt-upload">1. Charger MNT (.csv, .txt) :</label>
-        <input type="file" id="mnt-upload" accept=".csv, .txt, .xyz" />
+        <label for="mnt-upload">1. Charger MNT (.tif) :</label>
+        <input type="file" id="mnt-upload" accept=".tif, .tiff" multiple />
       </div>
 
       <div class="control-group">
@@ -21,19 +21,12 @@
       </div>
 
       <div class="control-group">
-        <button id="save-btn">💾 Sauvegarder sur Cloud</button>
+        <label>3. Gestion des Couches :</label>
+        <div id="layers-list">
+          <p style="font-size: 0.8rem; color: #888;">Aucun TIF chargé</p>
+        </div>
       </div>
     </div>
-
-    <div id="profile-panel">
-      <canvas id="profileChart"></canvas>
-    </div>
-    <div class="control-group">
-  <label>3. Gestion des Couches :</label>
-  <div id="layers-list">
-    <p style="font-size: 0.8rem; color: #888;">Aucun MNT chargé</p>
-  </div>
-</div>
 
     <script type="module" src="/main.js"></script>
   </body>
