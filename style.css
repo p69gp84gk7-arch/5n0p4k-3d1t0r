@@ -14,7 +14,7 @@ body {
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-  width: 300px;
+  width: 320px;
   z-index: 10;
 }
 
@@ -34,41 +34,14 @@ label {
   display: block;
   margin-bottom: 8px;
   font-size: 0.9rem;
+  font-weight: bold;
 }
 
 input[type="file"], input[type="range"] {
   width: 100%;
 }
 
-button {
-  width: 100%;
-  padding: 10px;
-  background-color: #4da6ff;
-  color: #000;
-  border: none;
-  border-radius: 4px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-button:hover {
-  background-color: #3388dd;
-}
-
-#profile-panel {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 60%;
-  height: 200px;
-  background: rgba(30, 30, 30, 0.9);
-  padding: 15px;
-  border-radius: 8px;
-  z-index: 10;
-}
-/* Ajoute ceci à ton style.css */
+/* Styles de la liste des couches */
 #layers-list {
   background: #2a2a2a;
   border-radius: 4px;
@@ -86,20 +59,31 @@ button:hover {
   background: #333;
   border-radius: 4px;
   font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.layer-item:hover {
+  background: #404040;
+}
+
+.layer-item.active {
+  border-left: 4px solid #4da6ff;
+  background: #2b3b4c;
 }
 
 .layer-controls button {
   width: auto;
-  padding: 2px 6px;
+  padding: 4px 8px;
   margin-left: 5px;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   background: #444;
   color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
 }
 
-.layer-item.active {
-  border-left: 3px solid #4da6ff;
+.layer-controls button:hover {
+  background: #666;
 }
-
-.btn-hide { color: #ffcc00; }
-.btn-delete { color: #ff4d4d; }
