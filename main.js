@@ -67,31 +67,70 @@ async function parserTIF(arrayBuffer, fileName) {
     }
 }
 
-// --- 3. GÉNÉRATION 3D ---
+// --- 3. GÉNÉRATION 3D (ÉCHELLE RÉELLE ET PRÉCISION ABSOLUE) ---
 function creerNouvelleCouche(altitudes, width, height, name) {
-    const geometry = new THREE.PlaneGeometry(100, 100, width - 1, height - 1);
-    const positions = geometry.attributes.position;
-    const minZ = Math.min(...altitudes.filter(v => v > -9000));
-
-    for (let i = 0; i < positions.count; i++) {
-        const z = altitudes[i] > -9000 ? (altitudes[i] - minZ) * 0.1 : 0;
-        positions.setZ(i, z);
+    // 1. Trouver l'altitude minimale réelle (pour mettre la base du terrain à Z=0 visuellement)
+    const altitudesValides = altitudes.filter(v => v > -5000 && v < 9000);
+    if (altitudesValides.length === 0) {
+        alert("Ce fichier ne semble pas contenir de données d'altitude.");
+        return;
     }
+    const minZ = Math.min(...altitudesValides);
+
+    // 2. RÉSOLUTION SPATIALE X/Y (0.5 mètre par point)
+    const resolutionXY = 0.5; 
+    const widthMeters = (width - 1) * resolutionXY;
+    const heightMeters = (height - 1) * resolutionXY;
+
+    console.log(`📏 Taille réelle du terrain : ${widthMeters}m x ${heightMeters}m`);
+    console.log(`🎯 Résolution du maillage : 1 point tous les ${resolutionXY}m`);
+
+    // On crée le plan avec les dimensions exactes en mètres
+    // (width - 1) et (height - 1) garantissent qu'on a exactement un sommet 3D pour chaque point de ton TIF
+    const geometry = new THREE.PlaneGeometry(widthMeters, heightMeters, width - 1, height - 1);
+    const positions = geometry.attributes.position;
+
+    // 3. ALTIMÉTRIE EXACTE (Z)
+    for (let i = 0; i < positions.count; i++) {
+        let z = altitudes[i];
+
+        // Nettoyage des valeurs aberrantes (trous dans le scan)
+        if (z < -5000 || z > 9000 || isNaN(z)) {
+            z = minZ; 
+        }
+
+        // ICI : 1 unité 3D = 1 mètre réel. 
+        // L'altimétrie est conservée avec sa précision d'origine (décimale / centimètre)
+        positions.setZ(i, z - minZ); 
+    }
+    
+    // Recalcul des normales pour que la lumière accroche les moindres détails du relief
     geometry.computeVertexNormals();
 
     const material = new THREE.MeshStandardMaterial({ 
-        color: 0xeeeeee, 
+        color: 0xdddddd, 
         side: THREE.DoubleSide,
-        flatShading: true // Donne un style "low poly" plus lisible pour les reliefs
+        flatShading: true,
+        wireframe: false // Tu peux le passer à "true" pour vérifier visuellement que tes carrés font 0.5m
     });
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.rotation.x = -Math.PI / 2;
     scene.add(mesh);
 
-    layers.push({ id: Date.now(), name, mesh, baseAltitudes: altitudes, visible: true, minZ });
+    layers.push({ 
+        id: Date.now(), 
+        name, 
+        mesh, 
+        baseAltitudes: altitudes, 
+        visible: true, 
+        minZ 
+    });
+    
     activeLayerIndex = layers.length - 1;
     refreshLayersUI();
+    
+    console.log("✅ Couche 3D à l'échelle générée !");
 }
 
 // --- 4. GESTION DES COUCHES ET NEIGE ---
