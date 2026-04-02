@@ -1,209 +1,140 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import Chart from 'chart.js/auto';
-
-// --- CONFIGURATION APP SCRIPT ---
-// Remplacer par l'URL fournie par Google Apps Script lors du déploiement
-const GOOGLE_SHEET_URL = "TON_URL_APPS_SCRIPT_ICI";
+import * as GeoTIFF from 'geotiff';
 
 // --- VARIABLES GLOBALES ---
 let scene, camera, renderer, controls;
-let terrainMesh;
-let baseAltitudes = []; // Stocke le terrain brut sans neige
-let profileChart;
+let layers = []; // TABLEAU DE COUCHES : { id, name, mesh, baseAltitudes }
+let activeLayerIndex = -1;
 
-// --- 1. INITIALISATION DE LA SCÈNE 3D ---
+// --- INITIALISATION (inchangée) ---
 function init() {
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87CEEB); // Ciel bleu
-
-    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 50, 100);
-
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-
-    controls = new OrbitControls(camera, renderer.domElement);
-
-    // Lumières
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
-    
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(50, 100, 50);
-    scene.add(dirLight);
-
-    initChart();
+    // ... (ton code init habituel)
     animate();
 }
 
-// --- 2. LECTURE DU FICHIER MNT ---
-document.getElementById('mnt-upload').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function(event) {
-        const contenu = event.target.result;
-        parserMNT(contenu);
-    };
-    reader.readAsText(file);
+// --- LECTURE DU FICHIER MNT (.TIF) ---
+document.getElementById('mnt-upload').addEventListener('change', async function(e) {
+    const files = e.target.files;
+    for (let file of files) {
+        const arrayBuffer = await file.arrayBuffer();
+        await parserTIF(arrayBuffer, file.name);
+    }
 });
 
-// Parseur simplifié (suppose un fichier avec une liste de hauteurs ou un CSV)
-function parserMNT(texte) {
-    // Nettoie le texte et extrait tous les nombres
-    const valeurs = texte.trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
-    
-    if(valeurs.length === 0) {
-        alert("Fichier non reconnu ou vide.");
-        return;
-    }
+async function parserTIF(arrayBuffer, fileName) {
+    const tiff = await GeoTIFF.fromArrayBuffer(arrayBuffer);
+    const image = await tiff.getImage();
+    const width = image.getWidth();
+    const height = image.getHeight();
+    const rasters = await image.readRasters();
+    const altitudes = Array.from(rasters[0]);
 
-    // On déduit la taille de la grille (doit être un carré parfait idéalement)
-    const segments = Math.floor(Math.sqrt(valeurs.length)) - 1;
-    genererTerrain(valeurs, segments);
+    creerNouvelleCouche(altitudes, width, height, fileName);
 }
 
-// --- 3. GÉNÉRATION DU TERRAIN ---
-function genererTerrain(altitudes, segments) {
-    if (terrainMesh) scene.remove(terrainMesh); // Supprime l'ancien terrain
-    
-    baseAltitudes = altitudes; // On sauvegarde l'état naturel
-
-    const geometry = new THREE.PlaneGeometry(100, 100, segments, segments);
+// --- CRÉATION ET GESTION DES COUCHES ---
+function creerNouvelleCouche(altitudes, width, height, name) {
+    const geometry = new THREE.PlaneGeometry(100, 100, width - 1, height - 1);
     const positions = geometry.attributes.position;
+    const minZ = Math.min(...altitudes.filter(v => v > -9999)); // Gère les valeurs "no data"
 
     for (let i = 0; i < positions.count; i++) {
-        // Applique l'altitude (ajustée visuellement si besoin avec un multiplicateur)
-        positions.setZ(i, baseAltitudes[i] || 0); 
+        const z = altitudes[i] > -9999 ? (altitudes[i] - minZ) * 0.1 : 0;
+        positions.setZ(i, z);
     }
-
     geometry.computeVertexNormals();
 
+    // Couleur aléatoire pour différencier les couches
+    const randomColor = new THREE.Color(Math.random(), Math.random(), Math.random());
     const material = new THREE.MeshStandardMaterial({ 
-        color: 0xffffff, // Blanc neige
-        roughness: 0.8,
-        wireframe: false 
+        color: randomColor, 
+        transparent: true, 
+        opacity: 0.8,
+        side: THREE.DoubleSide 
     });
 
-    terrainMesh = new THREE.Mesh(geometry, material);
-    terrainMesh.rotation.x = -Math.PI / 2; // Coucher la montagne
-    scene.add(terrainMesh);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.rotation.x = -Math.PI / 2;
+    scene.add(mesh);
 
-    updateProfileChart(); // Met à jour le graphique 2D
+    const newLayer = {
+        id: Date.now(),
+        name: name,
+        mesh: mesh,
+        baseAltitudes: altitudes,
+        visible: true
+    };
+
+    layers.push(newLayer);
+    activeLayerIndex = layers.length - 1;
+    refreshLayersUI();
 }
 
-// --- 4. GESTION DE LA NEIGE DE CULTURE ---
-document.getElementById('snow-slider').addEventListener('input', function(e) {
-    const hauteurNeige = parseFloat(e.target.value);
-    document.getElementById('snow-val').innerText = hauteurNeige;
+// --- MISE À JOUR DE L'INTERFACE LISTE ---
+function refreshLayersUI() {
+    const listContainer = document.getElementById('layers-list');
+    listContainer.innerHTML = "";
 
-    if(!terrainMesh) return;
-
-    const positions = terrainMesh.geometry.attributes.position;
-    
-    for (let i = 0; i < positions.count; i++) {
-        // Z actuel = Altitude naturelle + Neige
-        positions.setZ(i, baseAltitudes[i] + hauteurNeige);
-    }
-
-    terrainMesh.geometry.computeVertexNormals();
-    terrainMesh.geometry.attributes.position.needsUpdate = true;
-    
-    updateProfileChart(hauteurNeige);
-});
-
-// --- 5. COUPE DE PROFIL (Chart.js) ---
-function initChart() {
-    const ctx = document.getElementById('profileChart').getContext('2d');
-    profileChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                label: 'Profil du Terrain',
-                data: [],
-                borderColor: '#4da6ff',
-                backgroundColor: 'rgba(77, 166, 255, 0.2)',
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: { y: { title: { display: true, text: 'Altitude (m)' } } }
-        }
-    });
-}
-
-function updateProfileChart(hauteurNeige = 0) {
-    if(baseAltitudes.length === 0) return;
-
-    // On prend une "tranche" du terrain (le milieu) pour l'exemple
-    const taille = Math.floor(Math.sqrt(baseAltitudes.length));
-    const coupe = [];
-    const labels = [];
-    
-    const ligneMilieu = Math.floor(taille / 2);
-    
-    for(let i = 0; i < taille; i++) {
-        const index = ligneMilieu * taille + i;
-        coupe.push(baseAltitudes[index] + hauteurNeige);
-        labels.push(i + "m");
-    }
-
-    profileChart.data.labels = labels;
-    profileChart.data.datasets[0].data = coupe;
-    profileChart.update();
-}
-
-// --- 6. SAUVEGARDE GOOGLE SHEETS ---
-document.getElementById('save-btn').addEventListener('click', () => {
-    if(baseAltitudes.length === 0) {
-        alert("Veuillez d'abord charger un terrain !");
+    if (layers.length === 0) {
+        listContainer.innerHTML = '<p style="font-size: 0.8rem; color: #888;">Aucun MNT chargé</p>';
         return;
     }
 
-    const bouton = document.getElementById('save-btn');
-    bouton.innerText = "Sauvegarde en cours...";
-
-    const donnees = {
-        nom: "Snowpark Alpha",
-        neige: document.getElementById('snow-slider').value,
-        fichierInfos: `${baseAltitudes.length} points topographiques`
-    };
-
-    fetch(GOOGLE_SHEET_URL, {
-        method: 'POST',
-        body: JSON.stringify(donnees)
-    })
-    .then(response => response.json())
-    .then(data => {
-        alert("Projet sauvegardé sur Google Sheets !");
-        bouton.innerText = "💾 Sauvegarder sur Cloud";
-    })
-    .catch(error => {
-        console.error("Erreur:", error);
-        alert("Erreur lors de la sauvegarde.");
-        bouton.innerText = "💾 Sauvegarder sur Cloud";
+    layers.forEach((layer, index) => {
+        const item = document.createElement('div');
+        item.className = `layer-item ${index === activeLayerIndex ? 'active' : ''}`;
+        item.innerHTML = `
+            <span>${layer.name.substring(0, 15)}...</span>
+            <div class="layer-controls">
+                <button onclick="window.toggleLayer(${index})">${layer.visible ? '👁️' : '🕶️'}</button>
+                <button onclick="window.deleteLayer(${index})">🗑️</button>
+            </div>
+        `;
+        item.onclick = () => { activeLayerIndex = index; refreshLayersUI(); };
+        listContainer.appendChild(item);
     });
-});
-
-// --- BOUCLE D'ANIMATION ---
-function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
 }
 
-// Lancer l'application
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+// --- FONCTIONS PILOTES (Exposées globalement) ---
+window.toggleLayer = (index) => {
+    layers[index].visible = !layers[index].visible;
+    layers[index].mesh.visible = layers[index].visible;
+    refreshLayersUI();
+};
+
+window.deleteLayer = (index) => {
+    // Supprime de la scène 3D
+    scene.remove(layers[index].mesh);
+    layers[index].mesh.geometry.dispose();
+    layers[index].mesh.material.dispose();
+    
+    // Supprime du tableau
+    layers.splice(index, 1);
+    activeLayerIndex = layers.length > 0 ? 0 : -1;
+    refreshLayersUI();
+};
+
+// --- GESTION DE LA NEIGE SUR LA COUCHE ACTIVE ---
+document.getElementById('snow-slider').addEventListener('input', function(e) {
+    if (activeLayerIndex === -1) return;
+    
+    const hauteur = parseFloat(e.target.value);
+    const layer = layers[activeLayerIndex];
+    const positions = layer.mesh.geometry.attributes.position;
+    const minZ = Math.min(...layer.baseAltitudes.filter(v => v > -9999));
+
+    for (let i = 0; i < positions.count; i++) {
+        const zBase = (layer.baseAltitudes[i] - minZ) * 0.1;
+        positions.setZ(i, zBase + hauteur);
+    }
+    layer.mesh.geometry.attributes.position.needsUpdate = true;
 });
+
+function animate() {
+    requestAnimationFrame(animate);
+    if(controls) controls.update();
+    renderer.render(scene, camera);
+}
 
 init();
