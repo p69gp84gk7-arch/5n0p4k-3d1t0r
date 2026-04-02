@@ -10,12 +10,14 @@ body {
   position: absolute;
   top: 20px;
   left: 20px;
-  background: rgba(30, 30, 30, 0.9);
+  background: rgba(30, 30, 30, 0.95);
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 4px 15px rgba(0,0,0,0.5);
   width: 320px;
   z-index: 10;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 h2 {
@@ -26,8 +28,16 @@ h2 {
   padding-bottom: 10px;
 }
 
+h4 {
+  margin: 5px 0;
+  color: #ffcc00;
+  font-size: 0.9rem;
+}
+
 .control-group {
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px dashed #444;
 }
 
 label {
@@ -37,22 +47,53 @@ label {
   font-weight: bold;
 }
 
-input[type="file"], input[type="range"] {
+input[type="file"], input[type="range"] { width: 100%; }
+
+.action-btn {
   width: 100%;
+  padding: 8px;
+  margin-bottom: 5px;
+  background: #4da6ff;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.action-btn:hover { background: #3388dd; }
+.btn-red { background: #ff4d4d; color: white; }
+.btn-red:hover { background: #cc0000; }
+
+.hidden { display: none; }
+
+#norm-panel {
+  background: #222;
+  padding: 10px;
+  border-radius: 4px;
+  margin-top: 10px;
+  font-size: 0.85rem;
 }
 
-/* Styles de la liste des couches */
+.status-badge {
+  padding: 5px;
+  text-align: center;
+  border-radius: 3px;
+  font-weight: bold;
+  margin-top: 5px;
+}
+.status-green { background: #28a745; color: white; }
+.status-red { background: #dc3545; color: white; }
+
 #layers-list {
   background: #2a2a2a;
   border-radius: 4px;
   padding: 5px;
-  max-height: 200px;
+  max-height: 150px;
   overflow-y: auto;
 }
 
 .layer-item {
   display: flex;
-  align-items: center;
   justify-content: space-between;
   padding: 8px;
   margin-bottom: 5px;
@@ -60,30 +101,6 @@ input[type="file"], input[type="range"] {
   border-radius: 4px;
   font-size: 0.85rem;
   cursor: pointer;
-  transition: background 0.2s;
 }
-
-.layer-item:hover {
-  background: #404040;
-}
-
-.layer-item.active {
-  border-left: 4px solid #4da6ff;
-  background: #2b3b4c;
-}
-
-.layer-controls button {
-  width: auto;
-  padding: 4px 8px;
-  margin-left: 5px;
-  font-size: 0.8rem;
-  background: #444;
-  color: white;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-.layer-controls button:hover {
-  background: #666;
-}
+.layer-item.active { border-left: 4px solid #4da6ff; background: #2b3b4c; }
+.layer-controls button { padding: 4px 8px; background: #444; border: none; color: white; cursor: pointer; }
