@@ -107,6 +107,56 @@
             // Ajout des contrôles de zoom
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
         });
+        // --- NOUVEAU CODE : GLISSER-DÉPOSER ---
+            
+            let draggedModule = null; // Mémoire pour savoir quel module on glisse
+
+            // 1. On détecte quand on commence à glisser un bouton de la barre de gauche
+            const modules = document.querySelectorAll('.module-btn');
+            modules.forEach(mod => {
+                mod.addEventListener('dragstart', (e) => {
+                    draggedModule = e.target.innerText; // On mémorise le nom (ex: "Kicker S")
+                });
+            });
+
+            // 2. On autorise la zone de la carte à recevoir l'élément
+            const mapContainer = document.getElementById('map-container');
+            mapContainer.addEventListener('dragover', (e) => {
+                e.preventDefault(); // Obligatoire pour autoriser le "lâcher"
+            });
+
+            // 3. Que se passe-t-il quand on lâche le clic sur la carte ?
+            mapContainer.addEventListener('drop', (e) => {
+                e.preventDefault();
+                
+                if (draggedModule) {
+                    // Calcul savant pour transformer la position de la souris en coordonnées GPS
+                    const rect = mapContainer.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    const lngLat = map.unproject([x, y]); // Magie de MapLibre !
+
+                    // On crée une belle étiquette visuelle pour notre module
+                    const el = document.createElement('div');
+                    el.style.backgroundColor = '#e67e22';
+                    el.style.color = 'white';
+                    el.style.padding = '5px 10px';
+                    el.style.borderRadius = '5px';
+                    el.style.fontWeight = 'bold';
+                    el.style.border = '2px solid white';
+                    el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+                    el.style.cursor = 'pointer';
+                    el.innerHTML = '🏂 ' + draggedModule;
+
+                    // On ajoute cette étiquette sur la carte aux bonnes coordonnées
+                    new maplibregl.Marker({element: el})
+                        .setLngLat(lngLat)
+                        .addTo(map);
+                        
+                    draggedModule = null; // On vide la mémoire
+                }
+            });
+            // --- FIN DU NOUVEAU CODE ---
     </script>
 </body>
 </html>
