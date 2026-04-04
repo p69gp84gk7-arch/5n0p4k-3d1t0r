@@ -21,7 +21,6 @@
         .btn-danger { background-color: #e74c3c; margin-top: 15px; }
         .module-btn { background-color: #e67e22; padding: 10px; margin-bottom: 8px; text-align: center; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
         .main-workspace { flex-grow: 1; position: relative; }
-        /* Fond gris clair pour bien voir si la zone de la carte charge */
         #map-container { position: absolute; top: 0; bottom: 0; width: 100%; background-color: #dcdde1; }
         input[type=range] { width: 100%; margin-top: 10px; cursor: pointer; }
     </style>
@@ -30,7 +29,7 @@
 
     <div class="app-container">
         <div class="sidebar">
-            <h2>🛠️ Snowpark Pro v8</h2>
+            <h2>🛠️ Snowpark Pro v9</h2>
             
             <div class="panel">
                 <h3>📂 Gestion de Projet</h3>
@@ -40,6 +39,7 @@
             <div class="panel" id="edit-panel" style="display: none; border: 2px solid #3498db;">
                 <h3>⚙️ Édition du Module</h3>
                 <p id="edit-name" style="font-weight: bold; color: #e67e22; margin-top: 0;"></p>
+                <p style="font-size: 0.8rem; color: #bdc3c7;">🖱️ Cliquez et glissez le module sur la carte pour le déplacer.</p>
                 
                 <label for="rotation-slider" style="font-size: 0.9rem;">Orientation (<span id="angle-display">0</span>°)</label>
                 <input type="range" id="rotation-slider" min="0" max="360" value="0">
@@ -64,6 +64,12 @@
         let map;
         let activeModule = null;
         let selectedFeatureId = null;
+
+        // Variables pour la logique de Déplacement (Drag & Drop)
+        let isDragging = false;
+        let draggedJustNow = false; // Pour éviter de désélectionner quand on lâche le clic
+        let startCursorLngLat = null;
+        let startBaseCoords = null;
 
         const moduleNorms = {
             'Kicker S (Débutant)': { width: 10, length: 15, color: '#2ecc71' },
@@ -128,6 +134,69 @@
                 });
             });
 
+            // GESTION DU CURSEUR (quand on survole un module pour le déplacer)
+            map.on('mouseenter', 'modules-fill', () => {
+                if (!activeModule) map.getCanvas().style.cursor = 'move';
+            });
+            map.on('mouseleave', 'modules-fill', () => {
+                if (!activeModule && !isDragging) map.getCanvas().style.cursor = '';
+            });
+
+            // --- LA LOGIQUE DE DÉPLACEMENT (DRAG & DROP SUR CARTE) ---
+            
+            // 1. On attrape le module (Mousedown)
+            map.on('mousedown', 'modules-fill', (e) => {
+                if (activeModule) return; // Si on est en train de poser un objet, on annule
+                e.preventDefault(); 
+                
+                isDragging = true;
+                map.dragPan.disable(); // MAGIE : On bloque le déplacement de la caméra
+                startCursorLngLat = e.lngLat;
+                
+                const id = e.features[0].properties.id;
+                selectFeature(id); // On sélectionne le module cliqué
+                
+                // On mémorise la position de départ de sa forme
+                const feat = snowparkFeatures.features.find(f => f.properties.id === id);
+                startBaseCoords = JSON.parse(feat.properties.baseCoords);
+            });
+
+            // 2. On déplace la souris (Mousemove)
+            map.on('mousemove', (e) => {
+                if (!isDragging || !selectedFeatureId) return;
+                
+                // On calcule de combien on a bougé la souris
+                const lngOffset = e.lngLat.lng - startCursorLngLat.lng;
+                const latOffset = e.lngLat.lat - startCursorLngLat.lat;
+
+                const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
+                
+                // On applique ce décalage à tous les points du module
+                const newBaseCoords = startBaseCoords[0].map(coord => [coord[0] + lngOffset, coord[1] + latOffset]);
+                feat.properties.baseCoords = JSON.stringify([newBaseCoords]);
+
+                // On remet l'angle de rotation par dessus les nouvelles coordonnées
+                const basePoly = turf.polygon([newBaseCoords]);
+                const rotatedPoly = turf.transformRotate(basePoly, feat.properties.rotation);
+                feat.geometry.coordinates = rotatedPoly.geometry.coordinates;
+
+                // On met à jour l'affichage en direct
+                map.getSource('snowpark-data').setData(snowparkFeatures);
+            });
+
+            // 3. On lâche le clic (Mouseup)
+            map.on('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    draggedJustNow = true;
+                    setTimeout(() => draggedJustNow = false, 100); // Chrono pour ignorer le clic final
+                    map.dragPan.enable(); // On débloque la caméra de la carte
+                }
+            });
+
+
+            // --- FIN DE LA LOGIQUE DE DÉPLACEMENT ---
+
             // CLIC BARRE DE GAUCHE
             const modules = document.querySelectorAll('.module-btn');
             modules.forEach(mod => {
@@ -145,8 +214,10 @@
                 });
             });
 
-            // CLIC CARTE
+            // CLIC CARTE (Pose d'un nouveau module ou clic dans le vide)
             map.on('click', (e) => {
+                if (draggedJustNow) return; // Si on vient de finir un glisser-déposer, on ignore ce clic
+
                 if (activeModule) {
                     const norm = moduleNorms[activeModule];
                     const coords = calculatePolygonCoords(e.lngLat, norm.width, norm.length);
@@ -174,14 +245,14 @@
                     return;
                 }
 
+                // Clic dans le vide = on désélectionne
                 const clickedFeatures = map.queryRenderedFeatures(e.point, { layers: ['modules-fill'] });
-                if (clickedFeatures.length > 0) {
-                    selectFeature(clickedFeatures[0].properties.id);
-                } else {
+                if (clickedFeatures.length === 0) {
                     deselectCurrentFeature();
                 }
             });
 
+            // --- FONCTIONS PANNEAU ---
             function selectFeature(id) {
                 deselectCurrentFeature();
                 selectedFeatureId = id;
@@ -202,6 +273,7 @@
                 }
             }
 
+            // Gérer la rotation
             document.getElementById('rotation-slider').addEventListener('input', (e) => {
                 if (selectedFeatureId) {
                     const angle = parseFloat(e.target.value);
@@ -220,6 +292,7 @@
                 }
             });
 
+            // Gérer la suppression
             document.getElementById('delete-btn').addEventListener('click', () => {
                 if (selectedFeatureId) {
                     snowparkFeatures.features = snowparkFeatures.features.filter(f => f.properties.id !== selectedFeatureId);
