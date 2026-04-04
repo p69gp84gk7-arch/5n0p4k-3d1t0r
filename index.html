@@ -107,39 +107,38 @@
             // Ajout des contrôles de zoom
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
         });
-        // --- NOUVEAU CODE : GLISSER-DÉPOSER (VERSION ROBUSTE) ---
-            
+       // --- NOUVEAU CODE : GLISSER-DÉPOSER (VERSION CANVAS DIRECT) ---
             let draggedModule = null;
 
-            // 1. On détecte quand on commence à glisser
+            // 1. Détection du glisser
             const modules = document.querySelectorAll('.module-btn');
             modules.forEach(mod => {
                 mod.addEventListener('dragstart', (e) => {
                     draggedModule = e.target.innerText;
-                    // LIGNE CRUCIALE : on force le navigateur à mémoriser l'action
                     e.dataTransfer.setData('text/plain', draggedModule);
                 });
             });
 
-            // 2. On autorise la zone de la carte à recevoir l'élément
-            const mapContainer = document.getElementById('map-container');
-            mapContainer.addEventListener('dragover', (e) => {
-                e.preventDefault(); // Indispensable pour autoriser le "lâcher"
-                e.dataTransfer.dropEffect = 'copy'; // Montre un petit "+" sur le curseur
+            // 2. On cible DIRECTEMENT la toile de la carte (CanvasContainer)
+            const canvasContainer = map.getCanvasContainer();
+            
+            canvasContainer.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
             });
 
-            // 3. Que se passe-t-il quand on lâche le clic sur la carte ?
-            mapContainer.addEventListener('drop', (e) => {
+            // 3. Action au moment de lâcher
+            canvasContainer.addEventListener('drop', (e) => {
                 e.preventDefault();
                 
                 if (draggedModule) {
-                    // On calcule les coordonnées GPS
-                    const rect = mapContainer.getBoundingClientRect();
+                    // Calcul précis sur la toile
+                    const rect = canvasContainer.getBoundingClientRect();
                     const x = e.clientX - rect.left;
                     const y = e.clientY - rect.top;
                     const lngLat = map.unproject([x, y]);
 
-                    // On crée l'étiquette visuelle
+                    // Création de l'étiquette
                     const el = document.createElement('div');
                     el.style.backgroundColor = '#e67e22';
                     el.style.color = 'white';
@@ -148,11 +147,10 @@
                     el.style.fontWeight = 'bold';
                     el.style.border = '2px solid white';
                     el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
-                    el.style.cursor = 'grab'; // Change le curseur
+                    el.style.cursor = 'grab';
                     el.innerHTML = '🏂 ' + draggedModule;
 
-                    // On ajoute l'étiquette sur la carte
-                    // L'option draggable: true permettra de les déplacer par la suite !
+                    // Ajout sur la carte avec option déplaçable
                     new maplibregl.Marker({element: el, draggable: true})
                         .setLngLat(lngLat)
                         .addTo(map);
