@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snowpark Designer Pro - CAO V46</title>
+    <title>Snowpark Designer Pro - V47 (Master)</title>
     
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -15,67 +15,70 @@
     <script src="https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js"></script>
 
     <style>
-        /* === STYLES CAO === */
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Arial, sans-serif; background-color: #1e1e1e; color: #d4d4d4; overflow: hidden; }
+        /* === DESIGN CAO INGÉNIERIE === */
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1e1e1e; color: #d4d4d4; overflow: hidden; }
         .app-container { display: flex; height: 100vh; width: 100vw; }
         
-        .sidebar { background-color: #252526; padding: 10px; box-sizing: border-box; overflow-y: auto; z-index: 10; border-right: 1px solid #3e3e42; }
-        .sidebar-left { width: 280px; }
-        .sidebar-right { width: 340px; border-left: 1px solid #3e3e42; border-right: none; }
+        .sidebar { background-color: #252526; padding: 12px; box-sizing: border-box; overflow-y: auto; z-index: 10; border-right: 1px solid #3e3e42; }
+        .sidebar-left { width: 300px; }
+        .sidebar-right { width: 360px; border-left: 1px solid #3e3e42; border-right: none; }
         
-        h2 { margin-top: 0; font-size: 0.95rem; color: #ffffff; border-bottom: 1px solid #3e3e42; padding-bottom: 6px; font-weight: normal; text-transform: uppercase; letter-spacing: 1px; }
-        h3 { margin-top: 0; font-size: 0.8rem; color: #4daaf1; font-weight: normal; margin-bottom: 8px; text-transform: uppercase; }
-        .panel { background-color: #2d2d30; padding: 10px; margin-bottom: 10px; border: 1px solid #3e3e42; }
+        h2 { margin-top: 0; font-size: 0.95rem; color: #ffffff; border-bottom: 1px solid #3e3e42; padding-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        h3 { margin-top: 0; font-size: 0.8rem; color: #4daaf1; font-weight: normal; margin-bottom: 10px; text-transform: uppercase; }
+        .panel { background-color: #2d2d30; padding: 12px; margin-bottom: 12px; border: 1px solid #3e3e42; }
         
-        .btn { width: 100%; padding: 6px 8px; margin-bottom: 6px; border: 1px solid #3e3e42; background-color: #3e3e42; color: #ffffff; cursor: pointer; font-size: 0.75rem; text-transform: uppercase; transition: background 0.2s; text-align: center; box-sizing: border-box; display: inline-block;}
+        .btn { width: 100%; padding: 8px 10px; margin-bottom: 8px; border: 1px solid #3e3e42; background-color: #3e3e42; color: #ffffff; cursor: pointer; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; transition: background 0.2s; text-align: center; box-sizing: border-box; display: block;}
         .btn:hover { background-color: #4f4f53; }
         .btn-primary { background-color: #0e639c; border-color: #0e639c; }
         .btn-primary:hover { background-color: #1177bb; }
         .btn-success { background-color: #27ae60; border-color: #27ae60; }
-        .btn-danger { background-color: #c74c3c; border-color: #c74c3c; margin-top: 10px; }
+        .btn-danger { background-color: #c74c3c; border-color: #c74c3c; margin-top: 15px; }
         .btn-toggle { background-color: #1e1e1e; border: 1px solid #0e639c; color: #4daaf1; }
         .btn-toggle.active { background-color: #0e639c; color: #ffffff; }
         
-        .module-btn { background-color: #333337; border: 1px solid #555; padding: 6px; margin-bottom: 6px; text-align: center; cursor: pointer; font-size: 0.75rem; }
+        .module-btn { background-color: #333337; border: 1px solid #555; padding: 8px; margin-bottom: 8px; text-align: center; cursor: pointer; font-size: 0.8rem; }
         .module-btn:hover { background-color: #444; }
-        .module-btn.active { border-color: #4daaf1; background-color: #1e1e1e; color: #4daaf1; }
+        .module-btn.active { border-color: #4daaf1; background-color: #1e1e1e; color: #4daaf1; font-weight: bold;}
         
         .main-workspace { flex-grow: 1; position: relative; display: flex; flex-direction: column; background-color: #1e1e1e; }
-        .topbar { background-color: #252526; border-bottom: 1px solid #3e3e42; padding: 6px 15px; display: flex; gap: 15px; align-items: center; z-index: 5; }
-        .topbar-alt { font-size: 0.9rem; color: #4daaf1; font-weight: bold; font-family: monospace; border-right: 1px solid #3e3e42; padding-right: 15px; min-width: 130px; }
-        .topbar-title { font-size: 0.75rem; color: #888; text-transform: uppercase; }
-        .tool-btn { background: #333337; border: 1px solid #555; color: #d4d4d4; padding: 4px 10px; cursor: pointer; font-size: 0.7rem; text-transform: uppercase; }
+        .topbar { background-color: #252526; border-bottom: 1px solid #3e3e42; padding: 8px 15px; display: flex; gap: 15px; align-items: center; z-index: 5; }
+        .topbar-alt { font-size: 0.9rem; color: #4daaf1; font-weight: bold; font-family: monospace; border-right: 1px solid #3e3e42; padding-right: 15px; min-width: 140px; }
+        .topbar-title { font-size: 0.75rem; color: #888; text-transform: uppercase; font-weight: 600;}
+        .tool-btn { background: #333337; border: 1px solid #555; color: #d4d4d4; padding: 6px 12px; cursor: pointer; font-size: 0.75rem; text-transform: uppercase; }
         .tool-btn:hover { background: #444; }
-        .tool-btn.active { background: #27ae60; border-color: #27ae60; color: white; }
+        .tool-btn.active { background: #27ae60; border-color: #27ae60; color: white; font-weight: bold;}
         
         #map-container { flex-grow: 1; position: relative; } 
-        #profile-container { height: 320px; background: #252526; border-top: 2px solid #0e639c; padding: 5px; box-sizing: border-box; display: none; position: relative; }
-        #close-profile { position: absolute; top: 5px; right: 5px; background: none; border: none; color: #d4d4d4; font-size: 0.8rem; cursor: pointer; z-index: 100;}
+        #profile-container { height: 350px; background: #252526; border-top: 2px solid #0e639c; padding: 10px; box-sizing: border-box; display: none; position: relative; }
+        #close-profile { position: absolute; top: 10px; right: 15px; background: none; border: none; color: #d4d4d4; font-size: 0.85rem; cursor: pointer; font-family: monospace; font-weight: bold; z-index: 100;}
         
-        #instruction-box { position: absolute; top: 15px; left: 15px; background-color: rgba(14, 99, 156, 0.9); color: #fff; padding: 6px 15px; font-size: 0.8rem; font-weight: bold; z-index: 20; border: 1px solid #4daaf1; display: none; align-items: center; gap: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
+        #instruction-box { position: absolute; top: 15px; left: 15px; background-color: rgba(14, 99, 156, 0.95); color: #fff; padding: 8px 15px; font-size: 0.85rem; font-weight: bold; z-index: 20; border: 1px solid #4daaf1; display: none; align-items: center; gap: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
         
-        .line-group { border: 1px solid #3e3e42; margin-bottom: 8px; background: #1e1e1e; }
-        .line-header { background: #333337; padding: 6px 8px; font-weight: bold; font-size: 0.75rem; border-bottom: 1px solid #3e3e42; cursor: pointer; display:flex; justify-content: space-between; align-items: center; text-transform: uppercase;}
-        .line-header.active { border-left: 3px solid #27ae60; }
-        .layer-item { padding: 6px 8px 6px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d2d30; font-size: 0.75rem; transition: background 0.2s;}
-        .layer-item.active { border-left: 3px solid #0e639c; background: #252526; }
-        .vis-btn { background: none; border: none; color: #888; font-family: monospace; font-size: 0.7rem; cursor: pointer; }
+        .line-group { border: 1px solid #3e3e42; margin-bottom: 10px; background: #1e1e1e; }
+        .line-header { background: #333337; padding: 8px 10px; font-weight: bold; font-size: 0.8rem; border-bottom: 1px solid #3e3e42; cursor: pointer; display:flex; justify-content: space-between; align-items: center;}
+        .line-header.active { border-left: 4px solid #27ae60; background: #3e3e42; }
+        .delete-run-btn { background: none; border: none; color: #c74c3c; cursor: pointer; font-weight: bold; font-size: 0.85rem; padding: 0 5px; }
+        .delete-run-btn:hover { color: #e74c3c; }
+        
+        .layer-item { padding: 8px 10px 8px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d2d30; font-size: 0.75rem; transition: background 0.2s;}
+        .layer-item.active { border-left: 4px solid #0e639c; background: #252526; }
+        .vis-btn { background: none; border: none; color: #888; font-family: monospace; font-size: 0.75rem; cursor: pointer; font-weight: bold;}
         .vis-btn.on { color: #4daaf1; }
         
-        .prop-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #333337; padding: 6px; border: 1px solid #3e3e42; margin-bottom: 5px; }
-        .prop-header h3 { margin: 0; color: #fff; font-size: 0.8rem; }
-        #btn-collapse { background: none; border: none; color: #fff; font-weight: bold; cursor: pointer; font-size: 1rem; padding: 0; line-height: 1; }
+        .prop-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #333337; padding: 8px; border: 1px solid #3e3e42; margin-bottom: 8px; }
+        .prop-header h3 { margin: 0; color: #fff; font-size: 0.85rem; }
+        #btn-collapse { background: none; border: none; color: #fff; font-weight: bold; cursor: pointer; font-size: 1rem; padding: 0; }
         
-        input[type=range] { width: 100%; margin-top: 3px; margin-bottom: 8px; cursor: pointer; accent-color: #0e639c; height: 3px; }
-        input[type=text] { width: 100%; background: #1e1e1e; border: 1px solid #555; color: #fff; padding: 4px; box-sizing: border-box; margin-bottom: 8px; font-size: 0.75rem; }
-        label { font-size: 0.7rem; color: #aaa; display: flex; justify-content: space-between; }
+        input[type=range] { width: 100%; margin-top: 5px; margin-bottom: 12px; cursor: pointer; accent-color: #0e639c; height: 4px; }
+        input[type=text] { width: 100%; background: #1e1e1e; border: 1px solid #555; color: #fff; padding: 6px; box-sizing: border-box; margin-bottom: 10px; font-size: 0.8rem; font-family: inherit;}
+        label { font-size: 0.75rem; color: #aaa; display: flex; justify-content: space-between; font-weight: 500;}
         .slider-val { font-weight: bold; color: #4daaf1; }
-        hr { border: 0; height: 1px; background: #3e3e42; margin: 10px 0; }
+        hr { border: 0; height: 1px; background: #3e3e42; margin: 12px 0; }
         
-        .stats-box { background-color: #1e1e1e; border: 1px solid #3e3e42; padding: 8px; margin-top: 10px; border-left: 3px solid #4daaf1; }
-        .stats-title { font-size: 0.7rem; color: #888; text-transform: uppercase; margin-bottom: 6px; text-align: center; border-bottom: 1px solid #333; padding-bottom: 4px; }
-        .stat-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.75rem; }
-        .stat-val { color: #4daaf1; font-weight: bold; font-family: monospace; font-size: 0.85rem; }
+        .stats-box { background-color: #1e1e1e; border: 1px solid #3e3e42; padding: 10px; margin-top: 15px; border-left: 4px solid #4daaf1; }
+        .stats-title { font-size: 0.75rem; color: #888; text-transform: uppercase; margin-bottom: 8px; text-align: center; border-bottom: 1px solid #333; padding-bottom: 5px; font-weight: bold;}
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.8rem; }
+        .stat-val { color: #4daaf1; font-weight: bold; font-family: monospace; font-size: 0.9rem; }
         .stat-highlight { color: #e74c3c; }
     </style>
 </head>
@@ -84,27 +87,28 @@
     <div class="app-container">
         
         <div class="sidebar sidebar-left">
-            <h2>CAO V46 - MASTER</h2>
-            <div class="panel" style="padding: 5px;">
-                <button class="btn btn-primary" onclick="window.exportProject()" style="margin-bottom: 5px;">EXPORTER PROJET (.JSON)</button>
-                <label for="import-upload" class="btn" style="margin-bottom: 6px;">CHARGER PROJET</label>
+            <h2>CAO V47 (STABLE)</h2>
+            <div class="panel">
+                <button class="btn btn-primary" id="btn-export">EXPORTER PROJET (.JSON)</button>
+                <label for="import-upload" class="btn">CHARGER PROJET (.JSON)</label>
                 <input type="file" id="import-upload" accept=".json" style="display: none;">
                 
-                <label for="kmz-upload" class="btn" style="background-color: #8e44ad; border-color: #8e44ad; margin-bottom: 0;">IMPORTER KMZ / KML</label>
+                <label for="kmz-upload" class="btn" style="background-color: #8e44ad; border-color: #8e44ad; margin-bottom: 0;">IMPORTER TOPOGRAPHIE (.KMZ/.KML)</label>
                 <input type="file" id="kmz-upload" accept=".kmz,.kml" style="display: none;">
                 <a id="downloadAnchorElem" style="display:none"></a>
             </div>
             
             <div class="panel">
                 <h3>TOPOGRAPHIE (MNT)</h3>
-                <input type="file" id="mnt-upload" accept=".tif,.tiff" style="font-size:0.7rem; color:#d4d4d4; width:100%;">
+                <input type="file" id="mnt-upload" accept=".tif,.tiff" style="font-size:0.75rem; color:#d4d4d4; width:100%;">
             </div>
             
             <div class="panel">
                 <h3>CATALOGUE MODULES</h3>
-                <div class="module-btn" data-name="Kicker S" onclick="window.activateTool('Kicker S', true)">KICKER S (DÉBUTANT)</div>
-                <div class="module-btn" data-name="Kicker M" onclick="window.activateTool('Kicker M', true)">KICKER M (INTERMÉDIAIRE)</div>
-                <div class="module-btn" data-name="Kicker L" onclick="window.activateTool('Kicker L', true)">KICKER L (EXPERT)</div>
+                <div class="module-btn" data-name="Kicker S">KICKER S (DÉBUTANT)</div>
+                <div class="module-btn" data-name="Kicker M">KICKER M (INTERMÉDIAIRE)</div>
+                <div class="module-btn" data-name="Kicker L">KICKER L (EXPERT)</div>
+                <div class="module-btn" data-name="Box / Rail">BOX / RAIL (JIB)</div>
             </div>
         </div>
 
@@ -112,151 +116,176 @@
             <div class="topbar">
                 <span class="topbar-alt" id="topbar-alt">ALT: -- m</span>
                 <span class="topbar-title">TRACÉS & MESURES :</span>
-                <button class="tool-btn" id="tool-dameuse" onclick="window.activateTool('dameuse', false)">TRACE DAMEUSE</button>
-                <button class="tool-btn" id="tool-profile" onclick="window.activateTool('profile', false)">LIGNE DE PROFIL</button>
-                <button class="tool-btn" id="tool-surface" onclick="window.activateTool('surface', false)">SURFACE</button>
+                <button class="tool-btn" data-tool="dameuse">TRACE DAMEUSE</button>
+                <button class="tool-btn" data-tool="profile">LIGNE DE PROFIL</button>
+                <button class="tool-btn" data-tool="surface">SURFACE</button>
+                <button class="tool-btn" data-tool="distance">DISTANCE</button>
             </div>
 
             <div id="instruction-box">
                 <span>Cliquez pour tracer. Clic-droit pour valider.</span>
-                <button onclick="window.finishDrawing()" class="btn btn-success" style="margin:0; width:auto; padding:2px 8px;">TERMINER</button>
+                <button id="btn-finish-draw" class="btn btn-success" style="margin:0; width:auto; padding:4px 10px;">TERMINER</button>
             </div>
             
             <div id="map-container"></div>
             
             <div id="profile-container">
-                <button id="close-profile" onclick="window.closeProfile()">[ FERMER ]</button>
+                <button id="close-profile">FERMER [X]</button>
                 <canvas id="profileChart"></canvas>
             </div>
         </div>
 
         <div class="sidebar sidebar-right">
             <h2>GESTIONNAIRE</h2>
-            <button class="btn btn-success" onclick="window.addRun()">+ NOUVEAU RUN</button>
+            <button class="btn btn-success" id="btn-add-line">+ NOUVEAU RUN</button>
             <div id="layer-list-container"></div>
 
             <div id="properties-panel" style="display: none; margin-top: 15px;">
-                <div class="prop-header" onclick="window.toggleProperties()">
+                <div class="prop-header" id="prop-header-toggle">
                     <h3 id="prop-title">PROPRIÉTÉS</h3>
                     <button id="btn-collapse">[-]</button>
                 </div>
                 
                 <div id="prop-content" class="panel">
-                    
                     <label>Nom de l'élément</label>
-                    <input type="text" id="name-input" oninput="window.updateFeatureProp('name', this.value)">
+                    <input type="text" id="name-input">
 
                     <div id="module-props" style="display:none;">
-                        <button class="btn btn-toggle" id="btn-move-toggle" onclick="window.toggleMoveMode()">DÉPLACER : OFF</button>
-                        <button class="btn btn-primary" onclick="window.openProfile()">VOIR PROFIL ET BALISTIQUE</button>
+                        <button class="btn btn-toggle" id="btn-move-toggle">DÉPLACER : OFF</button>
+                        <button class="btn btn-primary" id="btn-open-profile-module">VOIR PROFIL ET BALISTIQUE</button>
                         <hr>
                         <label>Rotation <span class="slider-val"><span id="rotation-display">0</span>°</span></label>
-                        <input type="range" id="rotation-slider" min="0" max="360" value="0" oninput="window.updateFeatureProp('rotation', this.value)">
+                        <input type="range" id="rotation-slider" min="0" max="360" value="0">
                         
                         <label>Largeur <span class="slider-val"><span id="width-display">6</span> m</span></label>
-                        <input type="range" id="width-slider" min="2" max="30" value="6" step="0.5" oninput="window.updateFeatureProp('width', this.value)">
+                        <input type="range" id="width-slider" min="2" max="30" value="6" step="0.5">
                         
                         <label>Épaisseur Neige Base <span class="slider-val"><span id="baseSnow-display">0</span> cm</span></label>
-                        <input type="range" id="baseSnow-slider" min="0" max="200" value="0" step="5" oninput="window.updateFeatureProp('baseSnow', this.value)">
+                        <input type="range" id="baseSnow-slider" min="0" max="300" value="0" step="5">
                         <hr>
                         <label>Table / Plat <span class="slider-val"><span id="tableLen-display">4</span> m</span></label>
-                        <input type="range" id="tableLen-slider" min="0" max="40" value="4" step="0.5" oninput="window.updateFeatureProp('tableLen', this.value)">
+                        <input type="range" id="tableLen-slider" min="0" max="40" value="4" step="0.5">
                         
                         <label>Réception <span class="slider-val"><span id="landLen-display">8</span> m</span></label>
-                        <input type="range" id="landLen-slider" min="2" max="50" value="8" step="0.5" oninput="window.updateFeatureProp('landLen', this.value)">
+                        <input type="range" id="landLen-slider" min="2" max="50" value="8" step="0.5">
                         
                         <label>Angle Appel (Kick) <span class="slider-val"><span id="kickAngle-display">15</span>°</span></label>
-                        <input type="range" id="kickAngle-slider" min="0" max="50" value="15" step="0.5" oninput="window.updateFeatureProp('kickAngle', this.value)">
+                        <input type="range" id="kickAngle-slider" min="0" max="50" value="15" step="0.5">
                         
-                        <label>Angle Récep <span class="slider-val"><span id="landingAngle-display">25</span>°</span></label>
-                        <input type="range" id="landingAngle-slider" min="0" max="50" value="25" step="0.5" oninput="window.updateFeatureProp('landingAngle', this.value)">
+                        <label>Angle Réception <span class="slider-val"><span id="landingAngle-display">25</span>°</span></label>
+                        <input type="range" id="landingAngle-slider" min="0" max="50" value="25" step="0.5">
                         <hr>
                         <label>Vitesse Cible <span class="slider-val"><span id="speed-display">40</span> km/h</span></label>
-                        <input type="range" id="speed-slider" min="5" max="100" value="40" oninput="window.updateFeatureProp('speed', this.value)">
+                        <input type="range" id="speed-slider" min="5" max="100" value="40">
                         
                         <div class="stats-box">
-                            <div class="stats-title">ANALYSE PHYSIQUE</div>
+                            <div class="stats-title">ANALYSE D'IMPACT ET VOL</div>
+                            <div class="stat-row"><span>Emprise au sol:</span> <span id="stat-area" class="stat-val">--</span></div>
                             <div class="stat-row"><span>Dist. Start-Appel:</span> <span id="stat-start-dist" class="stat-val">--</span></div>
                             <div class="stat-row"><span>Amplitude (Air):</span> <span id="stat-amplitude" class="stat-val">--</span></div>
                             <div class="stat-row"><span>Dist. de Vol:</span> <span id="stat-dist" class="stat-val">--</span></div>
                             <div class="stat-row"><span>Vit. Impact:</span> <span id="stat-vimpact" class="stat-val">--</span></div>
-                            <div class="stat-row" style="border-top:1px solid #333; padding-top:4px; margin-top:4px;">
+                            <div class="stat-row" style="border-top:1px solid #333; padding-top:6px; margin-top:6px;">
                                 <span>Eq. Fall Height (Choc):</span> <span id="stat-efh" class="stat-val stat-highlight">--</span>
                             </div>
                         </div>
                     </div>
 
                     <div id="measure-props" style="display:none;">
-                        <button class="btn btn-primary" onclick="window.openProfile()">VOIR PROFIL LIGNE</button>
+                        <button class="btn btn-primary" id="btn-open-profile-trace">VOIR PROFIL TOPOGRAPHIQUE</button>
                         
-                        <div id="style-props" style="margin-top: 10px;">
-                            <label>Couleur</label>
-                            <input type="color" id="color-input" style="width: 100%; height: 30px; margin-bottom: 10px; background: none; border: 1px solid #555; cursor:pointer;" oninput="window.updateFeatureProp('color', this.value)">
+                        <div id="style-props" style="margin-top: 15px;">
+                            <label>Couleur du Tracé</label>
+                            <input type="color" id="color-input" style="width: 100%; height: 35px; margin-bottom: 15px; background: none; border: 1px solid #555; cursor:pointer;">
+                            
                             <label>Épaisseur Ligne <span class="slider-val"><span id="lineWidth-display">3</span> px</span></label>
-                            <input type="range" id="lineWidth-slider" min="1" max="10" value="3" step="1" oninput="window.updateFeatureProp('lineWidth', this.value)">
+                            <input type="range" id="lineWidth-slider" min="1" max="15" value="3" step="1">
                         </div>
 
                         <div class="stats-box">
-                            <div class="stats-title">DONNÉES DU TRACÉ</div>
+                            <div class="stats-title">DONNÉES TOPOGRAPHIQUES</div>
                             <div class="stat-row"><span id="measure-label-1">LONGUEUR:</span> <span id="measure-val-1" class="stat-val">0.0 m</span></div>
                             <div class="stat-row"><span id="measure-label-2">DÉNIVELÉ:</span> <span id="measure-val-2" class="stat-val">0.0 m</span></div>
                             <div class="stat-row"><span id="measure-label-3">PENTE MOY.:</span> <span id="measure-val-3" class="stat-val">0.0 %</span></div>
                         </div>
                     </div>
 
-                    <button class="btn btn-danger" onclick="window.deleteSelectedFeature()">SUPPRIMER L'ÉLÉMENT</button>
+                    <button class="btn btn-danger" id="delete-btn">SUPPRIMER L'ÉLÉMENT</button>
                 </div>
             </div>
         </div>
     </div>
-
     <script>
-        /* ==========================================
-           1. VARIABLES GLOBALES ET CONFIG
-           ========================================== */
+        /* ===================================================================
+           CHAPITRE 1 : VARIABLES GLOBALES ET NORMES (Ne pas modifier)
+           =================================================================== */
         proj4.defs("EPSG:2154", "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
 
-        // FIX : La propriété est bien `defaultKickAngle` et non `kickAngle` !
+        // Normes de sécurité des modules
         const moduleNorms = {
-            'Kicker S': { width: 6, kickLen: 3, defaultKickAngle: 15, defaultTable: 4, defaultLandLen: 8, color: '#0e639c' },
-            'Kicker M': { width: 8, kickLen: 4, defaultKickAngle: 25, defaultTable: 8, defaultLandLen: 12, color: '#f39c12' },
-            'Kicker L': { width: 12, kickLen: 6, defaultKickAngle: 32, defaultTable: 14, defaultLandLen: 18, color: '#c74c3c' }
+            'Kicker S': { width: 6, kickLen: 3, kickAngle: 15, tableLen: 4, landLen: 8, color: '#0e639c' },
+            'Kicker M': { width: 8, kickLen: 4, kickAngle: 25, tableLen: 8, landLen: 12, color: '#f39c12' },
+            'Kicker L': { width: 12, kickLen: 6, kickAngle: 32, tableLen: 14, landLen: 18, color: '#c74c3c' },
+            'Box / Rail': { width: 2, kickLen: 2, kickAngle: 5, tableLen: 6, landLen: 6, color: '#8e44ad' }
         };
 
-        let map, chartInstance = null, currentChartParams = null;
-        let activeModule = null, activeDrawTool = null, selectedFeatureId = null;
-        let isMoveModeActive = false, isDraggingMap = false;
-        let dragStartPos = null, originalCoordsForDrag = null;
+        // États du logiciel
+        let map;
+        let chartInstance = null;
+        let currentChartParams = null;
+        let activeModule = null;
+        let activeDrawTool = null;
+        let selectedFeatureId = null;
+        let isMoveModeActive = false;
+        let isDragging = false;
         let isProfileOpen = false;
+        let startCursorLngLat = null;
+        let startBaseCoords = null;
 
+        // Modèle Numérique de Terrain (MNT)
         let mntData = null, mntBboxL93 = null, mntWidth = 0, mntHeight = 0;
+
+        // Gestion des données (Base de données locale)
         let lines = [{ id: 1, name: "RUN PRINCIPAL" }];
         let activeLineId = 1, lineCounter = 1;
-
         let snowparkFeatures = { type: 'FeatureCollection', features: [] };
         let decorationsFeatures = { type: 'FeatureCollection', features: [] };
+        
+        // Tracé en direct
         let drawCoords = [];
         let drawGeoJSON = { type: 'FeatureCollection', features: [] };
 
+        // Marqueur de pointage (Graphique <-> Carte)
         const hoverEl = document.createElement('div');
-        hoverEl.style.width = '10px'; hoverEl.style.height = '10px'; hoverEl.style.backgroundColor = '#fff'; hoverEl.style.border = '2px solid #e74c3c'; hoverEl.style.borderRadius = '50%';
+        hoverEl.style.width = '12px'; hoverEl.style.height = '12px'; hoverEl.style.backgroundColor = '#fff'; hoverEl.style.border = '3px solid #e74c3c'; hoverEl.style.borderRadius = '50%';
         const hoverMarker = new maplibregl.Marker({element: hoverEl});
 
-        /* ==========================================
-           2. MATHS ET GÉOMÉTRIE
-           ========================================== */
-        function getBaseCenter(coords) { const pts = coords[0]; return { lng: (pts[0][0] + pts[2][0])/2, lat: (pts[0][1] + pts[2][1])/2 }; }
+
+        /* ===================================================================
+           CHAPITRE 2 : GÉOMÉTRIE SPATIALE (TURF.JS)
+           =================================================================== */
         
+        // Trouve le centre d'un polygone de module
+        function getBaseCenter(coords) { 
+            const pts = coords[0]; 
+            return { lng: (pts[0][0] + pts[2][0])/2, lat: (pts[0][1] + pts[2][1])/2 }; 
+        }
+        
+        // Génère le rectangle d'emprise au sol du module
         function calculatePolygonCoords(lngLat, widthM, lengthM) {
             const R = 6378137; const lat = lngLat.lat; const lng = lngLat.lng;
-            const dLat = (lengthM / 2) / R; const dLng = (widthM / 2) / (R * Math.cos(Math.PI * lat / 180));
+            const dLat = (lengthM / 2) / R; 
+            const dLng = (widthM / 2) / (R * Math.cos(Math.PI * lat / 180));
             return [[
-                [lng - dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI], [lng + dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI],
-                [lng + dLng * 180 / Math.PI, lat + dLat * 180 / Math.PI], [lng - dLng * 180 / Math.PI, lat + dLat * 180 / Math.PI],
+                [lng - dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI], 
+                [lng + dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI],
+                [lng + dLng * 180 / Math.PI, lat + dLat * 180 / Math.PI], 
+                [lng - dLng * 180 / Math.PI, lat + dLat * 180 / Math.PI],
                 [lng - dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI]
             ]];
         }
 
+        // Crée un couloir plat (Flat Caps) pour la trace de dameuse
         function createFlatBuffer(coords, widthM) {
             if(coords.length < 2) return null;
             const line = turf.lineString(coords);
@@ -265,15 +294,19 @@
             return turf.polygon([[...left, ...right.reverse(), left[0]]]).geometry;
         }
 
+        // Applique une courbe de Bézier au tracé de dameuse
         function createDameuseGeom(coords) {
             let lineGeom = turf.lineString(coords);
             if (coords.length > 2) { lineGeom = turf.bezierSpline(lineGeom, {resolution: 10000, sharpness: 0.5}); }
             return createFlatBuffer(lineGeom.geometry.coordinates, 6) || turf.buffer(lineGeom, 3, {units:'meters'}).geometry;
         }
 
-        /* ==========================================
-           3. TOPOGRAPHIE ET CROISEMENTS
-           ========================================== */
+
+        /* ===================================================================
+           CHAPITRE 3 : MOTEUR TOPOGRAPHIQUE (INTERPOLATION MNT)
+           =================================================================== */
+
+        // Lecture de l'altitude au sol
         function getAltitudeAt(lng, lat) {
             if (!mntData || !mntBboxL93) return null;
             const pt = proj4("EPSG:4326", "EPSG:2154", [lng, lat]);
@@ -282,23 +315,29 @@
                 const yF = ((mntBboxL93[3] - pt[1]) / (mntBboxL93[3] - mntBboxL93[1])) * mntHeight;
                 const x0 = Math.floor(xF), y0 = Math.floor(yF);
                 const tx = xF - x0, ty = yF - y0;
-                return (1-tx)*(1-ty)*mntData[y0*mntWidth+x0] + tx*(1-ty)*mntData[y0*mntWidth+Math.min(x0+1, mntWidth-1)] + (1-tx)*ty*mntData[Math.min(y0+1, mntHeight-1)*mntWidth+x0] + tx*ty*mntData[Math.min(y0+1, mntHeight-1)*mntWidth+Math.min(x0+1, mntWidth-1)];
+                const z00 = mntData[y0 * mntWidth + x0];
+                const z10 = mntData[y0 * mntWidth + Math.min(x0+1, mntWidth-1)];
+                const z01 = mntData[Math.min(y0+1, mntHeight-1) * mntWidth + x0];
+                const z11 = mntData[Math.min(y0+1, mntHeight-1) * mntWidth + Math.min(x0+1, mntWidth-1)];
+                return (1-tx)*(1-ty)*z00 + tx*(1-ty)*z10 + (1-tx)*ty*z01 + tx*ty*z11;
             }
             return null;
         }
 
+        // Calcule la hauteur d'un module s'il croise une ligne d'analyse
         function getSnowZAtPoint(ptLngLat, zTerrain) {
             let highestZ = zTerrain;
             snowparkFeatures.features.filter(f => f.properties.itemType === 'module' && f.properties.visible).forEach(mod => {
                 if (turf.booleanPointInPolygon(turf.point(ptLngLat), mod)) {
+                    const p = mod.properties;
                     const coords = mod.geometry.coordinates[0];
                     const ptHaut = turf.point([(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2]);
                     const ptBas = turf.point([(coords[0][0]+coords[1][0])/2, (coords[0][1]+coords[1][1])/2]);
+                    
                     const bearing = turf.bearing(ptHaut, ptBas);
                     const distToHaut = turf.distance(ptHaut, turf.point(ptLngLat), {units: 'meters'});
                     const projDist = distToHaut * Math.cos((turf.bearing(ptHaut, turf.point(ptLngLat)) - bearing) * Math.PI / 180);
 
-                    const p = mod.properties;
                     let zStartKicker = (getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0) + (p.baseSnow / 100);
                     const zKickEnd = zStartKicker + (p.kickLen * Math.tan(p.kickAngle * Math.PI / 180));
                     
@@ -313,16 +352,18 @@
             return highestZ;
         }
 
+        // Calcule la hauteur de vol croisée (Pour l'outil Ligne de Profil)
         function getApproachAndTrajZAtPoint(ptLngLat, zTerrain) {
             let highestApp = null, highestTraj = null;
             snowparkFeatures.features.filter(f => f.properties.itemType === 'module' && f.properties.visible).forEach(mod => {
+                const pt = turf.point(ptLngLat);
                 const coords = mod.geometry.coordinates[0];
                 const ptHaut = turf.point([(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2]);
                 const ptBas = turf.point([(coords[0][0]+coords[1][0])/2, (coords[0][1]+coords[1][1])/2]);
                 const bearing = turf.bearing(ptHaut, ptBas);
                 
-                const distToHaut = turf.distance(ptHaut, turf.point(ptLngLat), {units: 'meters'});
-                const angleDiff = (turf.bearing(ptHaut, turf.point(ptLngLat)) - bearing) * Math.PI / 180;
+                const distToHaut = turf.distance(ptHaut, pt, {units: 'meters'});
+                const angleDiff = (turf.bearing(ptHaut, pt) - bearing) * Math.PI / 180;
                 const projDistY = distToHaut * Math.cos(angleDiff); 
                 const projDistX = distToHaut * Math.sin(angleDiff); 
                 
@@ -330,7 +371,9 @@
                     const p = mod.properties;
                     const zStartKicker = (getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0) + (p.baseSnow / 100);
                     
-                    const vMps = p.speed / 3.6; const hNeeded = (vMps * vMps) / (2 * 9.81 * 0.9);
+                    // Ligne d'approche
+                    const vMps = p.speed / 3.6; 
+                    const hNeeded = (vMps * vMps) / (2 * 9.81 * 0.9);
                     let startDistY = null;
                     for(let d=1; d<150; d++) {
                         const checkPt = turf.destination(ptHaut, d, bearing - 180, {units: 'meters'});
@@ -339,6 +382,8 @@
                     }
 
                     if (startDistY !== null && projDistY >= startDistY && projDistY <= p.kickLen) highestApp = Math.max(highestApp || -1000, zTerrain);
+                    
+                    // Vol
                     if (projDistY > p.kickLen) { 
                         const theta = p.kickAngle * Math.PI / 180;
                         const zKickEnd = zStartKicker + (p.kickLen * Math.tan(theta));
@@ -351,17 +396,19 @@
             return { approach: highestApp, traj: highestTraj };
         }
 
-        /* ==========================================
-           4. GESTION DES FICHIERS (IMPORT / EXPORT)
-           ========================================== */
-        window.exportProject = function() {
+
+        /* ===================================================================
+           CHAPITRE 4 : EXPORT ET IMPORT (JSON / KMZ)
+           =================================================================== */
+        
+        document.getElementById('btn-export').addEventListener('click', () => {
             const dataToSave = { lines, activeLineId, lineCounter, features: snowparkFeatures };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToSave));
             const dlAnchorElem = document.getElementById('downloadAnchorElem');
             dlAnchorElem.setAttribute("href", dataStr);
-            dlAnchorElem.setAttribute("download", "Projet_Superbagneres.json");
+            dlAnchorElem.setAttribute("download", "Projet_Snowpark.json");
             dlAnchorElem.click();
-        };
+        });
 
         document.getElementById('import-upload').addEventListener('change', (e) => {
             const file = e.target.files[0]; if (!file) return;
@@ -373,7 +420,7 @@
                         lines = data.lines || [{ id: 1, name: "RUN PRINCIPAL" }];
                         activeLineId = data.activeLineId || lines[0].id; lineCounter = data.lineCounter || lines.length;
                         snowparkFeatures = data.features;
-                        window.deselectFeature(); window.renderLayerList(); window.refreshMapData(); alert("Projet chargé avec succès !");
+                        deselectFeature(); renderLayerList(); refreshMapData(); alert("Projet JSON chargé.");
                     }
                 } catch (err) { alert("Erreur fichier JSON."); }
             };
@@ -408,14 +455,53 @@
                         properties: { id, itemType: 'kmz', name: file.name, lineId: activeLineId, visible: true, color: '#8e44ad', lineWidth: 3, originalLine: JSON.stringify(allCoords) },
                         geometry: { type: 'MultiLineString', coordinates: allCoords }
                     });
-                    window.refreshMapData(); window.renderLayerList(); window.selectFeature(id);
+                    refreshMapData(); renderLayerList(); selectFeature(id);
+                    alert("Import KMZ/KML réussi.");
                 }
             } catch (err) { alert("Erreur import: " + err.message); }
         });
 
-        /* ==========================================
-           5. INTERFACE ET ACTIONS DE BASE
-           ========================================== */
+
+        /* ===================================================================
+           CHAPITRE 5 : GESTION DE L'INTERFACE UI (PANNEAUX ET LISTES)
+           =================================================================== */
+
+        function renderLayerList() {
+            const container = document.getElementById('layer-list-container'); container.innerHTML = '';
+            lines.forEach(line => {
+                const isLineActive = (activeLineId === line.id) ? 'active' : '';
+                let lineHtml = `<div class="line-group"><div class="line-header ${isLineActive}" onclick="setActiveLine(${line.id})"><span>[ RUN ] ${line.name}</span><button class="delete-run-btn" onclick="deleteRun(${line.id}, event)">[X]</button></div>`;
+                snowparkFeatures.features.filter(f => f.properties.lineId === line.id).forEach((feat) => {
+                    const isModActive = (feat.properties.id === selectedFeatureId) ? 'active' : '';
+                    let typeLabel = feat.properties.itemType === 'module' ? 'MOD' : feat.properties.itemType === 'dameuse' ? 'DAM' : feat.properties.itemType === 'kmz' ? 'KMZ' : 'TRC';
+                    const visClass = feat.properties.visible ? 'on' : 'off';
+                    const visText = feat.properties.visible ? '[ON]' : '[OFF]';
+                    lineHtml += `<div class="layer-item ${isModActive}" onclick="selectFeature(${feat.properties.id})"><span style="flex-grow:1;">[${typeLabel}] ${feat.properties.name}</span><button class="vis-btn ${visClass}" onclick="toggleVisibility(${feat.properties.id}, event)">${visText}</button></div>`;
+                });
+                container.insertAdjacentHTML('beforeend', lineHtml + `</div>`);
+            });
+        }
+        
+        window.setActiveLine = function(id) { activeLineId = id; renderLayerList(); }
+        window.addRun = function() { lineCounter++; lines.push({ id: lineCounter, name: `RUN ${lineCounter}` }); activeLineId = lineCounter; renderLayerList(); };
+        window.deleteRun = function(id, event) {
+            event.stopPropagation(); if(!confirm("Supprimer ce Run ?")) return;
+            lines = lines.filter(l => l.id !== id); snowparkFeatures.features = snowparkFeatures.features.filter(f => f.properties.lineId !== id);
+            if (selectedFeatureId && !snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId)) deselectFeature();
+            if(activeLineId === id && lines.length > 0) activeLineId = lines[0].id; refreshMapData(); renderLayerList();
+        };
+        window.toggleVisibility = function(id, event) {
+            event.stopPropagation(); const feat = snowparkFeatures.features.find(f => f.properties.id === id);
+            if(feat) { feat.properties.visible = !feat.properties.visible; refreshMapData(); renderLayerList(); }
+        };
+
+        window.toggleProperties = function() { const c = document.getElementById('prop-content'); const b = document.getElementById('btn-collapse'); if(c.style.display==='none'){c.style.display='block';b.innerText='[-]';}else{c.style.display='none';b.innerText='[+]';} };
+        window.openProfile = function() { isProfileOpen = true; document.getElementById('profile-container').style.display = 'block'; map.resize(); const f = snowparkFeatures.features.find(x => x.properties.id === selectedFeatureId); if(f) updateProfileChart(f); };
+        window.closeProfile = function() { isProfileOpen = false; document.getElementById('profile-container').style.display = 'none'; map.resize(); };
+        
+        window.toggleMoveMode = function() { isMoveModeActive = !isMoveModeActive; const btn = document.getElementById('btn-move-toggle'); btn.classList.toggle('active', isMoveModeActive); btn.innerText = isMoveModeActive ? "DÉPLACER : ON" : "DÉPLACER : OFF"; };
+        window.deleteSelectedFeature = function() { snowparkFeatures.features = snowparkFeatures.features.filter(x => x.properties.id !== selectedFeatureId); deselectFeature(); };
+
         window.activateTool = function(toolName, isModule) {
             activeModule = null; activeDrawTool = null; drawCoords = []; drawGeoJSON.features = [];
             if(map.getSource('live-draw')) map.getSource('live-draw').setData(drawGeoJSON);
@@ -427,40 +513,16 @@
                 document.querySelector(`.module-btn[data-name="${toolName}"]`).classList.add('active');
             } else if (toolName) {
                 activeDrawTool = toolName; map.getCanvas().style.cursor = 'crosshair';
-                document.getElementById(`tool-${toolName}`).classList.add('active');
+                document.querySelector(`.tool-btn[data-tool="${toolName}"]`).classList.add('active');
                 document.getElementById('instruction-box').style.display = 'flex';
             }
         };
 
-        window.renderLayerList = function() {
-            const container = document.getElementById('layer-list-container'); container.innerHTML = '';
-            lines.forEach(line => {
-                let html = `<div class="line-group"><div class="line-header ${activeLineId === line.id ? 'active' : ''}" onclick="window.setActiveLine(${line.id})"><span>[ RUN ] ${line.name}</span><button class="delete-run-btn" onclick="window.deleteRun(${line.id}, event)">[X]</button></div>`;
-                snowparkFeatures.features.filter(f => f.properties.lineId === line.id).forEach(f => {
-                    const act = f.properties.id === selectedFeatureId ? 'active' : '';
-                    let type = f.properties.itemType === 'module' ? 'MOD' : f.properties.itemType === 'dameuse' ? 'DAM' : f.properties.itemType === 'kmz' ? 'KMZ' : 'TRC';
-                    const vis = f.properties.visible ? 'on' : 'off';
-                    html += `<div class="layer-item ${act}" onclick="window.selectFeature(${f.properties.id})"><span style="flex-grow:1;">[${type}] ${f.properties.name}</span><button class="vis-btn ${vis}" onclick="window.toggleVisibility(${f.properties.id}, event)">[${vis.toUpperCase()}]</button></div>`;
-                });
-                container.insertAdjacentHTML('beforeend', html + `</div>`);
-            });
-        };
+        /* ===================================================================
+           CHAPITRE 6 : SYNCHRONISATION DES VARIABLES ET SLIDERS
+           =================================================================== */
 
-        window.setActiveLine = function(id) { activeLineId = id; window.renderLayerList(); };
-        window.deleteRun = function(id, e) { e.stopPropagation(); if(confirm("Supprimer ?")) { lines = lines.filter(l => l.id !== id); snowparkFeatures.features = snowparkFeatures.features.filter(f => f.properties.lineId !== id); window.deselectFeature(); if(lines.length>0) activeLineId = lines[0].id; window.refreshMapData(); window.renderLayerList(); } };
-        window.toggleVisibility = function(id, e) { e.stopPropagation(); const f = snowparkFeatures.features.find(x => x.properties.id === id); if(f) { f.properties.visible = !f.properties.visible; window.refreshMapData(); window.renderLayerList(); }};
-        
-        window.toggleProperties = function() { const c = document.getElementById('prop-content'); const b = document.getElementById('btn-collapse'); if(c.style.display==='none'){c.style.display='block';b.innerText='[-]';}else{c.style.display='none';b.innerText='[+]';} };
-        window.openProfile = function() { isProfileOpen = true; document.getElementById('profile-container').style.display = 'block'; map.resize(); const f = snowparkFeatures.features.find(x => x.properties.id === selectedFeatureId); if(f) window.updateProfileChart(f); };
-        window.closeProfile = function() { isProfileOpen = false; document.getElementById('profile-container').style.display = 'none'; map.resize(); };
-        
-        window.toggleMoveMode = function() { isMoveModeActive = !isMoveModeActive; const btn = document.getElementById('btn-move-toggle'); btn.classList.toggle('active', isMoveModeActive); btn.innerText = isMoveModeActive ? "DÉPLACER : ON" : "DÉPLACER : OFF"; };
-        window.deleteSelectedFeature = function() { snowparkFeatures.features = snowparkFeatures.features.filter(x => x.properties.id !== selectedFeatureId); window.deselectFeature(); };
-
-        /* ==========================================
-           6. CÂBLAGE DES PROPRIÉTÉS ET SLIDERS
-           ========================================== */
-        window.selectFeature = function(id) {
+        function selectFeature(id) {
             if(selectedFeatureId) map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: false });
             selectedFeatureId = id; map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: true });
             
@@ -474,7 +536,8 @@
             if (f.properties.itemType === 'module') {
                 document.getElementById('module-props').style.display = 'block'; document.getElementById('measure-props').style.display = 'none';
                 ['rotation', 'width', 'baseSnow', 'tableLen', 'landLen', 'kickAngle', 'landingAngle', 'speed'].forEach(p => {
-                    const el = document.getElementById(p+'-slider'); if(el) { el.value = f.properties[p] || 0; document.getElementById(p+'-display').innerText = f.properties[p] || 0; }
+                    const el = document.getElementById(p+'-slider'); 
+                    if(el) { el.value = f.properties[p] || 0; document.getElementById(p+'-display').innerText = f.properties[p] || 0; }
                 });
             } else {
                 document.getElementById('module-props').style.display = 'none'; document.getElementById('measure-props').style.display = 'block';
@@ -482,25 +545,22 @@
                 document.getElementById('color-input').value = f.properties.color || '#fff';
                 document.getElementById('lineWidth-slider').value = f.properties.lineWidth || 3; document.getElementById('lineWidth-display').innerText = f.properties.lineWidth || 3;
             }
-            window.renderLayerList(); if(isProfileOpen) window.updateProfileChart(f);
-        };
+            renderLayerList(); if(isProfileOpen) updateProfileChart(f);
+        }
 
-        window.deselectFeature = function() {
+        function deselectFeature() {
             if(selectedFeatureId) map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: false });
             selectedFeatureId = null; isMoveModeActive = false; document.getElementById('properties-panel').style.display = 'none';
-            window.closeProfile(); window.renderLayerList(); window.refreshMapData(); hoverMarker.remove();
-        };
+            closeProfile(); renderLayerList(); refreshMapData(); hoverMarker.remove();
+        }
 
         window.updateFeatureProp = function(prop, val) {
             if(!selectedFeatureId) return;
             const f = snowparkFeatures.features.find(x => x.properties.id === selectedFeatureId);
-            
-            if (prop === 'name' || prop === 'color') { f.properties[prop] = val; } 
-            else { f.properties[prop] = parseFloat(val); }
-
+            if (prop === 'name' || prop === 'color') { f.properties[prop] = val; } else { f.properties[prop] = parseFloat(val); }
             if(document.getElementById(prop+'-display')) document.getElementById(prop+'-display').innerText = val;
 
-            if(['rotation', 'width', 'tableLen', 'landLen', 'kickLen'].includes(prop) && f.properties.itemType === 'module') {
+            if(['rotation', 'width', 'tableLen', 'landLen'].includes(prop) && f.properties.itemType === 'module') {
                 const center = getBaseCenter(JSON.parse(f.properties.baseCoords));
                 const totLen = f.properties.kickLen + f.properties.tableLen + f.properties.landLen;
                 const newC = calculatePolygonCoords(center, f.properties.width, totLen);
@@ -508,15 +568,16 @@
                 f.geometry.coordinates = turf.transformRotate(turf.polygon(newC), f.properties.rotation).geometry.coordinates;
             }
 
-            if(prop === 'name') window.renderLayerList();
-            window.refreshMapData(); 
-            if(isProfileOpen) window.updateProfileChart(f);
+            if(prop === 'name') renderLayerList();
+            refreshMapData(); if(isProfileOpen) updateProfileChart(f);
         };
 
-        /* ==========================================
-           7. ACTUALISATION DE LA CARTE 
-           ========================================== */
-        window.refreshMapData = function() {
+
+        /* ===================================================================
+           CHAPITRE 7 : RENDU CARTE ET DECORATIONS (START POINT)
+           =================================================================== */
+
+        function refreshMapData() {
             const visibleFeatures = { type: 'FeatureCollection', features: snowparkFeatures.features.filter(f => f.properties.visible) };
             map.getSource('snowpark-data').setData(visibleFeatures);
             
@@ -534,20 +595,21 @@
                 const v0 = feat.properties.speed / 3.6;
                 const hNeed = (v0*v0)/(2*9.81*0.9);
                 let zK = (getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1])||0) + (feat.properties.baseSnow/100);
+                
                 for(let d=1; d<150; d++) {
                     const cP = turf.destination(ptHaut, d, bearing-180, {units:'meters'});
                     const zC = getAltitudeAt(cP.geometry.coordinates[0], cP.geometry.coordinates[1]);
                     if(zC && (zC - zK) >= hNeed) {
-                        decorationsFeatures.features.push({ type: 'Feature', properties: { type: 'start_label' }, geometry: { type: 'Point', coordinates: cP.geometry.coordinates }});
+                        decorationsFeatures.features.push({ type: 'Feature', properties: { type: 'start_point' }, geometry: { type: 'Point', coordinates: cP.geometry.coordinates }});
                         break;
                     }
                 }
             });
             map.getSource('decorations-data').setData(decorationsFeatures);
-        };
+        }
 
         window.finishDrawing = function() {
-            if (!activeDrawTool || drawCoords.length < 2) { window.activateTool(null, false); return; }
+            if (!activeDrawTool || drawCoords.length < 2) { activateTool(null, false); return; }
             const id = Date.now(); let geom, color = '#fff', name = '';
             
             if (activeDrawTool === 'profile') { color = '#f39c12'; name = 'LIGNE PROFIL'; geom = turf.lineString(drawCoords).geometry; }
@@ -556,16 +618,19 @@
             else if (activeDrawTool === 'surface') { color = '#c74c3c'; name = 'SURFACE'; drawCoords.push(drawCoords[0]); geom = turf.polygon([drawCoords]).geometry; }
             
             snowparkFeatures.features.push({ id, type: 'Feature', properties: { id, itemType: activeDrawTool, name: name, lineId: activeLineId, visible: true, color: color, lineWidth: 3, originalLine: JSON.stringify(drawCoords) }, geometry: geom });
-            window.activateTool(null, false); window.refreshMapData(); window.selectFeature(id);
+            activateTool(null, false); refreshMapData(); selectFeature(id);
         };
 
-        /* ==========================================
-           8. MOTEUR GRAPHIQUE ET PHYSIQUE
-           ========================================== */
-        window.updateProfileChart = function(feat) {
+
+        /* ===================================================================
+           CHAPITRE 8 : ANALYSE PHYSIQUE ET MOTEUR GRAPHIQUE
+           =================================================================== */
+
+        function updateProfileChart(feat) {
             let labels = [], terrainData = [], snowData = [], trajData = [], approachData = [], postLandData = [];
             let title = "PROFIL";
             
+            // ANALYSE DU KICKER
             if (feat.properties.itemType === 'module') {
                 const p = feat.properties;
                 const coords = feat.geometry.coordinates[0];
@@ -611,8 +676,11 @@
                     
                     const ground = zS !== null ? zS : zT;
 
-                    if (startDistY !== null && d >= startDistY && dRel <= p.kickLen) approachData.push(ground + 1); else approachData.push(null);
+                    // Trace d'approche +1m
+                    if (startDistY !== null && d >= startDistY && dRel <= p.kickLen) approachData.push(ground + 1); 
+                    else approachData.push(null);
 
+                    // Parabole de Vol +1m
                     if (dRel > p.kickLen && !hasLanded) {
                         const t = (dRel - p.kickLen) / (v0 * Math.cos(theta));
                         const zTj = zKickEnd + (v0 * Math.sin(theta) * t) - (0.5 * g * t * t);
@@ -622,10 +690,12 @@
                             if(zTj > maxZ) maxZ = zTj;
                             if(zTj - ground > maxAirAmp) maxAirAmp = zTj - ground;
                         } else {
-                            trajData.push(ground + 1); postLandData.push(ground + 1); hasLanded = true;
+                            trajData.push(ground + 1); postLandData.push(ground + 1); hasLanded = true; // Choc !
+                            
                             impactStats.time = t; impactStats.dist = dRel - p.kickLen;
                             const vx = v0 * Math.cos(theta); const vz = v0 * Math.sin(theta) - g * t;
                             impactStats.vImpact = Math.sqrt(vx*vx + vz*vz) * 3.6;
+                            
                             const angleTrajRad = Math.atan2(vz, vx);
                             let angleLandRad = 0;
                             if (dRel > p.kickLen + p.tableLen && dRel <= p.kickLen + p.tableLen + p.landLen) angleLandRad = -p.landingAngle * Math.PI/180;
@@ -633,25 +703,28 @@
                             
                             impactStats.angle = Math.abs(angleTrajRad - angleLandRad) * 180 / Math.PI;
                             const v_perp = (impactStats.vImpact / 3.6) * Math.sin(Math.abs(angleTrajRad - angleLandRad));
-                            impactStats.efh = (v_perp * v_perp) / (2 * g);
+                            impactStats.efh = (v_perp * v_perp) / (2 * g); // Formule de gravité de l'impact
                         }
                     } else if (hasLanded) {
                         trajData.push(null); postLandData.push(ground + 1);
                     } else { trajData.push(null); postLandData.push(null); }
                 }
 
+                // Maj Interface UI Droite
+                document.getElementById('stat-area').innerText = turf.area(feat).toFixed(1) + " m²";
                 document.getElementById('stat-start-dist').innerText = startToLipRealDist > 0 ? startToLipRealDist.toFixed(1) + " m" : "N/A";
                 document.getElementById('stat-amplitude').innerText = maxAirAmp > 0 ? maxAirAmp.toFixed(1) + " m" : "--";
                 document.getElementById('stat-airtime').innerText = impactStats.time > 0 ? impactStats.time.toFixed(2) + " s" : "--";
                 document.getElementById('stat-dist').innerText = impactStats.dist > 0 ? impactStats.dist.toFixed(1) + " m" : "--";
                 document.getElementById('stat-vimpact').innerText = impactStats.vImpact > 0 ? impactStats.vImpact.toFixed(1) + " km/h" : "--";
+                
                 const efhEl = document.getElementById('stat-efh');
                 if (impactStats.efh > 0) { efhEl.innerText = impactStats.efh.toFixed(2) + " m"; efhEl.style.color = impactStats.efh > 1.5 ? '#e74c3c' : (impactStats.efh > 0.8 ? '#f39c12' : '#2ecc71'); } else { efhEl.innerText = "--"; efhEl.style.color = '#4daaf1'; }
 
                 title = `ANALYSE SAUT: ${p.name}`; currentChartParams = { amontPt, bearing, totalDist, steps };
-                drawChart(labels, terrainData, snowData, approachData, trajData, postLandData, title);
 
             } else {
+                // ANALYSE TOPOGRAPHIQUE CROISÉE (LIGNES & KMZ)
                 let lineGeom = feat.geometry;
                 if(feat.geometry.type === 'Polygon') { const c = [...feat.geometry.coordinates[0]]; c.push(c[0]); lineGeom = turf.lineString(c).geometry; }
                 else if(feat.geometry.type === 'MultiLineString') lineGeom = turf.lineString(feat.geometry.coordinates[0]).geometry; 
@@ -664,9 +737,18 @@
                     const d = (i/steps)*len;
                     const pt = turf.along(lineGeom, d, {units:'meters'});
                     labels.push(d.toFixed(0) + "m");
+                    
                     const zT = getAltitudeAt(pt.geometry.coordinates[0], pt.geometry.coordinates[1]) || 0;
                     terrainData.push(zT);
                     if(zT > maxZ) maxZ = zT; if(zT < minZ) minZ = zT;
+                    
+                    // Analyse si la ligne traverse un module posé
+                    const zS = getSnowZAtPoint(pt.geometry.coordinates, zT);
+                    snowData.push(zS > zT + 0.1 ? zS : null);
+                    
+                    const trajObj = getApproachAndTrajZAtPoint(pt.geometry.coordinates, zT);
+                    approachData.push(trajObj.approach !== null ? trajObj.approach + 1 : null);
+                    trajData.push(trajObj.traj !== null && trajObj.traj > (zS > zT ? zS : zT) ? trajObj.traj + 1 : null);
                 }
                 
                 const deniv = (maxZ !== -10000 && minZ !== 10000) ? (maxZ - minZ) : 0;
@@ -674,16 +756,18 @@
                 document.getElementById('measure-label-2').innerText = "DÉNIVELÉ"; document.getElementById('measure-val-2').innerText = deniv.toFixed(1) + " m";
                 document.getElementById('measure-label-3').innerText = "PENTE MOY."; document.getElementById('measure-val-3').innerText = len > 0 ? ((deniv/len)*100).toFixed(1) + " %" : "0 %";
                 
-                title = `PROFIL LIGNE : ${feat.properties.name}`; currentChartParams = null;
-                drawChart(labels, terrainData, [], [], [], [], title);
+                title = `PROFIL LIGNE : ${feat.properties.name}`; currentChartParams = null; 
             }
-        };
 
+            drawChart(labels, terrainData, snowData, approachData, trajData, postLandData, title);
+        }
+
+        // Création du Canvas
         function drawChart(labels, terrain, snow, approach, traj, postLand, title) {
             const ctx = document.getElementById('profileChart').getContext('2d');
             if (chartInstance) chartInstance.destroy();
             
-            let datasets = [{ label: 'Terrain Naturel', data: terrain, borderColor: '#7f8c8d', fill: true, backgroundColor: 'rgba(50,50,50,0.5)', pointRadius: 0, tension: 0.1 }];
+            let datasets = [{ label: 'Terrain', data: terrain, borderColor: '#7f8c8d', fill: true, backgroundColor: 'rgba(50,50,50,0.5)', pointRadius: 0, tension: 0.1 }];
             if(snow.some(v => v !== null)) datasets.push({ label: 'Neige', data: snow, borderColor: '#0e639c', borderWidth: 2, pointRadius: 0, tension: 0, fill: true, backgroundColor:'rgba(14,99,156,0.3)' });
             if(approach && approach.some(v => v !== null)) datasets.push({ label: 'Approche (+1m)', data: approach, borderColor: '#f39c12', borderWidth: 2, pointRadius: 0, tension: 0.1 });
             if(traj && traj.some(v => v !== null)) datasets.push({ label: 'Vol (+1m)', data: traj, borderColor: '#e74c3c', borderDash: [4,4], borderWidth: 2, pointRadius: 0, tension: 0.2 });
@@ -695,7 +779,7 @@
                     responsive: true, maintainAspectRatio: false, animation: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: { title: { display: true, text: title, color: '#fff' }, legend: { display: true, labels:{color:'#aaa', boxWidth:12} } },
-                    scales: { y: { grid: { color: '#333' } }, x: { grid: { color: '#333' } } },
+                    scales: { y: { grid: { color: '#333' } }, x: { grid: { color: '#333' }, ticks: { maxTicksLimit: 10 } } },
                     onHover: (e, active) => {
                         if (active.length > 0 && currentChartParams) {
                             const d = (active[0].index / currentChartParams.steps) * currentChartParams.totalDist;
@@ -718,19 +802,15 @@
             });
         }
 
-        /* ==========================================
-           9. INITIALISATION CARTE
-           ========================================== */
+        /* ===================================================================
+           CHAPITRE 9 : INITIALISATION GLOBALE DE LA CARTE MAPLIBRE
+           =================================================================== */
+
         document.addEventListener('DOMContentLoaded', () => {
             map = new maplibregl.Map({ 
                 container: 'map-container', 
-                style: { 
-                    'version': 8, 
-                    'sources': { 'esri-sat': { 'type': 'raster', 'tiles': ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], 'tileSize': 256 } }, 
-                    'layers': [{ 'id': 'sat', 'type': 'raster', 'source': 'esri-sat' }] 
-                }, 
-                center: [0.5833, 42.7667], 
-                zoom: 14 
+                style: { 'version': 8, 'sources': { 'esri-sat': { 'type': 'raster', 'tiles': ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], 'tileSize': 256 } }, 'layers': [{ 'id': 'sat', 'type': 'raster', 'source': 'esri-sat' }] }, 
+                center: [0.5833, 42.7667], zoom: 14 
             });
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
             map.doubleClickZoom.disable();
@@ -738,44 +818,43 @@
             map.on('load', () => {
                 map.addSource('snowpark-data', { type: 'geojson', data: snowparkFeatures });
                 
-                // Formes
                 map.addLayer({ id: 'f', type: 'fill', source: 'snowpark-data', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.4 } });
                 map.addLayer({ id: 'o', type: 'line', source: 'snowpark-data', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#fff', '#000'], 'line-width': 2 } });
-                // Lignes
                 map.addLayer({ id: 'l', type: 'line', source: 'snowpark-data', filter: ['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString']]], paint: { 'line-color': ['get', 'color'], 'line-width': ['coalesce', ['get', 'lineWidth'], 3] } });
                 
-                // Dessin Live
                 map.addSource('live-draw', { type: 'geojson', data: drawGeoJSON });
                 map.addLayer({ id: 'draw', type: 'line', source: 'live-draw', paint: { 'line-color': '#fff', 'line-width': 3, 'line-dasharray': [2, 2] } });
 
-                // Décorations (Axe, Zones, Start)
                 map.addSource('decorations-data', { type: 'geojson', data: decorationsFeatures });
                 map.addLayer({ id: 'axis', type: 'line', source: 'decorations-data', filter: ['==', 'type', 'axis'], paint: { 'line-color': '#f39c12', 'line-dasharray': [2,2], 'line-width': 1 } });
                 
-                // Point Start textuel
+                // Point textuel START (Ancré sur la carte)
                 map.addLayer({
-                    id: 'start-label', type: 'symbol', source: 'decorations-data', filter: ['==', 'type', 'start_label'],
+                    id: 'start-label', type: 'symbol', source: 'decorations-data', filter: ['==', 'type', 'start_point'],
                     layout: { 'text-field': 'START', 'text-font': ['Open Sans Bold'], 'text-size': 12, 'text-anchor': 'bottom' },
                     paint: { 'text-color': '#27ae60', 'text-halo-color': '#1e1e1e', 'text-halo-width': 2 }
                 });
                 
-                window.renderLayerList();
+                renderLayerList();
             });
 
-            // Evénements Carte
+            // Tracking coordonées Dessin
             map.on('mousemove', (e) => {
                 const alt = getAltitudeAt(e.lngLat.lng, e.lngLat.lat);
                 document.getElementById('topbar-alt').innerText = alt ? `ALT: ${alt.toFixed(2)}m` : "ALT: --";
+                
                 if (activeDrawTool && drawCoords.length > 0) {
                     drawGeoJSON.features = [{ type: 'Feature', geometry: { type: 'LineString', coordinates: [...drawCoords, [e.lngLat.lng, e.lngLat.lat]] } }];
                     map.getSource('live-draw').setData(drawGeoJSON);
                 }
             });
 
+            // Evénement Clic Création
             map.on('click', (e) => {
                 if (activeModule) {
                     const n = moduleNorms[activeModule]; const id = Date.now();
-                    const c = calculatePolygonCoords(e.lngLat, n.width, n.kickLen + n.defaultTable + n.defaultLandLen);
+                    const c = calculatePolygonCoords(e.lngLat, n.width, n.kickLen + n.tableLen + n.landLen);
+                    
                     snowparkFeatures.features.push({
                         id, type: 'Feature', 
                         properties: { 
@@ -786,37 +865,37 @@
                         },
                         geometry: { type: 'Polygon', coordinates: c }
                     });
-                    window.activateTool(null, false); 
-                    window.refreshMapData(); 
-                    window.selectFeature(id);
-                    window.openProfile(); // OUVRE LE PROFIL DIRECTEMENT !
+                    
+                    activateTool(null, false); refreshMapData(); selectFeature(id); openProfile();
+
                 } else if (activeDrawTool) {
                     drawCoords.push([e.lngLat.lng, e.lngLat.lat]);
                 } else if (!map.queryRenderedFeatures(e.point, { layers: ['f', 'l'] }).length) {
-                    window.deselectFeature();
+                    deselectFeature();
                 }
             });
 
+            // Drag and drop des éléments
             map.on('mousedown', 'f', (e) => {
-                const id = e.features[0].properties.id; window.selectFeature(id);
-                if (isMoveModeActive) {
-                    isDraggingMap = true; map.dragPan.disable(); startCursorLngLat = e.lngLat;
-                    originalCoordsForDrag = JSON.parse(snowparkFeatures.features.find(x => x.properties.id === id).properties.baseCoords);
+                const id = e.features[0].properties.id; selectFeature(id);
+                if (isMoveModeActive && e.features[0].properties.itemType === 'module') {
+                    isDragging = true; map.dragPan.disable(); startCursorLngLat = e.lngLat;
+                    startBaseCoords = JSON.parse(snowparkFeatures.features.find(x => x.properties.id === id).properties.baseCoords);
                 }
             });
-            map.on('mousedown', 'l', (e) => { window.selectFeature(e.features[0].properties.id); });
+            
+            map.on('mousedown', 'l', (e) => { selectFeature(e.features[0].properties.id); });
 
             map.on('mousemove', (e) => {
-                if (!isDraggingMap || !selectedFeatureId) return;
+                if (!isDragging || !selectedFeatureId) return;
                 const f = snowparkFeatures.features.find(x => x.properties.id === selectedFeatureId);
-                const nbc = originalCoordsForDrag[0].map(c => [c[0] + (e.lngLat.lng - startCursorLngLat.lng), c[1] + (e.lngLat.lat - startCursorLngLat.lat)]);
+                const nbc = startBaseCoords[0].map(c => [c[0] + (e.lngLat.lng - startCursorLngLat.lng), c[1] + (e.lngLat.lat - startCursorLngLat.lat)]);
                 f.properties.baseCoords = JSON.stringify([nbc]);
                 f.geometry.coordinates = turf.transformRotate(turf.polygon([nbc]), f.properties.rotation).geometry.coordinates;
-                window.refreshMapData();
-                if(isProfileOpen) window.updateProfileChart(f);
+                refreshMapData(); if(isProfileOpen) updateProfileChart(f);
             });
 
-            map.on('mouseup', () => { if(isDraggingMap) { isDraggingMap=false; map.dragPan.enable(); } });
+            map.on('mouseup', () => { if(isDragging) { isDragging=false; map.dragPan.enable(); }});
         });
     </script>
 </body>
