@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snowpark Designer Pro - CAO V28</title>
+    <title>Snowpark Designer Pro - CAO V29</title>
     
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -13,7 +13,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        /* DESIGN CAO STRICT */
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Arial, sans-serif; background-color: #1e1e1e; color: #d4d4d4; overflow: hidden; }
         .app-container { display: flex; height: 100vh; width: 100vw; }
         
@@ -38,13 +37,9 @@
         .module-btn:hover { background-color: #444; }
         .module-btn.active { border-color: #4daaf1; background-color: #1e1e1e; color: #4daaf1; }
         
-        /* TOPBAR ET ZONE CENTRALE */
         .main-workspace { flex-grow: 1; position: relative; display: flex; flex-direction: column; background-color: #1e1e1e; }
         .topbar { background-color: #252526; border-bottom: 1px solid #3e3e42; padding: 6px 15px; display: flex; gap: 15px; align-items: center; z-index: 5; }
-        
-        /* Affichage de l'altitude intégré au bandeau */
         .topbar-alt { font-size: 0.9rem; color: #4daaf1; font-weight: bold; font-family: monospace; border-right: 1px solid #3e3e42; padding-right: 15px; min-width: 130px; }
-        
         .topbar-title { font-size: 0.75rem; color: #888; text-transform: uppercase; }
         .tool-btn { background: #333337; border: 1px solid #555; color: #d4d4d4; padding: 4px 10px; cursor: pointer; font-size: 0.7rem; text-transform: uppercase; }
         .tool-btn:hover { background: #444; }
@@ -56,18 +51,15 @@
         
         #instruction-box { position: absolute; top: 15px; left: 15px; background-color: rgba(14, 99, 156, 0.9); color: #fff; padding: 6px 15px; font-size: 0.8rem; font-weight: bold; z-index: 20; border: 1px solid #4daaf1; display: none; align-items: center; gap: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
         
-        /* GESTIONNAIRE LIGNES (RUNS) */
         .line-group { border: 1px solid #3e3e42; margin-bottom: 8px; background: #1e1e1e; }
-        .line-header { background: #333337; padding: 6px 8px; font-weight: bold; font-size: 0.75rem; border-bottom: 1px solid #3e3e42; cursor: pointer; display:flex; justify-content: space-between; text-transform: uppercase; align-items: center;}
+        .line-header { background: #333337; padding: 6px 8px; font-weight: bold; font-size: 0.75rem; border-bottom: 1px solid #3e3e42; cursor: pointer; display:flex; justify-content: space-between; align-items: center;}
         .line-header.active { border-left: 3px solid #27ae60; }
         .delete-run-btn { background: none; border: none; color: #c74c3c; cursor: pointer; font-weight: bold; font-size: 0.8rem; padding: 0 5px; }
         .delete-run-btn:hover { color: #e74c3c; transform: scale(1.2); }
-        
         .layer-item { padding: 6px 8px 6px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d2d30; font-size: 0.75rem; transition: background 0.2s;}
         .layer-item:hover { background: #2d2d30; }
         .layer-item.active { border-left: 3px solid #0e639c; background: #252526; }
         
-        /* PROPRIÉTÉS ET SLIDERS */
         .prop-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #333337; padding: 6px; border: 1px solid #3e3e42; margin-bottom: 5px; }
         .prop-header h3 { margin: 0; color: #fff; font-size: 0.8rem; }
         #btn-collapse { background: none; border: none; color: #fff; font-weight: bold; cursor: pointer; font-size: 1rem; padding: 0; line-height: 1; }
@@ -88,7 +80,7 @@
     <div class="app-container">
         
         <div class="sidebar sidebar-left">
-            <h2>CAO V28</h2>
+            <h2>CAO V29</h2>
             <div class="panel" style="padding: 5px;"><button class="btn btn-primary" style="margin:0;">ENREGISTRER</button></div>
             
             <div class="panel">
@@ -134,12 +126,11 @@
 
             <div id="properties-panel" style="display: none; margin-top: 15px;">
                 <div class="prop-header" id="prop-header-toggle">
-                    <h3 id="prop-title">MODULE</h3>
+                    <h3 id="prop-title">PROPRIÉTÉS</h3>
                     <button id="btn-collapse">[-]</button>
                 </div>
                 
                 <div id="prop-content" class="panel">
-                    
                     <div id="module-props">
                         <button class="btn btn-toggle" id="btn-move-toggle">DÉPLACER : OFF</button>
                         <button class="btn btn-primary btn-profile-toggle">VOIR PROFIL EN LONG</button>
@@ -196,6 +187,7 @@
         let map, chartInstance;
         let activeModule = null, activeDrawTool = null, selectedFeatureId = null;
         let isMoveModeActive = false, isDragging = false, startCursorLngLat = null, startBaseCoords = null;
+        let isDraggingVertex = false, draggedVertexIndex = null; // NOUVEAU: Nœuds de tracé
         let isProfileOpen = false;
         let mntData = null, mntBboxL93 = null, mntWidth = 0, mntHeight = 0;
 
@@ -204,6 +196,7 @@
 
         let snowparkFeatures = { type: 'FeatureCollection', features: [] };
         let decorationsFeatures = { type: 'FeatureCollection', features: [] };
+        let verticesFeatures = { type: 'FeatureCollection', features: [] }; // NOUVEAU: Points de sommets
         
         let currentDrawCoords = [];
         let liveDrawGeoJSON = { type: 'FeatureCollection', features: [] };
@@ -222,6 +215,15 @@
             ]];
         }
 
+        // NOUVEAU : Fonction Buffer "Flat Caps" maison pour éviter les bouts ronds de Turf
+        function createFlatBuffer(coords, widthM) {
+            if(coords.length < 2) return null;
+            const line = turf.lineString(coords);
+            const left = turf.lineOffset(line, widthM/2, {units: 'meters'}).geometry.coordinates;
+            const right = turf.lineOffset(line, -widthM/2, {units: 'meters'}).geometry.coordinates;
+            return turf.polygon([[...left, ...right.reverse(), left[0]]]).geometry;
+        }
+
         function getAltitudeAt(lng, lat) {
             if (!mntData || !mntBboxL93) return null;
             const pt = proj4("EPSG:4326", "EPSG:2154", [lng, lat]);
@@ -236,6 +238,39 @@
             return null;
         }
 
+        // NOUVEAU : Calculer la hauteur de neige exacte d'un Kicker pour un point géographique donné (Croisement 2D -> 3D)
+        function getSnowZAtPoint(ptLngLat, zTerrain) {
+            let highestZ = zTerrain;
+            snowparkFeatures.features.filter(f => f.properties.itemType === 'module' && f.properties.visible).forEach(mod => {
+                if (turf.booleanPointInPolygon(turf.point(ptLngLat), mod)) {
+                    const coords = mod.geometry.coordinates[0];
+                    const ptHaut = turf.point([(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2]);
+                    const ptBas = turf.point([(coords[0][0]+coords[1][0])/2, (coords[0][1]+coords[1][1])/2]);
+                    const bearing = turf.bearing(ptHaut, ptBas);
+                    const pt = turf.point(ptLngLat);
+                    
+                    const distToHaut = turf.distance(ptHaut, pt, {units: 'meters'});
+                    const angleToPt = turf.bearing(ptHaut, pt);
+                    const angleDiff = (angleToPt - bearing) * Math.PI / 180;
+                    const projDist = distToHaut * Math.cos(angleDiff); // Distance le long de l'axe du kicker
+
+                    const kickAngle = mod.properties.kickAngle; const landAngle = mod.properties.landingAngle;
+                    const kickLen = mod.properties.kickLen; const tableLen = mod.properties.tableLen;
+                    
+                    let zStartKicker = getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0;
+                    const zKickEnd = zStartKicker + (kickLen * Math.tan(kickAngle * Math.PI / 180));
+                    
+                    let zK = null;
+                    if (projDist >= 0 && projDist <= kickLen) zK = zStartKicker + (projDist * Math.tan(kickAngle * Math.PI / 180));
+                    else if (projDist <= kickLen + tableLen) zK = zKickEnd;
+                    else zK = zKickEnd - ((projDist - kickLen - tableLen) * Math.tan(landAngle * Math.PI / 180));
+
+                    if (zK !== null && zK > highestZ) highestZ = zK;
+                }
+            });
+            return highestZ;
+        }
+
         // === 2. LISTES ET PANNEAUX ===
         function renderLayerList() {
             const container = document.getElementById('layer-list-container');
@@ -245,7 +280,7 @@
                 let lineHtml = `
                 <div class="line-group">
                     <div class="line-header ${isLineActive}" onclick="setActiveLine(${line.id})">
-                        <span>RUN : ${line.name}</span>
+                        <span>[ RUN ] ${line.name}</span>
                         <button class="delete-run-btn" onclick="deleteRun(${line.id}, event)">[X]</button>
                     </div>`;
                 
@@ -258,6 +293,7 @@
                 container.insertAdjacentHTML('beforeend', lineHtml);
             });
         }
+
         window.setActiveLine = function(id) { activeLineId = id; renderLayerList(); }
         document.getElementById('btn-add-line').addEventListener('click', () => { lineCounter++; const newLine = { id: lineCounter, name: `RUN ${lineCounter}` }; lines.push(newLine); activeLineId = newLine.id; renderLayerList(); });
 
@@ -293,6 +329,7 @@
         function refreshMapData() {
             map.getSource('snowpark-data').setData(snowparkFeatures);
             refreshDecorations();
+            refreshVertices();
         }
 
         function refreshDecorations() {
@@ -312,8 +349,36 @@
                     const lB = turf.destination(turf.point(coords[2]), z[0], bearing, {units: 'meters'}).geometry.coordinates;
                     decorationsFeatures.features.push({ type: 'Feature', properties: { type: z[1] }, geometry: { type: 'LineString', coordinates: [lA, lB] }});
                 });
+
+                const vMps = feat.properties.speed / 3.6;
+                const hNeeded = (vMps * vMps) / (2 * 9.81 * 0.9);
+                let zStartKicker = getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0;
+                
+                for(let d=1; d<200; d+=0.5) {
+                    const checkPt = turf.destination(ptHaut, d, bearing - 180, {units: 'meters'});
+                    const zCheck = getAltitudeAt(checkPt.geometry.coordinates[0], checkPt.geometry.coordinates[1]);
+                    if (zCheck && (zCheck - zStartKicker) >= hNeeded) {
+                        decorationsFeatures.features.push({ type: 'Feature', properties: { type: 'start' }, geometry: { type: 'Point', coordinates: checkPt.geometry.coordinates }});
+                        break;
+                    }
+                }
             });
             map.getSource('decorations-data').setData(decorationsFeatures);
+        }
+
+        // NOUVEAU : AFFICHE LES POINTS D'ÉDITION DU TRACÉ
+        function refreshVertices() {
+            verticesFeatures.features = [];
+            if (selectedFeatureId) {
+                const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
+                if (feat.properties.itemType !== 'module') {
+                    const coords = JSON.parse(feat.properties.originalLine);
+                    coords.forEach((coord, i) => {
+                        verticesFeatures.features.push({ type: 'Feature', properties: { index: i, featureId: feat.properties.id }, geometry: { type: 'Point', coordinates: coord }});
+                    });
+                }
+            }
+            map.getSource('vertices-data').setData(verticesFeatures);
         }
 
         // === 3. PHYSIQUE ET GRAPHIQUE ===
@@ -368,7 +433,8 @@
                 if (curD >= lipDist && !hasLanded) {
                     const t = (curD - lipDist) / (v0 * Math.cos(theta));
                     const zTraj = zKickEnd + (v0 * Math.sin(theta) * t) - (0.5 * g * t * t);
-                    if (zTraj >= (zK || zTerrain)) { trajData.push(zTraj); } else { trajData.push(zK || zTerrain); hasLanded = true; jumpDistance = curD - lipDist; }
+                    if (zTraj >= (zK || zTerrain)) { trajData.push(zTraj); } 
+                    else { trajData.push(zK || zTerrain); hasLanded = true; jumpDistance = curD - lipDist; }
                     if (zTraj > maxZ) maxZ = zTraj;
                 } else trajData.push(null);
             }
@@ -385,24 +451,32 @@
         function updateGenericProfileChart(feat) {
             let lineGeom = feat;
             if (feat.properties.itemType === 'dameuse' || feat.properties.itemType === 'surface') {
-                lineGeom = turf.lineString(JSON.parse(feat.properties.originalLine));
+                const coords = JSON.parse(feat.properties.originalLine);
+                if(feat.properties.itemType === 'surface') coords.push(coords[0]); // Fermer pour le dessin
+                lineGeom = turf.lineString(coords);
             }
             const totalDistance = turf.length(lineGeom, {units: 'meters'});
             const steps = Math.min(200, Math.ceil(totalDistance / 0.5)); 
-            const labels = [], terrainData = [];
+            const labels = [], terrainData = [], snowData = [];
             let maxZ = -1000;
 
             for(let i=0; i<=steps; i++) {
                 const curD = (i/steps)*totalDistance;
                 const pt = turf.along(lineGeom, curD, {units: 'meters'});
                 labels.push(curD.toFixed(1) + 'm');
-                const z = getAltitudeAt(pt.geometry.coordinates[0], pt.geometry.coordinates[1]) || 0;
-                terrainData.push(z);
-                if(z > maxZ) maxZ = z;
+                const zTerrain = getAltitudeAt(pt.geometry.coordinates[0], pt.geometry.coordinates[1]) || 0;
+                terrainData.push(zTerrain);
+                
+                // NOUVEAU : Croisement avec les modules existants !
+                const zSnow = getSnowZAtPoint(pt.geometry.coordinates, zTerrain);
+                if(zSnow > zTerrain + 0.1) snowData.push(zSnow); else snowData.push(null); // On affiche la neige si elle est plus haute
+
+                if(zTerrain > maxZ) maxZ = zTerrain;
+                if(zSnow > maxZ) maxZ = zSnow;
             }
 
             if(!isProfileOpen) return;
-            drawChart(labels, terrainData, [], [], maxZ, `PROFIL TOPOGRAPHIQUE`);
+            drawChart(labels, terrainData, snowData, [], maxZ, `PROFIL TOPOGRAPHIQUE`);
         }
 
         function drawChart(labels, terrainData, kickerData, trajData, maxZ, titleStr) {
@@ -448,9 +522,9 @@
 
             map.on('load', () => {
                 map.addSource('snowpark-data', { type: 'geojson', data: snowparkFeatures });
-                map.addLayer({ id: 'modules-fill', type: 'fill', source: 'snowpark-data', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.5 } });
-                map.addLayer({ id: 'modules-outline', type: 'line', source: 'snowpark-data', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#0e639c', '#fff'], 'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] } });
-                map.addLayer({ id: 'modules-linestring', type: 'line', source: 'snowpark-data', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': ['get', 'color'], 'line-width': 3 } });
+                map.addLayer({ id: 'modules-fill', type: 'fill', source: 'snowpark-data', filter: ['in', ['geometry-type'], ['literal', ['Polygon']]], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.5 } });
+                map.addLayer({ id: 'modules-outline', type: 'line', source: 'snowpark-data', filter: ['in', ['geometry-type'], ['literal', ['Polygon']]], paint: { 'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#0e639c', '#fff'], 'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] } });
+                map.addLayer({ id: 'modules-linestring', type: 'line', source: 'snowpark-data', filter: ['in', ['geometry-type'], ['literal', ['LineString']]], paint: { 'line-color': ['get', 'color'], 'line-width': 3 } });
 
                 map.addSource('live-draw', { type: 'geojson', data: liveDrawGeoJSON });
                 map.addLayer({ id: 'draw-line', type: 'line', source: 'live-draw', paint: { 'line-color': '#27ae60', 'line-width': 3, 'line-dasharray': [2, 2] } });
@@ -458,11 +532,17 @@
                 map.addSource('decorations-data', { type: 'geojson', data: decorationsFeatures });
                 map.addLayer({ id: 'axis-layer', type: 'line', source: 'decorations-data', filter: ['==', 'type', 'axis'], paint: { 'line-color': '#f39c12', 'line-width': 1, 'line-dasharray': [4, 4] } });
                 map.addLayer({ id: 'zone-layer', type: 'line', source: 'decorations-data', filter: ['==', 'type', 'zone'], paint: { 'line-color': '#fff', 'line-width': 1, 'line-dasharray': [2, 2] } });
+                map.addLayer({ id: 'start-layer', type: 'circle', source: 'decorations-data', filter: ['==', 'type', 'start'], paint: { 'circle-color': '#27ae60', 'circle-radius': 4, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' } });
+
+                // POINTS D'ÉDITION
+                map.addSource('vertices-data', { type: 'geojson', data: verticesFeatures });
+                map.addLayer({ id: 'vertices-points', type: 'circle', source: 'vertices-data', paint: { 'circle-radius': 5, 'circle-color': '#fff', 'circle-stroke-width': 2, 'circle-stroke-color': '#c74c3c' } });
+
                 renderLayerList();
             });
 
             document.getElementById('mnt-upload').addEventListener('change', async (e) => {
-                document.getElementById('topbar-alt').innerText = "Lecture TIFF...";
+                document.getElementById('topbar-alt').innerText = "Lecture...";
                 const tiff = await GeoTIFF.fromBlob(e.target.files[0]); const img = await tiff.getImage();
                 mntBboxL93 = img.getBoundingBox(); mntWidth = img.getWidth(); mntHeight = img.getHeight(); mntData = (await img.readRasters())[0];
                 const bl = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[0], mntBboxL93[1]]); const tr = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[2], mntBboxL93[3]]);
@@ -479,7 +559,7 @@
                 }
             });
 
-            // GESTION OUTILS
+            // GESTION OUTILS (Catalogue + Topbar)
             const disableAllTools = () => {
                 activeModule = null; activeDrawTool = null; currentDrawCoords = [];
                 liveDrawGeoJSON.features = []; if(map.getSource('live-draw')) map.getSource('live-draw').setData(liveDrawGeoJSON);
@@ -511,17 +591,18 @@
 
                 const fFill = map.queryRenderedFeatures(e.point, { layers: ['modules-fill'] });
                 const fLine = map.queryRenderedFeatures(e.point, { layers: ['modules-linestring'] });
-                if (!fFill.length && !fLine.length && !isDragging) deselectFeature();
+                if (!fFill.length && !fLine.length && !isDragging && !isDraggingVertex) deselectFeature();
             });
 
-            // FIN DU DESSIN (DOUBLE CLIC, CLIC DROIT OU BOUTON)
+            // FIN DU DESSIN
             const finishDrawing = () => {
                 if (!activeDrawTool || currentDrawCoords.length < 2) { disableAllTools(); return; }
                 const cleanCoords = currentDrawCoords.filter((c, i, arr) => i === 0 || c[0] !== arr[i-1][0] || c[1] !== arr[i-1][1]);
                 if (cleanCoords.length < 2) { disableAllTools(); return; }
 
                 const id = Date.now(); let finalGeom; let color = '#fff'; let name = '';
-                if (activeDrawTool === 'dameuse') { color = '#27ae60'; name = 'TRACE DAMEUSE'; finalGeom = turf.buffer(turf.lineString(cleanCoords), 3, {units: 'meters'}).geometry; } 
+                
+                if (activeDrawTool === 'dameuse') { color = '#27ae60'; name = 'TRACE DAMEUSE'; finalGeom = createFlatBuffer(cleanCoords, 6) || turf.buffer(turf.lineString(cleanCoords), 3, {units:'meters'}).geometry; } 
                 else if (activeDrawTool === 'profile') { color = '#f39c12'; name = 'LIGNE PROFIL'; finalGeom = turf.lineString(cleanCoords).geometry; }
                 else if (activeDrawTool === 'distance') { color = '#8e44ad'; name = 'DISTANCE'; finalGeom = turf.lineString(cleanCoords).geometry; }
                 else if (activeDrawTool === 'surface') { 
@@ -537,7 +618,28 @@
             map.on('contextmenu', (e) => { if (activeDrawTool) { e.preventDefault(); finishDrawing(); } });
             document.getElementById('btn-finish-draw').addEventListener('click', finishDrawing);
 
-            // DRAG SÉCURISÉ (Kickers uniquement)
+            // DRAG DES NŒUDS DE TRACÉ
+            map.on('mousedown', 'vertices-points', (e) => {
+                e.preventDefault(); isDraggingVertex = true; map.dragPan.disable();
+                draggedVertexIndex = e.features[0].properties.index;
+            });
+            map.on('mousemove', (e) => {
+                if (isDraggingVertex && selectedFeatureId) {
+                    map.getCanvas().style.cursor = 'move';
+                    const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
+                    let coords = JSON.parse(feat.properties.originalLine);
+                    coords[draggedVertexIndex] = [e.lngLat.lng, e.lngLat.lat];
+                    feat.properties.originalLine = JSON.stringify(coords);
+                    
+                    if (feat.properties.itemType === 'dameuse') feat.geometry = createFlatBuffer(coords, 6) || turf.buffer(turf.lineString(coords), 3, {units:'meters'}).geometry;
+                    else if (feat.properties.itemType === 'surface') feat.geometry = turf.polygon([[...coords, coords[0]]]).geometry;
+                    else feat.geometry = turf.lineString(coords).geometry;
+                    
+                    refreshMapData(); updateProfileChart(feat);
+                }
+            });
+
+            // DRAG SÉCURISÉ DES MODULES
             document.getElementById('btn-move-toggle').addEventListener('click', (e) => {
                 isMoveModeActive = !isMoveModeActive;
                 if(isMoveModeActive) { e.target.classList.add('active'); e.target.innerText = 'DÉPLACER : ON'; } 
@@ -545,7 +647,7 @@
             });
 
             map.on('mousedown', 'modules-fill', (e) => {
-                if (activeModule || activeDrawTool) return; e.preventDefault(); 
+                if (activeModule || activeDrawTool || isDraggingVertex) return; e.preventDefault(); 
                 const id = e.features[0].properties.id; 
                 if (selectedFeatureId !== id) selectFeature(id);
                 const feat = snowparkFeatures.features.find(f => f.properties.id === id);
@@ -566,30 +668,31 @@
                 refreshMapData(); updateProfileChart(feat); 
             });
 
-            map.on('mouseup', () => { if(isDragging) { isDragging=false; map.getCanvas().style.cursor=''; map.dragPan.enable(); }});
+            map.on('mouseup', () => { 
+                if(isDragging) { isDragging=false; map.getCanvas().style.cursor=''; map.dragPan.enable(); }
+                if(isDraggingVertex) { isDraggingVertex=false; map.getCanvas().style.cursor=''; map.dragPan.enable(); refreshMapData(); }
+            });
 
             document.getElementById('delete-btn').addEventListener('click', () => { snowparkFeatures.features = snowparkFeatures.features.filter(x => x.properties.id !== selectedFeatureId); deselectFeature(); });
 
-            function syncSlider(propName, sliderId, displayId) {
+            function syncSlider(propName, sliderId, displayId, isLength) {
                 document.getElementById(sliderId).addEventListener('input', (e) => {
                     if(!selectedFeatureId) return;
                     const val = parseFloat(e.target.value); document.getElementById(displayId).innerText = val;
                     const f = snowparkFeatures.features.find(x => x.properties.id === selectedFeatureId);
                     f.properties[propName] = val;
-                    if (propName === 'rotation') {
-                        f.geometry.coordinates = turf.transformRotate(turf.polygon(JSON.parse(f.properties.baseCoords)), val).geometry.coordinates;
-                    } else if (['tableLen', 'landLen'].includes(propName)) {
+                    if (isLength) { 
                         const norm = moduleNorms[f.properties.name]; const newTotalLen = f.properties.kickLen + f.properties.tableLen + f.properties.landLen;
                         const center = getBaseCenter(JSON.parse(f.properties.baseCoords)); const newCoords = calculatePolygonCoords(center, norm.width, newTotalLen);
                         f.properties.baseCoords = JSON.stringify(newCoords); f.geometry.coordinates = turf.transformRotate(turf.polygon(newCoords), f.properties.rotation).geometry.coordinates;
-                    }
+                    } else if (propName === 'rotation') { f.geometry.coordinates = turf.transformRotate(turf.polygon(JSON.parse(f.properties.baseCoords)), val).geometry.coordinates; }
                     refreshMapData(); updateProfileChart(f);
                 });
             }
-            syncSlider('rotation', 'rotation-slider', 'angle-display'); syncSlider('tableLen', 'table-slider', 'table-display');
-            syncSlider('landLen', 'landlen-slider', 'landlen-display'); syncSlider('kickAngle', 'kick-slider', 'kick-display');
-            syncSlider('landingAngle', 'land-slider', 'land-display'); syncSlider('speed', 'speed-slider', 'speed-display');
-            syncSlider('projectionDist', 'proj-slider', 'proj-display');
+            syncSlider('rotation', 'rotation-slider', 'angle-display', false); syncSlider('tableLen', 'table-slider', 'table-display', true);
+            syncSlider('landLen', 'landlen-slider', 'landlen-display', true); syncSlider('kickAngle', 'kick-slider', 'kick-display', false);
+            syncSlider('landingAngle', 'land-slider', 'land-display', false); syncSlider('speed', 'speed-slider', 'speed-display', false);
+            syncSlider('projectionDist', 'proj-slider', 'proj-display', false);
         });
 
         window.selectFeature = function(id) {
@@ -620,6 +723,7 @@
                 }
                 document.getElementById('measure-label').innerText = mLabel; document.getElementById('measure-val').innerText = mVal;
             }
+            refreshVertices(); // Affiche les noeuds de tracé
             renderLayerList(); updateProfileChart(f);
         }
 
@@ -627,7 +731,8 @@
             if(selectedFeatureId) map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: false });
             selectedFeatureId = null; isMoveModeActive = false; document.getElementById('btn-move-toggle').classList.remove('active'); document.getElementById('btn-move-toggle').innerText = 'DÉPLACER : OFF';
             document.getElementById('properties-panel').style.display = 'none'; document.getElementById('profile-container').style.display = 'none'; isProfileOpen = false;
-            hoverMarker.remove(); renderLayerList(); refreshMapData(); map.resize();
+            verticesFeatures.features = []; map.getSource('vertices-data').setData(verticesFeatures);
+            renderLayerList(); refreshMapData(); map.resize();
         }
     </script>
 </body>
