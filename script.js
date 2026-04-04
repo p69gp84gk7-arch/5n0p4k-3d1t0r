@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 'osm-topo': {
                     'type': 'raster',
                     'tiles': [
-                        'https://a.tile.opentopomap.org/{z}/{x}/{y}.png'
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
                     ],
                     'tileSize': 256,
                     'attribution': 'Map data: © OpenStreetMap contributors, SRTM | Map style: © OpenTopoMap'
