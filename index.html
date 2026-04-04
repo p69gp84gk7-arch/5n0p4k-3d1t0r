@@ -8,8 +8,9 @@
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-    
     <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
 
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; color: #333; }
@@ -27,28 +28,14 @@
         input[type=range] { width: 100%; margin-top: 10px; cursor: pointer; }
         input[type=file] { width: 100%; margin-bottom: 10px; font-size: 0.8rem; color: white; }
         
-        /* NOUVEAU : Affichage de l'altitude */
-        #altitude-box {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background-color: rgba(44, 62, 80, 0.9);
-            color: #2ecc71;
-            padding: 10px 20px;
-            border-radius: 5px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            z-index: 20;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            border: 2px solid #34495e;
-        }
+        #altitude-box { position: absolute; top: 20px; left: 20px; background-color: rgba(44, 62, 80, 0.9); color: #2ecc71; padding: 10px 20px; border-radius: 5px; font-size: 1.2rem; font-weight: bold; z-index: 20; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 2px solid #34495e; }
     </style>
 </head>
 <body>
 
     <div class="app-container">
         <div class="sidebar">
-            <h2>🛠️ Snowpark Pro v10</h2>
+            <h2>🛠️ Snowpark Pro v11</h2>
             
             <div class="panel">
                 <h3>📂 Gestion de Projet</h3>
@@ -57,7 +44,7 @@
 
             <div class="panel">
                 <h3>🗺️ Topographie (MNT)</h3>
-                <label style="font-size: 0.8rem; color: #bdc3c7;">Format requis : .tif (WGS84)</label>
+                <label style="font-size: 0.8rem; color: #f1c40f;">Format requis : .tif (Lambert 93)</label>
                 <input type="file" id="mnt-upload" accept=".tif,.tiff">
             </div>
 
@@ -84,6 +71,9 @@
     </div>
 
     <script>
+        // --- DÉFINITION DU SYSTÈME FRANÇAIS LAMBERT 93 ---
+        proj4.defs("EPSG:2154", "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+
         let map;
         let activeModule = null;
         let selectedFeatureId = null;
@@ -92,9 +82,9 @@
         let startCursorLngLat = null;
         let startBaseCoords = null;
 
-        // --- VARIABLES MNT ---
-        let mntData = null; // Les pixels d'altitude
-        let mntBbox = null; // [minLng, minLat, maxLng, maxLat]
+        // Variables MNT
+        let mntData = null; 
+        let mntBboxL93 = null; // Emprise en mètres (Lambert 93)
         let mntWidth = 0;
         let mntHeight = 0;
 
@@ -131,7 +121,7 @@
                     'layers': [{ 'id': 'osm-layer', 'type': 'raster', 'source': 'osm' }]
                 },
                 center: [0.5936, 42.7610],
-                zoom: 14 // Dézoomé pour mieux voir la zone MNT
+                zoom: 14
             });
 
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
@@ -141,71 +131,76 @@
                 map.addLayer({ id: 'modules-fill', type: 'fill', source: 'snowpark-data', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.6 } });
                 map.addLayer({ id: 'modules-outline', type: 'line', source: 'snowpark-data', paint: { 'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#e74c3c', '#000'], 'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 4, 2] } });
 
-                // Source vide pour dessiner l'emprise du MNT
                 map.addSource('mnt-bounds', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
                 map.addLayer({ id: 'mnt-bounds-line', type: 'line', source: 'mnt-bounds', paint: { 'line-color': '#e74c3c', 'line-width': 3, 'line-dasharray': [2, 2] } });
             });
 
-            // --- LECTURE DU FICHIER MNT (.TIF) ---
+            // --- LECTURE DU FICHIER MNT LAMBERT 93 ---
             document.getElementById('mnt-upload').addEventListener('change', async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
 
-                document.getElementById('altitude-box').innerText = "Chargement...";
+                document.getElementById('altitude-box').innerText = "Traduction L93...";
 
                 try {
-                    // Utilisation de la bibliothèque GeoTIFF
                     const tiff = await GeoTIFF.fromBlob(file);
                     const image = await tiff.getImage();
                     
-                    mntBbox = image.getBoundingBox(); // Récupère les coordonnées GPS du cadre
+                    mntBboxL93 = image.getBoundingBox(); // [minX, minY, maxX, maxY] en Lambert 93
                     mntWidth = image.getWidth();
                     mntHeight = image.getHeight();
                     
                     const rasters = await image.readRasters();
-                    mntData = rasters[0]; // Récupère le tableau des altitudes
+                    mntData = rasters[0];
 
-                    // Dessiner le cadre rouge sur la carte pour vérifier l'emplacement
+                    // Conversion des 4 coins du cadre de Lambert 93 vers GPS (WGS84)
+                    const bl = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[0], mntBboxL93[1]]); // Bas Gauche
+                    const br = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[2], mntBboxL93[1]]); // Bas Droite
+                    const tr = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[2], mntBboxL93[3]]); // Haut Droite
+                    const tl = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[0], mntBboxL93[3]]); // Haut Gauche
+
+                    // Dessin de l'emprise sur la carte
                     const boundsGeoJSON = {
                         type: 'Feature',
-                        geometry: {
-                            type: 'Polygon',
-                            coordinates: [[[mntBbox[0], mntBbox[1]], [mntBbox[2], mntBbox[1]], [mntBbox[2], mntBbox[3]], [mntBbox[0], mntBbox[3]], [mntBbox[0], mntBbox[1]]]]
-                        }
+                        geometry: { type: 'Polygon', coordinates: [[bl, br, tr, tl, bl]] }
                     };
                     map.getSource('mnt-bounds').setData(boundsGeoJSON);
                     
-                    // Zoomer automatiquement sur le MNT
-                    map.fitBounds([[mntBbox[0], mntBbox[1]], [mntBbox[2], mntBbox[3]]], { padding: 20 });
+                    // Zoomer sur la zone avec les coordonnées WGS84
+                    map.fitBounds([bl, tr], { padding: 40 });
 
                     document.getElementById('altitude-box').innerText = "Survolez la zone rouge";
-                    alert("MNT chargé avec succès !");
+                    alert("MNT Lambert 93 analysé avec succès !");
 
                 } catch (err) {
-                    console.error("Erreur MNT :", err);
-                    alert("Erreur lors de la lecture. Assurez-vous que c'est un vrai fichier GeoTIFF en EPSG:4326.");
+                    console.error(err);
+                    alert("Erreur. Le fichier n'est pas un TIFF lisible ou est trop lourd.");
                     document.getElementById('altitude-box').innerText = "Erreur MNT";
                 }
             });
 
-            // --- LECTURE DE L'ALTITUDE EN DIRECT ---
+            // --- ALTITUDE EN DIRECT AVEC REPROJECTION ---
             map.on('mousemove', (e) => {
-                if (!mntData || !mntBbox) return;
+                if (!mntData || !mntBboxL93) return;
 
                 const lng = e.lngLat.lng;
                 const lat = e.lngLat.lat;
 
-                // Vérifier si la souris est à l'intérieur du MNT
-                if (lng >= mntBbox[0] && lng <= mntBbox[2] && lat >= mntBbox[1] && lat <= mntBbox[3]) {
-                    // Convertir les coordonnées GPS en pixels (X, Y) de l'image
-                    const x = Math.floor(((lng - mntBbox[0]) / (mntBbox[2] - mntBbox[0])) * mntWidth);
-                    // L'axe Y est inversé dans les images
-                    const y = Math.floor(((mntBbox[3] - lat) / (mntBbox[3] - mntBbox[1])) * mntHeight);
+                // 1. On convertit la position de la souris (GPS) vers le Lambert 93 (X,Y en mètres)
+                const mouseL93 = proj4("EPSG:4326", "EPSG:2154", [lng, lat]);
+                const xL93 = mouseL93[0];
+                const yL93 = mouseL93[1];
+
+                // 2. On vérifie si la souris est bien dans le cadre Lambert 93 du fichier
+                if (xL93 >= mntBboxL93[0] && xL93 <= mntBboxL93[2] && yL93 >= mntBboxL93[1] && yL93 <= mntBboxL93[3]) {
+                    
+                    // 3. On trouve le pixel correspondant
+                    const x = Math.floor(((xL93 - mntBboxL93[0]) / (mntBboxL93[2] - mntBboxL93[0])) * mntWidth);
+                    const y = Math.floor(((mntBboxL93[3] - yL93) / (mntBboxL93[3] - mntBboxL93[1])) * mntHeight);
                     
                     const pixelIndex = y * mntWidth + x;
                     let altitude = mntData[pixelIndex];
 
-                    // Sécurité anti-valeurs aberrantes (no-data)
                     if (altitude > -100 && altitude < 8848) {
                         document.getElementById('altitude-box').innerText = `Altitude: ${altitude.toFixed(2)} m`;
                     } else {
@@ -216,9 +211,7 @@
                 }
             });
 
-            // --- RESTE DU CODE (Déplacement, Rotation, Dessin) ---
-            // (La logique des phases précédentes reste intacte)
-            
+            // (Le reste du code pour les modules reste inchangé)
             map.on('mouseenter', 'modules-fill', () => { if (!activeModule) map.getCanvas().style.cursor = 'move'; });
             map.on('mouseleave', 'modules-fill', () => { if (!activeModule && !isDragging) map.getCanvas().style.cursor = ''; });
 
