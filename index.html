@@ -130,31 +130,23 @@
                 });
             });
 
-            // 2. Gérer le clic sur la carte
+          // Gestion du clic sur la carte
             map.on('click', (e) => {
-                // Si un module a été sélectionné dans la barre de gauche
+                // On ajoute un message caché pour vérifier que le clic fonctionne
+                console.log("Clic sur la carte aux coordonnées :", e.lngLat); 
+
                 if (activeModule) {
-                    // MapLibre nous donne directement les coordonnées GPS du clic !
-                    const lngLat = e.lngLat;
+                    // On utilise le marqueur PAR DÉFAUT de MapLibre (sans design personnalisé)
+                    // Et on lui ajoute une petite bulle (Popup) avec le nom du module
+                    const popup = new maplibregl.Popup({ offset: 25 })
+                        .setHTML('<h3>🏂 ' + activeModule + '</h3>');
 
-                    // Création de notre étiquette de module
-                    const el = document.createElement('div');
-                    el.style.backgroundColor = '#e67e22';
-                    el.style.color = 'white';
-                    el.style.padding = '5px 10px';
-                    el.style.borderRadius = '5px';
-                    el.style.fontWeight = 'bold';
-                    el.style.border = '2px solid white';
-                    el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
-                    el.style.cursor = 'pointer';
-                    el.innerHTML = '🏂 ' + activeModule;
-
-                    // On pose le module sur la carte (toujours déplaçable après l'avoir posé)
-                    new maplibregl.Marker({element: el, draggable: true})
-                        .setLngLat(lngLat)
+                    new maplibregl.Marker({ draggable: true })
+                        .setLngLat(e.lngLat)
+                        .setPopup(popup) // La bulle s'ouvrira au clic sur le marqueur
                         .addTo(map);
                         
-                    // Une fois posé, on désélectionne l'outil pour éviter d'en poser partout par erreur
+                    // Réinitialisation après la pose
                     activeModule = null;
                     modules.forEach(m => m.style.border = 'none');
                     map.getCanvas().style.cursor = '';
