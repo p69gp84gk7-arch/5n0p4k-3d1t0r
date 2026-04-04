@@ -107,22 +107,25 @@
             // Ajout des contrôles de zoom
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
         });
-        // --- NOUVEAU CODE : GLISSER-DÉPOSER ---
+        // --- NOUVEAU CODE : GLISSER-DÉPOSER (VERSION ROBUSTE) ---
             
-            let draggedModule = null; // Mémoire pour savoir quel module on glisse
+            let draggedModule = null;
 
-            // 1. On détecte quand on commence à glisser un bouton de la barre de gauche
+            // 1. On détecte quand on commence à glisser
             const modules = document.querySelectorAll('.module-btn');
             modules.forEach(mod => {
                 mod.addEventListener('dragstart', (e) => {
-                    draggedModule = e.target.innerText; // On mémorise le nom (ex: "Kicker S")
+                    draggedModule = e.target.innerText;
+                    // LIGNE CRUCIALE : on force le navigateur à mémoriser l'action
+                    e.dataTransfer.setData('text/plain', draggedModule);
                 });
             });
 
             // 2. On autorise la zone de la carte à recevoir l'élément
             const mapContainer = document.getElementById('map-container');
             mapContainer.addEventListener('dragover', (e) => {
-                e.preventDefault(); // Obligatoire pour autoriser le "lâcher"
+                e.preventDefault(); // Indispensable pour autoriser le "lâcher"
+                e.dataTransfer.dropEffect = 'copy'; // Montre un petit "+" sur le curseur
             });
 
             // 3. Que se passe-t-il quand on lâche le clic sur la carte ?
@@ -130,13 +133,13 @@
                 e.preventDefault();
                 
                 if (draggedModule) {
-                    // Calcul savant pour transformer la position de la souris en coordonnées GPS
+                    // On calcule les coordonnées GPS
                     const rect = mapContainer.getBoundingClientRect();
                     const x = e.clientX - rect.left;
                     const y = e.clientY - rect.top;
-                    const lngLat = map.unproject([x, y]); // Magie de MapLibre !
+                    const lngLat = map.unproject([x, y]);
 
-                    // On crée une belle étiquette visuelle pour notre module
+                    // On crée l'étiquette visuelle
                     const el = document.createElement('div');
                     el.style.backgroundColor = '#e67e22';
                     el.style.color = 'white';
@@ -145,15 +148,16 @@
                     el.style.fontWeight = 'bold';
                     el.style.border = '2px solid white';
                     el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
-                    el.style.cursor = 'pointer';
+                    el.style.cursor = 'grab'; // Change le curseur
                     el.innerHTML = '🏂 ' + draggedModule;
 
-                    // On ajoute cette étiquette sur la carte aux bonnes coordonnées
-                    new maplibregl.Marker({element: el})
+                    // On ajoute l'étiquette sur la carte
+                    // L'option draggable: true permettra de les déplacer par la suite !
+                    new maplibregl.Marker({element: el, draggable: true})
                         .setLngLat(lngLat)
                         .addTo(map);
                         
-                    draggedModule = null; // On vide la mémoire
+                    draggedModule = null;
                 }
             });
             // --- FIN DU NOUVEAU CODE ---
