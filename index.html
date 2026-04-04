@@ -9,19 +9,15 @@
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; color: #333; }
         .app-container { display: flex; height: 100vh; width: 100vw; }
-        
         .sidebar { width: 320px; background-color: #2c3e50; color: #ecf0f1; padding: 20px; box-sizing: border-box; overflow-y: auto; z-index: 10; box-shadow: 2px 0 5px rgba(0,0,0,0.2); }
         .sidebar h2 { margin-top: 0; font-size: 1.5rem; border-bottom: 1px solid #34495e; padding-bottom: 15px; }
         .panel { background-color: #34495e; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         .panel h3 { margin-top: 0; font-size: 1.1rem; color: #3498db; }
-        
         .btn { width: 100%; padding: 10px; margin-bottom: 10px; border: none; border-radius: 5px; background-color: #7f8c8d; color: white; cursor: pointer; font-weight: bold; }
         .btn-primary { background-color: #27ae60; }
-        
         .module-btn { background-color: #e67e22; padding: 10px; margin-bottom: 8px; text-align: center; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
-        
         .main-workspace { flex-grow: 1; position: relative; }
         #map-container { position: absolute; top: 0; bottom: 0; width: 100%; }
     </style>
@@ -30,17 +26,17 @@
 
     <div class="app-container">
         <div class="sidebar">
-            <h2>🛠️ Snowpark Pro v5</h2>
+            <h2>🛠️ Snowpark Pro v6</h2>
             
             <div class="panel">
                 <h3>📂 Gestion de Projet</h3>
                 <button class="btn">Charger un projet</button>
-                <button class="btn btn-primary">Enregistrer sur Sheets</button>
+                <button class="btn btn-primary">Enregistrer</button>
             </div>
 
             <div class="panel">
                 <h3>⛷️ Modules (Norme)</h3>
-                <p style="font-size: 0.8rem; color: #bdc3c7;">1. Cliquez sur un module.<br>2. Cliquez sur la carte pour le poser.</p>
+                <p style="font-size: 0.8rem; color: #bdc3c7;">Les dimensions sont réelles au sol.</p>
                 <div class="module-btn">Kicker S (Débutant)</div>
                 <div class="module-btn">Kicker M (Intermédiaire)</div>
                 <div class="module-btn">Rail Plat (6m)</div>
@@ -53,13 +49,45 @@
     </div>
 
     <script>
-        // ON DÉCLARE LA CARTE ICI (GLOBALE) POUR NE PLUS LA PERDRE
         let map;
         let activeModule = null;
 
+        // Base de données des normes de tes modules (Largeur x Longueur en mètres)
+        const moduleNorms = {
+            'Kicker S (Débutant)': { width: 10, length: 15, color: '#2ecc71' }, // Vert
+            'Kicker M (Intermédiaire)': { width: 15, length: 22, color: '#f1c40f' }, // Jaune
+            'Rail Plat (6m)': { width: 2, length: 6, color: '#e74c3c' } // Rouge
+        };
+
+        // On stocke tous nos modules dessinés ici
+        let snowparkFeatures = {
+            type: 'FeatureCollection',
+            features: []
+        };
+
+        // Fonction mathématique pour transformer des mètres en surface GPS
+        function calculatePolygonCoords(lngLat, widthM, lengthM) {
+            const R = 6378137; // Rayon de la Terre en mètres
+            const lat = lngLat.lat;
+            const lng = lngLat.lng;
+            
+            const dLat = (lengthM / 2) / R;
+            const dLng = (widthM / 2) / (R * Math.cos(Math.PI * lat / 180));
+            
+            const dLatDeg = dLat * 180 / Math.PI;
+            const dLngDeg = dLng * 180 / Math.PI;
+            
+            return [[
+                [lng - dLngDeg, lat - dLatDeg], // Bas Gauche
+                [lng + dLngDeg, lat - dLatDeg], // Bas Droite
+                [lng + dLngDeg, lat + dLatDeg], // Haut Droite
+                [lng - dLngDeg, lat + dLatDeg], // Haut Gauche
+                [lng - dLngDeg, lat - dLatDeg]  // On boucle au départ pour fermer la forme
+            ]];
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             
-            // 1. Initialisation de la carte
             map = new maplibregl.Map({
                 container: 'map-container',
                 style: {
@@ -78,18 +106,48 @@
                     }]
                 },
                 center: [0.5936, 42.7610],
-                zoom: 12
+                zoom: 18 // On zoome beaucoup pour voir les modules !
             });
 
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-            // 2. Logique de Placement de Modules (Méthode CAO)
+            // QUAND LA CARTE EST CHARGÉE, ON CRÉE NOTRE COUCHE DE DESSIN
+            map.on('load', () => {
+                
+                // 1. On déclare la source de données pour nos polygones
+                map.addSource('snowpark-data', {
+                    type: 'geojson',
+                    data: snowparkFeatures
+                });
+
+                // 2. On crée une couche visuelle pour "remplir" la forme (légèrement transparente)
+                map.addLayer({
+                    id: 'modules-fill',
+                    type: 'fill',
+                    source: 'snowpark-data',
+                    paint: {
+                        'fill-color': ['get', 'color'], // Récupère la couleur selon le module
+                        'fill-opacity': 0.6 // Transparence pour voir le terrain !
+                    }
+                });
+
+                // 3. On crée une couche visuelle pour le "contour" de la forme
+                map.addLayer({
+                    id: 'modules-outline',
+                    type: 'line',
+                    source: 'snowpark-data',
+                    paint: {
+                        'line-color': '#000000',
+                        'line-width': 2
+                    }
+                });
+            });
+
+            // GESTION DES CLICS
             const modules = document.querySelectorAll('.module-btn');
-            
             modules.forEach(mod => {
                 mod.addEventListener('click', (e) => {
                     modules.forEach(m => m.style.border = 'none');
-                    
                     if (activeModule === e.target.innerText) {
                         activeModule = null;
                         if(map) map.getCanvas().style.cursor = ''; 
@@ -101,29 +159,32 @@
                 });
             });
 
-            // 3. Gestion du clic sur la carte
+            // CLIC SUR LA CARTE = DESSIN DE LA SURFACE
             map.on('click', (e) => {
                 if (activeModule) {
-                    const lngLat = e.lngLat;
+                    const norm = moduleNorms[activeModule];
+                    
+                    // On calcule la forme géométrique
+                    const coords = calculatePolygonCoords(e.lngLat, norm.width, norm.length);
 
-                    // Design de l'étiquette
-                    const el = document.createElement('div');
-                    el.style.backgroundColor = '#e67e22';
-                    el.style.color = 'white';
-                    el.style.padding = '5px 10px';
-                    el.style.borderRadius = '5px';
-                    el.style.fontWeight = 'bold';
-                    el.style.border = '2px solid white';
-                    el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
-                    el.style.cursor = 'move';
-                    el.innerHTML = '🏂 ' + activeModule;
+                    // On crée l'entité cartographique
+                    const newFeature = {
+                        type: 'Feature',
+                        properties: {
+                            name: activeModule,
+                            color: norm.color
+                        },
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: coords
+                        }
+                    };
 
-                    // Ajout du repère
-                    new maplibregl.Marker({element: el, draggable: true})
-                        .setLngLat(lngLat)
-                        .addTo(map);
-                        
-                    // Réinitialisation
+                    // On l'ajoute à notre base de données et on met à jour la carte
+                    snowparkFeatures.features.push(newFeature);
+                    map.getSource('snowpark-data').setData(snowparkFeatures);
+
+                    // Réinitialisation de l'outil
                     activeModule = null;
                     modules.forEach(m => m.style.border = 'none');
                     map.getCanvas().style.cursor = '';
