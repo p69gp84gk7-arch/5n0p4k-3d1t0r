@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snowpark Designer Pro - CAO V36</title>
+    <title>Snowpark Designer Pro - CAO V37</title>
     
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -87,7 +87,7 @@
     <div class="app-container">
         
         <div class="sidebar sidebar-left">
-            <h2>CAO V36 (Vraie 3D + Graph)</h2>
+            <h2>CAO V37</h2>
             <div class="panel" style="padding: 5px;">
                 <button class="btn btn-primary" id="btn-export" style="margin-bottom: 5px;">EXPORTER PROJET (.JSON)</button>
                 <label for="import-upload" class="btn" style="margin-bottom: 0; text-align: center; display: block; box-sizing: border-box;">CHARGER PROJET</label>
@@ -116,7 +116,7 @@
                 <button class="tool-btn" data-tool="distance">DISTANCE</button>
                 <button class="tool-btn" data-tool="surface">SURFACE</button>
                 
-                <button class="tool-btn btn-3d" id="btn-3d-toggle">VUE 3D</button>
+                <button class="tool-btn btn-3d" id="btn-3d-toggle">VUE 3D TERRAIN</button>
             </div>
 
             <div id="instruction-box">
@@ -196,7 +196,6 @@
     </div>
 
     <script>
-        // === CONFIG GLOBALE ===
         proj4.defs("EPSG:2154", "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
 
         const moduleNorms = {
@@ -218,9 +217,7 @@
         let decorationsFeatures = { type: 'FeatureCollection', features: [] };
         let verticesFeatures = { type: 'FeatureCollection', features: [] };
         
-        // Tranches pour la vue 3D
-        let extrusion3DFeatures = { type: 'FeatureCollection', features: [] };
-        
+        let currentChartParams = null;
         let currentDrawCoords = [];
         let liveDrawGeoJSON = { type: 'FeatureCollection', features: [] };
 
@@ -326,7 +323,7 @@
             return highestTraj;
         }
 
-        // === SAUVEGARDE ET IMPORT ===
+        // SAUVEGARDE ET IMPORT
         document.getElementById('btn-export').addEventListener('click', () => {
             const projectName = prompt("Nom du projet :", "snowpark_projet") || "snowpark_projet";
             const dataToSave = { lines: lines, activeLineId: activeLineId, lineCounter: lineCounter, features: snowparkFeatures };
@@ -355,7 +352,7 @@
             reader.readAsText(file);
         });
 
-        // === LISTES ET GESTIONNAIRES ===
+        // GESTION UI LISTES
         function renderLayerList() {
             const container = document.getElementById('layer-list-container');
             container.innerHTML = '';
@@ -420,66 +417,9 @@
         });
         document.getElementById('close-profile').addEventListener('click', () => { isProfileOpen = false; document.getElementById('profile-container').style.display = 'none'; map.resize(); });
 
-        // === MOTEUR 3D RELATIF ET ACTUALISATION ===
         function refreshMapData() {
             const visibleFeatures = { type: 'FeatureCollection', features: snowparkFeatures.features.filter(f => f.properties.visible) };
             map.getSource('snowpark-data').setData(visibleFeatures);
-            
-            // LA MAGIE DE LA 3D : Slicing du module pour qu'il épouse le terrain
-            extrusion3DFeatures.features = [];
-            visibleFeatures.features.filter(f => f.properties.itemType === 'module').forEach(mod => {
-                const coords = mod.geometry.coordinates[0];
-                const ptHaut = turf.point([(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2]);
-                const ptBas = turf.point([(coords[0][0]+coords[1][0])/2, (coords[0][1]+coords[1][1])/2]);
-                const bearing = turf.bearing(ptHaut, ptBas);
-                const totalLen = turf.distance(ptHaut, ptBas, {units: 'meters'});
-                const width = mod.properties.width;
-                
-                const kickLen = mod.properties.kickLen;
-                const tableLen = mod.properties.tableLen;
-                const kickAngle = mod.properties.kickAngle;
-                const landAngle = mod.properties.landingAngle;
-                const baseSnow = mod.properties.baseSnow / 100;
-                
-                let zStartTerrain = getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0;
-                let zStartKicker = zStartTerrain + baseSnow;
-                const zKickEnd = zStartKicker + (kickLen * Math.tan(kickAngle * Math.PI / 180));
-
-                const step = 0.5; // Tranches ultra-fines de 50cm
-                for(let d=0; d<totalLen; d+=step) {
-                    const dNext = Math.min(d + step, totalLen);
-                    const dMid = (d + dNext) / 2;
-                    
-                    const p1 = turf.destination(ptHaut, d, bearing, {units: 'meters'});
-                    const p2 = turf.destination(ptHaut, dNext, bearing, {units: 'meters'});
-                    
-                    const p1L = turf.destination(p1, width/2, bearing - 90, {units: 'meters'}).geometry.coordinates;
-                    const p1R = turf.destination(p1, width/2, bearing + 90, {units: 'meters'}).geometry.coordinates;
-                    const p2L = turf.destination(p2, width/2, bearing - 90, {units: 'meters'}).geometry.coordinates;
-                    const p2R = turf.destination(p2, width/2, bearing + 90, {units: 'meters'}).geometry.coordinates;
-                    
-                    const slicePoly = turf.polygon([[p1L, p2L, p2R, p1R, p1L]]);
-                    
-                    let zK = null;
-                    if (dMid <= kickLen) zK = zStartKicker + (dMid * Math.tan(kickAngle * Math.PI / 180));
-                    else if (dMid <= kickLen + tableLen) zK = zKickEnd;
-                    else zK = zKickEnd - ((dMid - kickLen - tableLen) * Math.tan(landAngle * Math.PI / 180));
-
-                    const ptMid = turf.destination(ptHaut, dMid, bearing, {units: 'meters'});
-                    const zT = getAltitudeAt(ptMid.geometry.coordinates[0], ptMid.geometry.coordinates[1]) || 0;
-                    
-                    // HAUTEUR RELATIVE AU SOL !! Le secret pour une belle 3D qui ne monte pas à 2000m
-                    const thickness = Math.max(0, zK - zT);
-                    
-                    extrusion3DFeatures.features.push({
-                        type: 'Feature',
-                        properties: { color: mod.properties.color, baseAlt: 0, topAlt: thickness },
-                        geometry: slicePoly.geometry
-                    });
-                }
-            });
-            map.getSource('snowpark-3d-data').setData(extrusion3DFeatures);
-
             refreshDecorations();
             refreshVertices();
         }
@@ -533,19 +473,30 @@
             map.getSource('vertices-data').setData(verticesFeatures);
         }
 
-        // === PHYSIQUE ET GRAPHIQUE (ÉCHELLE DYNAMIQUE CORRIGÉE) ===
-        const customVerticalLinePlugin = {
-            id: 'verticalLine',
+        // === PLUGIN DE DESSIN DU START ET HOVER ===
+        const startLinePlugin = {
+            id: 'startLine',
             afterDraw: chart => {
-                if (chart.tooltip?._active?.length) {
-                    let x = chart.tooltip._active[0].element.x;
-                    let yAxis = chart.scales.y; let ctx = chart.ctx;
-                    ctx.save(); ctx.beginPath(); ctx.moveTo(x, yAxis.top); ctx.lineTo(x, yAxis.bottom);
-                    ctx.lineWidth = 1; ctx.strokeStyle = '#d4d4d4'; ctx.stroke(); ctx.restore();
+                if (currentChartParams && currentChartParams.startDistanceX !== null) {
+                    const xAxis = chart.scales.x; const yAxis = chart.scales.y;
+                    const xIndex = (currentChartParams.startDistanceX / currentChartParams.totalDistance) * currentChartParams.steps;
+                    const xPos = xAxis.getPixelForValue(xIndex);
+                    const c = chart.ctx; c.save();
+                    c.beginPath(); c.moveTo(xPos, yAxis.top); c.lineTo(xPos, yAxis.bottom);
+                    c.lineWidth = 2; c.strokeStyle = '#27ae60'; c.stroke();
+                    c.fillStyle = '#27ae60'; c.fillRect(xPos - 20, yAxis.top, 40, 16);
+                    c.fillStyle = '#fff'; c.font = 'bold 9px Arial'; c.textAlign = 'center'; c.fillText('START', xPos, yAxis.top + 11); c.restore();
+                }
+                
+                if (chart.tooltip?._active?.length && !isDraggingStartOnChart) {
+                    let x = chart.tooltip._active[0].element.x; let yAxis = chart.scales.y; let c = chart.ctx;
+                    c.save(); c.beginPath(); c.setLineDash([2, 2]); c.moveTo(x, yAxis.top); c.lineTo(x, yAxis.bottom);
+                    c.lineWidth = 1; c.strokeStyle = '#fff'; c.stroke(); c.restore();
                 }
             }
         };
 
+        // === PHYSIQUE ET GRAPHIQUE CORRIGÉS ===
         function updateProfileChart(feat) {
             if (feat.properties.itemType !== 'module') { updateGenericProfileChart(feat); return; }
 
@@ -568,7 +519,7 @@
             let zStartTerrain = getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0;
             let zStartKicker = zStartTerrain + baseSnow;
 
-            const labels = [], terrainData = [], kickerData = [], trajData = [], startData = [];
+            const labels = [], terrainData = [], kickerData = [], trajData = [];
             const zKickEnd = zStartKicker + (kickLen * Math.tan(kickAngle * Math.PI / 180));
             const lipDist = projDist + kickLen;
             const v0 = speedKmh / 3.6; const theta = kickAngle * Math.PI / 180; const g = 9.81;
@@ -615,13 +566,6 @@
                     else { trajData.push(localGround); hasLanded = true; jumpDistance = curD - lipDist; }
                     if (zTraj > maxZ) maxZ = zTraj;
                 } else trajData.push(null);
-
-                startData.push(null);
-            }
-
-            if(startDistX !== null) {
-                let sIndex = Math.round((startDistX / totalDistance) * steps);
-                if(sIndex >= 0 && sIndex <= steps) startData[sIndex] = maxZ + 20; // Barre verticale simulée
             }
 
             document.getElementById('stat-vol').innerText = (crossSectionArea * moduleWidth).toFixed(1) + ' m³';
@@ -629,8 +573,10 @@
             document.getElementById('stat-dist').innerText = jumpDistance > 0 ? jumpDistance.toFixed(1) + ' m' : '--';
             document.getElementById('stat-apex').innerText = apexStr + ' m';
 
+            currentChartParams = { amontPt, bearing, totalDistance, steps, projDist, zStartKicker, startDistanceX: startDistX };
+
             if(!isProfileOpen) return;
-            drawChart(labels, terrainData, kickerData, trajData, startData, minZ, maxZ, `PROFIL KICKER - APEX: ${apexStr}m`);
+            drawChart(labels, terrainData, kickerData, trajData, minZ, maxZ, `PROFIL KICKER - APEX: ${apexStr}m`);
         }
 
         function updateGenericProfileChart(feat) {
@@ -672,26 +618,25 @@
             document.getElementById('measure-label-2').innerText = "DÉNIVELÉ"; document.getElementById('measure-val-2').innerText = deniv.toFixed(1) + " m";
             document.getElementById('measure-label-3').innerText = "PENTE MOY."; document.getElementById('measure-val-3').innerText = pente.toFixed(1) + " %";
 
+            currentChartParams = null; // Pas de start draggable sur profil générique
             if(!isProfileOpen) return;
-            drawChart(labels, terrainData, snowData, trajData, [], minZ, maxZ, `PROFIL TOPOGRAPHIQUE`);
+            drawChart(labels, terrainData, snowData, trajData, minZ, maxZ, `PROFIL TOPOGRAPHIQUE`);
         }
 
-        // Rendu Graphique Corrigé (Echelle dynamique adaptée)
-        function drawChart(labels, terrainData, kickerData, trajData, startData, minZ, maxZ, titleStr) {
+        function drawChart(labels, terrainData, kickerData, trajData, minZ, maxZ, titleStr) {
             const ctx = document.getElementById('profileChart').getContext('2d');
             Chart.defaults.color = '#888'; Chart.defaults.font.family = 'Segoe UI';
 
             let datasets = [{ label: 'Terrain', data: terrainData, borderColor: '#7f8c8d', backgroundColor: 'rgba(127, 140, 141, 0.2)', fill: true, pointRadius: 0, tension: 0.1, borderWidth: 1 }];
             if (kickerData && kickerData.length > 0) datasets.push({ label: 'Neige Base+Module', data: kickerData, borderColor: '#0e639c', backgroundColor: 'rgba(14, 99, 156, 0.4)', fill: true, pointRadius: 0, tension: 0, borderWidth: 2 });
             if (trajData && trajData.length > 0) datasets.push({ label: 'Trajectoire Vol', data: trajData, borderColor: '#c74c3c', borderDash: [4,4], borderWidth: 2, pointRadius: 0, tension: 0.3 });
-            if (startData && startData.length > 0) datasets.push({ type: 'bar', label: 'START', data: startData, backgroundColor: '#27ae60', barThickness: 3 });
 
             if (chartInstance) {
                 chartInstance.options.plugins.title.text = titleStr;
                 chartInstance.options.scales.y.min = minZ - 2;
                 chartInstance.options.scales.y.max = maxZ + 5;
                 chartInstance.data.labels = labels; 
-                chartInstance.data.datasets = datasets; // Remplace entièrement pour éviter les bugs d'affichage
+                chartInstance.data.datasets = datasets;
                 chartInstance.update();
             } else {
                 chartInstance = new Chart(ctx, {
@@ -708,7 +653,7 @@
                             }
                         }
                     },
-                    plugins: [customVerticalLinePlugin]
+                    plugins: [startLinePlugin]
                 });
             }
         }
@@ -722,7 +667,7 @@
             if (Math.abs(distClick - currentChartParams.startDistanceX) < 3) { isDraggingStartOnChart = true; canvas.style.cursor = 'ew-resize'; }
         });
         canvas.addEventListener('mousemove', (e) => {
-            if (!chartInstance || !currentChartParams) return;
+            if (!chartInstance || !currentChartParams || !currentChartParams.startDistanceX) return;
             const xIndex = Math.max(0, Math.min(currentChartParams.steps, chartInstance.scales.x.getValueForPixel(e.offsetX)));
             const distHover = (xIndex / currentChartParams.steps) * currentChartParams.totalDistance;
 
@@ -761,26 +706,9 @@
 
             map.on('load', () => {
                 map.addSource('snowpark-data', { type: 'geojson', data: snowparkFeatures });
-                
-                // 2D Layers
                 map.addLayer({ id: 'modules-fill', type: 'fill', source: 'snowpark-data', filter: ['in', ['geometry-type'], ['literal', ['Polygon']]], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.5 } });
                 map.addLayer({ id: 'modules-outline', type: 'line', source: 'snowpark-data', filter: ['in', ['geometry-type'], ['literal', ['Polygon']]], paint: { 'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#0e639c', '#fff'], 'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] } });
                 map.addLayer({ id: 'modules-linestring', type: 'line', source: 'snowpark-data', filter: ['in', ['geometry-type'], ['literal', ['LineString']]], paint: { 'line-color': ['get', 'color'], 'line-width': 3 } });
-
-                // NOUVEAU : 3D Layers par tranches
-                map.addSource('snowpark-3d-data', { type: 'geojson', data: extrusion3DFeatures });
-                map.addLayer({
-                    'id': 'modules-extrusion',
-                    'type': 'fill-extrusion',
-                    'source': 'snowpark-3d-data',
-                    'layout': { 'visibility': 'none' },
-                    'paint': {
-                        'fill-extrusion-color': ['get', 'color'],
-                        'fill-extrusion-height': ['get', 'topAlt'],
-                        'fill-extrusion-base': ['get', 'baseAlt'],
-                        'fill-extrusion-opacity': 0.8
-                    }
-                });
 
                 map.addSource('live-draw', { type: 'geojson', data: liveDrawGeoJSON });
                 map.addLayer({ id: 'draw-line', type: 'line', source: 'live-draw', paint: { 'line-color': '#27ae60', 'line-width': 3, 'line-dasharray': [2, 2] } });
@@ -803,16 +731,10 @@
                     map.setTerrain({ 'source': 'terrain-source', 'exaggeration': 1.2 });
                     map.easeTo({ pitch: 70, bearing: map.getBearing() + 45 });
                     e.target.classList.add('active');
-                    map.setLayoutProperty('modules-extrusion', 'visibility', 'visible');
-                    map.setLayoutProperty('modules-fill', 'visibility', 'none');
-                    map.setLayoutProperty('decorations-data', 'visibility', 'none');
                 } else {
                     map.setTerrain(null);
                     map.easeTo({ pitch: 0, bearing: 0 });
                     e.target.classList.remove('active');
-                    map.setLayoutProperty('modules-extrusion', 'visibility', 'none');
-                    map.setLayoutProperty('modules-fill', 'visibility', 'visible');
-                    map.setLayoutProperty('decorations-data', 'visibility', 'visible');
                 }
             });
 
