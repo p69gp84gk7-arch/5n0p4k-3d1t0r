@@ -9,58 +9,28 @@
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 
     <style>
-        body, html {
-            margin: 0; padding: 0; height: 100%;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f6;
-            color: #333;
-        }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; }
+        .app-container { display: flex; height: 100vh; width: 100vw; }
         
-        /* Conteneur principal */
-        .app-container {
-            display: flex;
-            height: 100vh;
-            width: 100vw;
-        }
-
-        /* Barre latérale */
-        .sidebar {
-            width: 320px;
-            background-color: #2c3e50;
-            color: #ecf0f1;
-            padding: 20px;
-            box-sizing: border-box;
-            overflow-y: auto;
-            z-index: 10; /* Toujours au-dessus */
-            box-shadow: 2px 0 5px rgba(0,0,0,0.2);
-        }
-        
+        .sidebar { width: 320px; background-color: #2c3e50; color: #ecf0f1; padding: 20px; box-sizing: border-box; overflow-y: auto; z-index: 10; box-shadow: 2px 0 5px rgba(0,0,0,0.2); }
         .sidebar h2 { margin-top: 0; font-size: 1.5rem; border-bottom: 1px solid #34495e; padding-bottom: 15px; }
         .panel { background-color: #34495e; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         .panel h3 { margin-top: 0; font-size: 1.1rem; color: #3498db; }
+        
         .btn { width: 100%; padding: 10px; margin-bottom: 10px; border: none; border-radius: 5px; background-color: #7f8c8d; color: white; cursor: pointer; font-weight: bold; }
         .btn-primary { background-color: #27ae60; }
-        .module-btn { background-color: #e67e22; padding: 10px; margin-bottom: 8px; text-align: center; border-radius: 4px; cursor: grab; font-weight: bold; }
-
-        /* Zone de la carte (Méthode blindée) */
-        .main-workspace {
-            flex-grow: 1;
-            position: relative; /* Indispensable pour la carte */
-        }
-
-        #map-container {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 100%;
-        }
+        
+        .module-btn { background-color: #e67e22; padding: 10px; margin-bottom: 8px; text-align: center; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
+        
+        .main-workspace { flex-grow: 1; position: relative; }
+        #map-container { position: absolute; top: 0; bottom: 0; width: 100%; }
     </style>
 </head>
 <body>
 
     <div class="app-container">
         <div class="sidebar">
-            <h2>🛠️ Snowpark Pro v4</h2>
+            <h2>🛠️ Snowpark Pro v5</h2>
             
             <div class="panel">
                 <h3>📂 Gestion de Projet</h3>
@@ -70,8 +40,10 @@
 
             <div class="panel">
                 <h3>⛷️ Modules (Norme)</h3>
-                <div class="module-btn" draggable="true">Kicker S (Débutant)</div>
-                <div class="module-btn" draggable="true">Kicker M (Intermédiaire)</div>
+                <p style="font-size: 0.8rem; color: #bdc3c7;">1. Cliquez sur un module.<br>2. Cliquez sur la carte pour le poser.</p>
+                <div class="module-btn">Kicker S (Débutant)</div>
+                <div class="module-btn">Kicker M (Intermédiaire)</div>
+                <div class="module-btn">Rail Plat (6m)</div>
             </div>
         </div>
 
@@ -81,9 +53,14 @@
     </div>
 
     <script>
+        // ON DÉCLARE LA CARTE ICI (GLOBALE) POUR NE PLUS LA PERDRE
+        let map;
+        let activeModule = null;
+
         document.addEventListener('DOMContentLoaded', () => {
-            // Initialisation de la carte avec la méthode la plus simple possible
-            const map = new maplibregl.Map({
+            
+            // 1. Initialisation de la carte
+            map = new maplibregl.Map({
                 container: 'map-container',
                 style: {
                     'version': 8,
@@ -100,59 +77,60 @@
                         'source': 'osm'
                     }]
                 },
-                center: [0.5936, 42.7610], // Luchon-Superbagnères
+                center: [0.5936, 42.7610],
                 zoom: 12
             });
 
-            // Ajout des contrôles de zoom
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
-        });
-       // --- NOUVEAU CODE : MÉTHODE PRO CAO (CLIC & PLACEMENT) ---
-            let activeModule = null;
 
-            // 1. Gérer le clic sur les boutons de la barre de gauche
+            // 2. Logique de Placement de Modules (Méthode CAO)
             const modules = document.querySelectorAll('.module-btn');
+            
             modules.forEach(mod => {
                 mod.addEventListener('click', (e) => {
-                    // On enlève la bordure de tous les boutons pour réinitialiser
                     modules.forEach(m => m.style.border = 'none');
                     
-                    // Si on reclique sur le module déjà actif, on annule l'action
                     if (activeModule === e.target.innerText) {
                         activeModule = null;
-                        map.getCanvas().style.cursor = ''; // Remet le curseur normal
+                        if(map) map.getCanvas().style.cursor = ''; 
                     } else {
-                        // On active ce module
                         activeModule = e.target.innerText;
-                        e.target.style.border = '3px solid #2ecc71'; // Bordure verte pour montrer qu'il est prêt
-                        map.getCanvas().style.cursor = 'crosshair'; // Curseur en forme de cible sur la carte
+                        e.target.style.border = '3px solid #2ecc71'; 
+                        if(map) map.getCanvas().style.cursor = 'crosshair'; 
                     }
                 });
             });
 
-          // Gestion du clic sur la carte
+            // 3. Gestion du clic sur la carte
             map.on('click', (e) => {
-                // On ajoute un message caché pour vérifier que le clic fonctionne
-                console.log("Clic sur la carte aux coordonnées :", e.lngLat); 
-
                 if (activeModule) {
-                    // On utilise le marqueur PAR DÉFAUT de MapLibre (sans design personnalisé)
-                    // Et on lui ajoute une petite bulle (Popup) avec le nom du module
-                    const popup = new maplibregl.Popup({ offset: 25 })
-                        .setHTML('<h3>🏂 ' + activeModule + '</h3>');
+                    const lngLat = e.lngLat;
 
-                    new maplibregl.Marker({ draggable: true })
-                        .setLngLat(e.lngLat)
-                        .setPopup(popup) // La bulle s'ouvrira au clic sur le marqueur
+                    // Design de l'étiquette
+                    const el = document.createElement('div');
+                    el.style.backgroundColor = '#e67e22';
+                    el.style.color = 'white';
+                    el.style.padding = '5px 10px';
+                    el.style.borderRadius = '5px';
+                    el.style.fontWeight = 'bold';
+                    el.style.border = '2px solid white';
+                    el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+                    el.style.cursor = 'move';
+                    el.innerHTML = '🏂 ' + activeModule;
+
+                    // Ajout du repère
+                    new maplibregl.Marker({element: el, draggable: true})
+                        .setLngLat(lngLat)
                         .addTo(map);
                         
-                    // Réinitialisation après la pose
+                    // Réinitialisation
                     activeModule = null;
                     modules.forEach(m => m.style.border = 'none');
                     map.getCanvas().style.cursor = '';
                 }
             });
-            // --- FIN DU NOUVEAU CODE ---
+
+        });
     </script>
 </body>
 </html>
