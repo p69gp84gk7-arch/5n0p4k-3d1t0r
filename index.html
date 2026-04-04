@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snowpark Designer Pro - V24</title>
+    <title>Snowpark Designer Pro - CAO V25</title>
     
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -13,24 +13,27 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
+        /* === 1. DESIGN GLOBAL CAO === */
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Arial, sans-serif; background-color: #1e1e1e; color: #d4d4d4; overflow: hidden; }
         .app-container { display: flex; height: 100vh; width: 100vw; }
         
-        .sidebar { background-color: #252526; padding: 15px; box-sizing: border-box; overflow-y: auto; z-index: 10; border-right: 1px solid #333; }
-        .sidebar-left { width: 300px; border-right: 1px solid #3e3e42; }
-        .sidebar-right { width: 340px; border-left: 1px solid #3e3e42; border-right: none; }
+        .sidebar { background-color: #252526; padding: 15px; box-sizing: border-box; overflow-y: auto; z-index: 10; border-right: 1px solid #3e3e42; }
+        .sidebar-left { width: 300px; }
+        .sidebar-right { width: 350px; border-left: 1px solid #3e3e42; border-right: none; }
         
         h2 { margin-top: 0; font-size: 1.1rem; color: #ffffff; border-bottom: 1px solid #3e3e42; padding-bottom: 10px; font-weight: normal; text-transform: uppercase; letter-spacing: 1px; }
-        h3 { margin-top: 0; font-size: 0.9rem; color: #4daaf1; font-weight: normal; margin-bottom: 10px; text-transform: uppercase; }
+        h3 { margin-top: 0; font-size: 0.85rem; color: #4daaf1; font-weight: normal; margin-bottom: 10px; text-transform: uppercase; }
         
         .panel { background-color: #2d2d30; padding: 15px; margin-bottom: 15px; border: 1px solid #3e3e42; }
         
-        .btn { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #3e3e42; background-color: #3e3e42; color: #ffffff; cursor: pointer; font-size: 0.85rem; text-transform: uppercase; }
+        .btn { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #3e3e42; background-color: #3e3e42; color: #ffffff; cursor: pointer; font-size: 0.85rem; text-transform: uppercase; transition: background 0.2s; }
         .btn:hover { background-color: #4f4f53; }
         .btn-primary { background-color: #0e639c; border-color: #0e639c; }
         .btn-primary:hover { background-color: #1177bb; }
         .btn-success { background-color: #27ae60; border-color: #27ae60; margin-bottom: 15px;}
         .btn-danger { background-color: #c74c3c; border-color: #c74c3c; margin-top: 15px; }
+        .btn-toggle { background-color: #1e1e1e; border: 1px solid #0e639c; color: #4daaf1; }
+        .btn-toggle.active { background-color: #0e639c; color: #ffffff; }
         
         .module-btn { background-color: #333337; border: 1px solid #555; padding: 8px; margin-bottom: 8px; text-align: center; cursor: pointer; font-size: 0.85rem; }
         .module-btn:hover { background-color: #444; }
@@ -46,20 +49,22 @@
         .line-group { border: 1px solid #3e3e42; margin-bottom: 10px; background: #1e1e1e; }
         .line-header { background: #333337; padding: 8px 10px; font-weight: bold; font-size: 0.85rem; border-bottom: 1px solid #3e3e42; cursor: pointer; display:flex; justify-content: space-between; text-transform: uppercase;}
         .line-header.active { border-left: 4px solid #27ae60; }
-        
         .layer-item { padding: 8px 10px 8px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d2d30; font-size: 0.85rem; transition: background 0.2s;}
         .layer-item:hover { background: #2d2d30; }
         .layer-item.active { border-left: 4px solid #0e639c; background: #252526; }
         
         input[type=range] { width: 100%; margin-top: 5px; margin-bottom: 12px; cursor: pointer; accent-color: #0e639c; }
-        label { font-size: 0.8rem; color: #d4d4d4; display: flex; justify-content: space-between; }
+        label { font-size: 0.75rem; color: #d4d4d4; display: flex; justify-content: space-between; }
         .slider-val { font-weight: bold; color: #4daaf1; }
         hr { border: 0; height: 1px; background: #3e3e42; margin: 15px 0; }
         
-        /* NOUVEAU : Bloc d'affichage du Volume */
-        .volume-box { background-color: #1e1e1e; border: 1px solid #0e639c; padding: 12px; text-align: center; margin-top: 15px; border-left: 4px solid #0e639c; }
-        .volume-title { font-size: 0.75rem; color: #888; text-transform: uppercase; margin-bottom: 5px; }
-        .volume-val { font-size: 1.4rem; color: #4daaf1; font-weight: bold; font-family: monospace; }
+        /* === NOUVEAU : FICHE RÉCAPITULATIVE === */
+        .stats-box { background-color: #1e1e1e; border: 1px solid #3e3e42; padding: 12px; margin-top: 15px; border-left: 4px solid #4daaf1; }
+        .stats-title { font-size: 0.8rem; color: #888; text-transform: uppercase; margin-bottom: 10px; text-align: center; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; }
+        .stat-val { color: #4daaf1; font-weight: bold; font-family: monospace; font-size: 0.95rem; }
+        
+        .scale-controls { display: flex; gap: 10px; margin-bottom: 15px; }
     </style>
 </head>
 <body>
@@ -67,17 +72,17 @@
     <div class="app-container">
         
         <div class="sidebar sidebar-left">
-            <h2>Snowpark Pro V24</h2>
+            <h2>Snowpark Pro V25</h2>
             <div class="panel"><button class="btn btn-primary">Enregistrer Projet</button></div>
             
             <div class="panel">
                 <h3>Topographie (.TIF)</h3>
-                <input type="file" id="mnt-upload" accept=".tif,.tiff" style="font-size:0.8rem;">
+                <input type="file" id="mnt-upload" accept=".tif,.tiff" style="font-size:0.8rem; color:#d4d4d4; width:100%;">
             </div>
             
             <div class="panel">
                 <h3>Catalogue Modules</h3>
-                <p style="font-size: 0.75rem; color:#888; margin-top:0;">Ajout à la ligne active</p>
+                <p style="font-size: 0.7rem; color:#888; margin-top:0;">Ajout à la ligne active</p>
                 <div class="module-btn" data-name="Kicker S (Débutant)">KICKER S (Débutant)</div>
                 <div class="module-btn" data-name="Kicker M (Intermédiaire)">KICKER M (Intermédiaire)</div>
             </div>
@@ -100,27 +105,43 @@
             <div id="properties-panel" class="panel" style="display: none; margin-top: 20px;">
                 <h3 id="prop-title" style="color: #fff;">PROPRIÉTÉS</h3>
                 
+                <button class="btn btn-toggle" id="btn-move-toggle">DÉPLACER SUR CARTE : OFF</button>
+                
+                <div class="scale-controls">
+                    <button class="btn" id="btn-scale-minus">- RÉDUIRE</button>
+                    <button class="btn" id="btn-scale-plus">+ AGRANDIR</button>
+                </div>
+
+                <hr>
+                
                 <label>Rotation <span class="slider-val"><span id="angle-display">0</span>°</span></label>
                 <input type="range" id="rotation-slider" min="0" max="360" value="0">
-                <hr>
+                
                 <label>Longueur Table <span class="slider-val"><span id="table-display">4</span> m</span></label>
-                <input type="range" id="table-slider" min="0" max="25" value="4" step="0.5">
+                <input type="range" id="table-slider" min="0" max="40" value="4" step="0.5">
                 <label>Longueur Réception <span class="slider-val"><span id="landlen-display">8</span> m</span></label>
-                <input type="range" id="landlen-slider" min="2" max="30" value="8" step="0.5">
+                <input type="range" id="landlen-slider" min="2" max="50" value="8" step="0.5">
+                
                 <hr>
+                
                 <label>Angle Appel (Kick) <span class="slider-val"><span id="kick-display">15</span>°</span></label>
                 <input type="range" id="kick-slider" min="10" max="45" value="15" step="0.5">
                 <label>Angle Réception <span class="slider-val"><span id="land-display">25</span>°</span></label>
                 <input type="range" id="land-slider" min="5" max="45" value="25" step="0.5">
+                
                 <hr>
+                
                 <label>Vitesse Cible <span class="slider-val"><span id="speed-display">40</span> km/h</span></label>
                 <input type="range" id="speed-slider" min="5" max="100" value="40">
                 <label>Distance Coupe <span class="slider-val"><span id="proj-display">40</span> m</span></label>
                 <input type="range" id="proj-slider" min="10" max="150" value="40">
                 
-                <div class="volume-box">
-                    <div class="volume-title">Volume de Neige Estimé</div>
-                    <div class="volume-val"><span id="volume-display">0.0</span> m³</div>
+                <div class="stats-box">
+                    <div class="stats-title">Fiche Récapitulative</div>
+                    <div class="stat-row"><span>Volume Neige:</span> <span id="stat-vol" class="stat-val">0.0 m³</span></div>
+                    <div class="stat-row"><span>Hauteur Neige Max:</span> <span id="stat-hmax" class="stat-val">0.0 m</span></div>
+                    <div class="stat-row"><span>Distance de Vol:</span> <span id="stat-dist" class="stat-val">0.0 m</span></div>
+                    <div class="stat-row"><span>APEX (Hauteur Vol):</span> <span id="stat-apex" class="stat-val">0.0 m</span></div>
                 </div>
 
                 <button class="btn btn-danger" id="delete-btn">SUPPRIMER MODULE</button>
@@ -129,6 +150,7 @@
     </div>
 
     <script>
+        // === 1. CONFIGURATION GLOBALE ===
         proj4.defs("EPSG:2154", "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
 
         const moduleNorms = {
@@ -138,11 +160,12 @@
 
         let map, chartInstance, currentChartParams = null;
         let activeModule = null, selectedFeatureId = null;
+        let isMoveModeActive = false; // Sécurité de déplacement
         let isDragging = false, draggedJustNow = false, startCursorLngLat = null, startBaseCoords = null;
         let isDraggingStartOnChart = false;
         let mntData = null, mntBboxL93 = null, mntWidth = 0, mntHeight = 0;
 
-        let lines = [{ id: 1, name: "LIGNE 1" }];
+        let lines = [{ id: 1, name: "RUN PRINCIPAL" }];
         let activeLineId = 1, lineCounter = 1;
 
         let snowparkFeatures = { type: 'FeatureCollection', features: [] };
@@ -178,6 +201,7 @@
             return null;
         }
 
+        // === 2. INTERFACE LISTES ===
         function renderLayerList() {
             const container = document.getElementById('layer-list-container');
             container.innerHTML = '';
@@ -238,6 +262,7 @@
             map.getSource('decorations-data').setData(decorationsFeatures);
         }
 
+        // === 3. CALCULS ET AFFICHAGE PHYSIQUE ===
         function updateProfileChart(feat) {
             const coords = feat.geometry.coordinates[0];
             const ptHaut = turf.point([(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2]);
@@ -251,7 +276,7 @@
             const speedKmh = feat.properties.speed;
             const kickLen = feat.properties.kickLen;
             const tableLen = feat.properties.tableLen;
-            const moduleWidth = moduleNorms[feat.properties.name].width;
+            const moduleWidth = feat.properties.width;
 
             const vMps = speedKmh / 3.6;
             const hNeeded = (vMps * vMps) / (2 * 9.81 * 0.9);
@@ -276,8 +301,10 @@
             const apexStr = ((v0 * Math.sin(theta))**2 / (2 * g)).toFixed(2);
             let hasLanded = false; let maxZ = -1000;
 
-            // Variables pour le calcul de cubature (Volume)
+            // Stats
             let crossSectionArea = 0;
+            let maxSnowDepth = 0;
+            let jumpDistance = 0;
             const deltaX = totalDistance / steps;
 
             for(let i=0; i<=steps; i++) {
@@ -296,9 +323,10 @@
                     else if (d <= kickLen + tableLen) zK = zKickEnd;
                     else zK = zKickEnd - ((d - kickLen - tableLen) * Math.tan(landAngle * Math.PI / 180));
                     
-                    // CALCUL DU VOLUME : Intégration de la surface (Z_neige - Z_terrain)
                     if (zK > zTerrain) {
-                        crossSectionArea += (zK - zTerrain) * deltaX;
+                        let depth = zK - zTerrain;
+                        crossSectionArea += depth * deltaX;
+                        if (depth > maxSnowDepth) maxSnowDepth = depth;
                     }
                 }
                 kickerData.push(zK);
@@ -307,15 +335,23 @@
                 if (curD >= lipDist && !hasLanded) {
                     const t = (curD - lipDist) / (v0 * Math.cos(theta));
                     const zTraj = zKickEnd + (v0 * Math.sin(theta) * t) - (0.5 * g * t * t);
-                    if (zTraj >= (zK || zTerrain)) trajData.push(zTraj);
-                    else { trajData.push(zK || zTerrain); hasLanded = true; }
+                    if (zTraj >= (zK || zTerrain)) {
+                        trajData.push(zTraj);
+                    } else { 
+                        trajData.push(zK || zTerrain); 
+                        hasLanded = true; 
+                        jumpDistance = curD - lipDist;
+                    }
                     if (zTraj > maxZ) maxZ = zTraj;
                 } else trajData.push(null);
             }
 
-            // Calcul final du Volume = Surface transversale * Largeur du module
+            // Mettre à jour la Fiche Récapitulative
             const estimatedVolume = crossSectionArea * moduleWidth;
-            document.getElementById('volume-display').innerText = estimatedVolume.toFixed(1);
+            document.getElementById('stat-vol').innerText = estimatedVolume.toFixed(1) + ' m³';
+            document.getElementById('stat-hmax').innerText = maxSnowDepth.toFixed(1) + ' m';
+            document.getElementById('stat-dist').innerText = jumpDistance > 0 ? jumpDistance.toFixed(1) + ' m' : '--';
+            document.getElementById('stat-apex').innerText = apexStr + ' m';
 
             document.getElementById('profile-container').style.display = 'block'; map.resize();
             const ctx = document.getElementById('profileChart').getContext('2d');
@@ -343,7 +379,6 @@
             };
 
             if (chartInstance) {
-                chartInstance.options.plugins.title.text = `APEX: ${apexStr}m`;
                 chartInstance.options.scales.y.max = maxZ + 5;
                 chartInstance.data.labels = labels; chartInstance.data.datasets[0].data = terrainData;
                 chartInstance.data.datasets[1].data = kickerData; chartInstance.data.datasets[2].data = trajData;
@@ -358,7 +393,7 @@
                     ]},
                     options: { 
                         responsive: true, maintainAspectRatio: false, animation: false,
-                        plugins: { title: { display: true, text: `APEX: ${apexStr}m`, color: '#fff', font: {size: 12} }, tooltip: { mode: 'index', intersect: false } },
+                        plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
                         scales: { y: { max: maxZ + 5, grid: { color: '#333' } }, x: { grid: { color: '#333' }, ticks: { maxTicksLimit: 10 } } },
                         onHover: (e, active) => {
                             if(!isDraggingStartOnChart && active.length > 0 && currentChartParams) {
@@ -372,6 +407,7 @@
             }
         }
 
+        // === 4. DRAG START CANVAS ===
         const canvas = document.getElementById('profileChart');
         canvas.addEventListener('mousedown', (e) => {
             if (!chartInstance || !currentChartParams || currentChartParams.startDistanceX === null) return;
@@ -410,6 +446,7 @@
         });
         window.addEventListener('mouseup', () => { if (isDraggingStartOnChart) { isDraggingStartOnChart = false; canvas.style.cursor = 'default'; } });
 
+        // === 5. INITIALISATION ===
         document.addEventListener('DOMContentLoaded', () => {
             map = new maplibregl.Map({ 
                 container: 'map-container', 
@@ -454,20 +491,46 @@
                 if (activeModule) {
                     const n = moduleNorms[activeModule]; const id = Date.now();
                     const c = calculatePolygonCoords(e.lngLat, n.width, n.kickLen + n.defaultTable + n.defaultLandLen);
-                    const nf = { id, type: 'Feature', properties: { id, name: activeModule, lineId: activeLineId, visible: true, color: n.color, rotation: 0, projectionDist: 40, speed: 40, kickLen: n.kickLen, tableLen: n.defaultTable, landLen: n.defaultLandLen, kickAngle: n.defaultKickAngle, landingAngle: 25, baseCoords: JSON.stringify(c) }, geometry: { type: 'Polygon', coordinates: c } };
+                    const nf = { id, type: 'Feature', properties: { 
+                        id, name: activeModule, lineId: activeLineId, visible: true, color: n.color, 
+                        rotation: 0, projectionDist: 40, speed: 40, 
+                        width: n.width, kickLen: n.kickLen, tableLen: n.defaultTable, landLen: n.defaultLandLen, 
+                        kickAngle: n.defaultKickAngle, landingAngle: 25, baseCoords: JSON.stringify(c) 
+                    }, geometry: { type: 'Polygon', coordinates: c } };
                     snowparkFeatures.features.push(nf); refreshMapData(); selectFeature(id);
                     activeModule = null; mods.forEach(b => b.classList.remove('active')); map.getCanvas().style.cursor = '';
                 } else if (!map.queryRenderedFeatures(e.point, { layers: ['modules-fill'] }).length) deselectFeature();
             });
 
+            // BOUTON DE DEPLACEMENT ON/OFF
+            document.getElementById('btn-move-toggle').addEventListener('click', (e) => {
+                isMoveModeActive = !isMoveModeActive;
+                if (isMoveModeActive) {
+                    e.target.classList.add('active');
+                    e.target.innerText = 'DÉPLACER SUR CARTE : ON';
+                } else {
+                    e.target.classList.remove('active');
+                    e.target.innerText = 'DÉPLACER SUR CARTE : OFF';
+                }
+            });
+
+            // DRAG AND DROP SÉCURISÉ
             map.on('mousedown', 'modules-fill', (e) => {
-                if (activeModule) return; e.preventDefault(); isDragging = true; map.dragPan.disable(); startCursorLngLat = e.lngLat;
-                const id = e.features[0].properties.id; selectFeature(id);
-                startBaseCoords = JSON.parse(snowparkFeatures.features.find(f => f.properties.id === id).properties.baseCoords);
+                if (activeModule) return; 
+                e.preventDefault(); 
+                
+                const id = e.features[0].properties.id; 
+                selectFeature(id);
+                
+                if (isMoveModeActive) {
+                    isDragging = true; map.dragPan.disable(); startCursorLngLat = e.lngLat;
+                    startBaseCoords = JSON.parse(snowparkFeatures.features.find(f => f.properties.id === id).properties.baseCoords);
+                }
             });
 
             map.on('mousemove', (e) => {
                 if (!isDragging || !selectedFeatureId) return;
+                map.getCanvas().style.cursor = 'move';
                 const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
                 const lngOffset = e.lngLat.lng - startCursorLngLat.lng; const latOffset = e.lngLat.lat - startCursorLngLat.lat;
                 const newBaseCoords = startBaseCoords[0].map(c => [c[0] + lngOffset, c[1] + latOffset]);
@@ -476,7 +539,32 @@
                 refreshMapData(); updateProfileChart(feat); 
             });
 
-            map.on('mouseup', () => { if(isDragging) { isDragging=false; draggedJustNow=true; setTimeout(()=>draggedJustNow=false,100); map.dragPan.enable(); }});
+            map.on('mouseup', () => { 
+                if(isDragging) { isDragging=false; map.getCanvas().style.cursor = ''; draggedJustNow=true; setTimeout(()=>draggedJustNow=false,100); map.dragPan.enable(); }
+            });
+
+            // BOUTONS D'ÉCHELLE (Scale)
+            document.getElementById('btn-scale-minus').addEventListener('click', () => scaleFeature(0.9));
+            document.getElementById('btn-scale-plus').addEventListener('click', () => scaleFeature(1.1));
+
+            function scaleFeature(factor) {
+                if(!selectedFeatureId) return;
+                const f = snowparkFeatures.features.find(x => x.properties.id === selectedFeatureId);
+                f.properties.width *= factor;
+                f.properties.kickLen *= factor;
+                f.properties.tableLen *= factor;
+                f.properties.landLen *= factor;
+                
+                document.getElementById('table-slider').value = f.properties.tableLen; document.getElementById('table-display').innerText = f.properties.tableLen.toFixed(1);
+                document.getElementById('landlen-slider').value = f.properties.landLen; document.getElementById('landlen-display').innerText = f.properties.landLen.toFixed(1);
+                
+                const newTotalLen = f.properties.kickLen + f.properties.tableLen + f.properties.landLen;
+                const center = getBaseCenter(JSON.parse(f.properties.baseCoords)); 
+                const newCoords = calculatePolygonCoords(center, f.properties.width, newTotalLen);
+                f.properties.baseCoords = JSON.stringify(newCoords); 
+                f.geometry.coordinates = turf.transformRotate(turf.polygon(newCoords), f.properties.rotation).geometry.coordinates;
+                refreshMapData(); updateProfileChart(f);
+            }
 
             document.getElementById('close-profile').addEventListener('click', deselectFeature);
             document.getElementById('delete-btn').addEventListener('click', () => { snowparkFeatures.features = snowparkFeatures.features.filter(x => x.properties.id !== selectedFeatureId); deselectFeature(); });
@@ -488,8 +576,8 @@
                     const f = snowparkFeatures.features.find(x => x.properties.id === selectedFeatureId);
                     f.properties[propName] = val;
                     if (isLength) { 
-                        const norm = moduleNorms[f.properties.name]; const newTotalLen = f.properties.kickLen + f.properties.tableLen + f.properties.landLen;
-                        const center = getBaseCenter(JSON.parse(f.properties.baseCoords)); const newCoords = calculatePolygonCoords(center, norm.width, newTotalLen);
+                        const newTotalLen = f.properties.kickLen + f.properties.tableLen + f.properties.landLen;
+                        const center = getBaseCenter(JSON.parse(f.properties.baseCoords)); const newCoords = calculatePolygonCoords(center, f.properties.width, newTotalLen);
                         f.properties.baseCoords = JSON.stringify(newCoords); f.geometry.coordinates = turf.transformRotate(turf.polygon(newCoords), f.properties.rotation).geometry.coordinates;
                     } else if (propName === 'rotation') {
                         f.geometry.coordinates = turf.transformRotate(turf.polygon(JSON.parse(f.properties.baseCoords)), val).geometry.coordinates;
@@ -497,18 +585,30 @@
                     refreshMapData(); updateProfileChart(f);
                 });
             }
-            syncSlider('rotation', 'rotation-slider', 'angle-display', false); syncSlider('tableLen', 'table-slider', 'table-display', true); syncSlider('landLen', 'landlen-slider', 'landlen-display', true);
-            syncSlider('kickAngle', 'kick-slider', 'kick-display', false); syncSlider('landingAngle', 'land-slider', 'land-display', false); syncSlider('speed', 'speed-slider', 'speed-display', false); syncSlider('projectionDist', 'proj-slider', 'proj-display', false);
+            syncSlider('rotation', 'rotation-slider', 'angle-display', false); syncSlider('tableLen', 'table-slider', 'table-display', true);
+            syncSlider('landLen', 'landlen-slider', 'landlen-display', true); syncSlider('kickAngle', 'kick-slider', 'kick-display', false);
+            syncSlider('landingAngle', 'land-slider', 'land-display', false); syncSlider('speed', 'speed-slider', 'speed-display', false);
+            syncSlider('projectionDist', 'proj-slider', 'proj-display', false);
         });
 
         window.selectFeature = function(id) {
             if(selectedFeatureId) map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: false });
             selectedFeatureId = id; map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: true });
+            
+            // Désactiver le déplacement par défaut à la sélection
+            isMoveModeActive = false;
+            document.getElementById('btn-move-toggle').classList.remove('active');
+            document.getElementById('btn-move-toggle').innerText = 'DÉPLACER SUR CARTE : OFF';
+
             const f = snowparkFeatures.features.find(x => x.properties.id === id);
             const center = getBaseCenter(JSON.parse(f.properties.baseCoords));
             map.flyTo({ center: [center.lng, center.lat], zoom: 19, speed: 1.2, curve: 1 });
-            document.getElementById('properties-panel').style.display = 'block'; document.getElementById('prop-title').innerText = f.properties.name;
-            document.getElementById('kick-slider').min = moduleNorms[f.properties.name].minKickAngle; document.getElementById('kick-slider').max = moduleNorms[f.properties.name].maxKickAngle;
+            
+            document.getElementById('properties-panel').style.display = 'block'; 
+            document.getElementById('prop-title').innerText = f.properties.name;
+            document.getElementById('kick-slider').min = moduleNorms[f.properties.name].minKickAngle; 
+            document.getElementById('kick-slider').max = moduleNorms[f.properties.name].maxKickAngle;
+            
             ['rotation', 'speed', 'table', 'landlen', 'kick', 'land', 'proj'].forEach(p => {
                 let sid = (p==='table'?'table-slider':p==='landlen'?'landlen-slider':p==='land'?'land-slider':p==='proj'?'proj-slider':p+'-slider');
                 let val = (p==='table'?f.properties.tableLen:p==='landlen'?f.properties.landLen:p==='proj'?f.properties.projectionDist:p==='land'?f.properties.landingAngle:f.properties[p+(p==='kick'?'Angle':'')]);
@@ -519,7 +619,12 @@
 
         function deselectFeature() {
             if(selectedFeatureId) map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: false });
-            selectedFeatureId = null; document.getElementById('properties-panel').style.display = 'none'; document.getElementById('profile-container').style.display = 'none'; 
+            selectedFeatureId = null; 
+            isMoveModeActive = false;
+            document.getElementById('btn-move-toggle').classList.remove('active');
+            document.getElementById('btn-move-toggle').innerText = 'DÉPLACER SUR CARTE : OFF';
+            document.getElementById('properties-panel').style.display = 'none'; 
+            document.getElementById('profile-container').style.display = 'none'; 
             hoverMarker.remove(); renderLayerList(); refreshMapData(); map.resize();
         }
     </script>
