@@ -26,21 +26,21 @@
         .main-workspace { flex-grow: 1; position: relative; display: flex; flex-direction: column; }
         #map-container { flex-grow: 1; position: relative; background-color: #dcdde1; }
         
-        #profile-container { height: 300px; background: white; border-top: 3px solid #34495e; padding: 10px; box-sizing: border-box; display: none; position: relative; }
+        #profile-container { height: 320px; background: white; border-top: 3px solid #34495e; padding: 10px; box-sizing: border-box; display: none; position: relative; }
         #close-profile { position: absolute; top: 5px; right: 10px; background: none; border: none; font-size: 1.2rem; cursor: pointer; }
         
         #altitude-box { position: absolute; top: 20px; left: 20px; background-color: rgba(44, 62, 80, 0.9); color: #2ecc71; padding: 10px 20px; border-radius: 5px; font-size: 1.2rem; font-weight: bold; z-index: 20; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 2px solid #34495e; }
         
         input[type=range] { width: 100%; margin-top: 5px; margin-bottom: 10px; cursor: pointer; }
         label { font-size: 0.85rem; color: #ecf0f1; }
-        .slider-val { font-weight: bold; color: #3498db; }
+        .slider-val { font-weight: bold; color: #e67e22; }
     </style>
 </head>
 <body>
 
     <div class="app-container">
         <div class="sidebar">
-            <h2>🛠️ Snowpark Pro v14</h2>
+            <h2>🛠️ Snowpark Pro v15</h2>
             <div class="panel"><button class="btn btn-primary">Enregistrer</button></div>
             <div class="panel">
                 <h3>🗺️ Topographie (MNT)</h3>
@@ -54,14 +54,17 @@
                 <label>Orientation (<span class="slider-val" id="angle-display">0</span>°)</label>
                 <input type="range" id="rotation-slider" min="0" max="360" value="0">
                 
-                <label>Distance Amont/Aval (<span class="slider-val" id="proj-display">40</span> m)</label>
-                <input type="range" id="proj-slider" min="10" max="150" value="40">
+                <label>Vitesse du rider (<span class="slider-val" id="speed-display">60</span> km/h)</label>
+                <input type="range" id="speed-slider" min="20" max="120" value="60">
                 
-                <label>Angle du Kick (<span class="slider-val" id="kick-display">20</span>°)</label>
+                <label>Angle d'appel / Kick (<span class="slider-val" id="kick-display">20</span>°)</label>
                 <input type="range" id="kick-slider" min="5" max="45" value="20">
                 
                 <label>Pente Réception (<span class="slider-val" id="land-display">25</span>°)</label>
                 <input type="range" id="land-slider" min="5" max="45" value="25">
+                
+                <label>Distance de projection (<span class="slider-val" id="proj-display">50</span> m)</label>
+                <input type="range" id="proj-slider" min="10" max="150" value="50">
                 
                 <button class="btn btn-danger" id="delete-btn">🗑️ Supprimer</button>
             </div>
@@ -135,60 +138,74 @@
             const projDist = feat.properties.projectionDist;
             const kickAngle = feat.properties.kickAngle;
             const landingAngle = feat.properties.landingAngle;
+            const speedKmh = feat.properties.speed;
 
-            // --- GÉOMÉTRIE DU KICKER ---
-            // On divise la longueur totale en 3 sections
-            const kickLen = kickerLength * 0.25; // 25% pour l'appel
-            const tableLen = kickerLength * 0.35; // 35% de table plate
-            const landLen = kickerLength * 0.40;  // 40% de réception
+            const kickLen = kickerLength * 0.25; 
+            const tableLen = kickerLength * 0.35;
 
             const amontPt = turf.destination(ptHaut, projDist, bearing - 180, {units: 'meters'});
             const totalDistance = projDist * 2 + kickerLength;
             
-            // Résolution plus fine (80 points) pour voir la table !
-            const steps = 80;
+            const steps = 100;
             const labels = [];
             const terrainData = [];
             const kickerData = [];
+            const trajData = []; // Données pour la ligne de vol
 
-            // Altitude de la montagne au point de départ du module
             let zStartKicker = getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0;
-            // Altitude à la fin de l'appel (hauteur max de la table)
             const zKickEnd = zStartKicker + (kickLen * Math.tan(kickAngle * Math.PI / 180));
+            const lipDistance = projDist + kickLen; // Distance X du bord de l'appel
+
+            // PHYSIQUE : Variables initiales au moment du décollage (Lip)
+            const v0 = speedKmh / 3.6; // Convertir km/h en m/s
+            const theta = kickAngle * Math.PI / 180; // Angle en radians
+            const g = 9.81; // Gravité
+            let hasLanded = false;
 
             for(let i=0; i<=steps; i++) {
                 const fraction = i/steps;
                 const currentDist = fraction * totalDistance;
-                
                 const ptX = turf.destination(amontPt, currentDist, bearing, {units: 'meters'});
+                
                 labels.push(currentDist.toFixed(1) + 'm');
                 
-                // Terrain
                 const alt = getAltitudeAt(ptX.geometry.coordinates[0], ptX.geometry.coordinates[1]);
                 const zTerrain = alt !== null ? alt : 0;
                 terrainData.push(zTerrain);
 
-                // Neige (Kicker)
+                let zKickerCalc = null;
                 if (currentDist >= projDist && currentDist <= projDist + kickerLength) {
-                    const d = currentDist - projDist; // Distance à l'intérieur du module
-                    let zKicker = 0;
-                    
-                    if (d <= kickLen) {
-                        // Phase 1 : Le Kick (montée)
-                        zKicker = zStartKicker + (d * Math.tan(kickAngle * Math.PI / 180));
-                    } 
-                    else if (d <= kickLen + tableLen) {
-                        // Phase 2 : La Table (plate)
-                        zKicker = zKickEnd;
-                    } 
-                    else {
-                        // Phase 3 : La Réception (descente)
-                        const dLand = d - kickLen - tableLen;
-                        zKicker = zKickEnd - (dLand * Math.tan(landingAngle * Math.PI / 180));
-                    }
-                    kickerData.push(zKicker);
+                    const d = currentDist - projDist;
+                    if (d <= kickLen) zKickerCalc = zStartKicker + (d * Math.tan(kickAngle * Math.PI / 180));
+                    else if (d <= kickLen + tableLen) zKickerCalc = zKickEnd;
+                    else zKickerCalc = zKickEnd - ((d - kickLen - tableLen) * Math.tan(landingAngle * Math.PI / 180));
+                    kickerData.push(zKickerCalc);
                 } else {
                     kickerData.push(null);
+                }
+
+                // --- CALCUL DE LA TRAJECTOIRE ---
+                if (currentDist < lipDistance) {
+                    trajData.push(null); // Pas encore décollé
+                } else if (!hasLanded) {
+                    // Calcul physique parabolique
+                    const xRel = currentDist - lipDistance; // Distance parcourue en vol
+                    // Temps de vol théorique pour atteindre ce point X
+                    const t = xRel / (v0 * Math.cos(theta)); 
+                    // Hauteur Z à cet instant t
+                    const zTraj = zKickEnd + (v0 * Math.sin(theta) * t) - (0.5 * g * t * t);
+                    
+                    // Vérification de l'atterrissage
+                    const surfaceZ = zKickerCalc !== null ? zKickerCalc : zTerrain;
+                    
+                    if (zTraj >= surfaceZ) {
+                        trajData.push(zTraj);
+                    } else {
+                        trajData.push(surfaceZ); // On touche le sol !
+                        hasLanded = true;
+                    }
+                } else {
+                    trajData.push(null); // Après atterrissage
                 }
             }
 
@@ -199,6 +216,7 @@
                 chartInstance.data.labels = labels;
                 chartInstance.data.datasets[0].data = terrainData;
                 chartInstance.data.datasets[1].data = kickerData;
+                chartInstance.data.datasets[2].data = trajData; // Mise à jour du vol
                 chartInstance.update();
             } else {
                 chartInstance = new Chart(ctx, {
@@ -206,17 +224,10 @@
                     data: {
                         labels: labels,
                         datasets: [
-                            {
-                                label: 'Terrain Naturel (MNT)', data: terrainData,
-                                borderColor: '#8e44ad', backgroundColor: 'rgba(142, 68, 173, 0.2)',
-                                fill: true, tension: 0.2, pointRadius: 0
-                            },
-                            {
-                                label: 'Profil du Kicker (Neige)', data: kickerData,
-                                borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.4)',
-                                fill: false, tension: 0, pointRadius: 0, borderWidth: 4,
-                                borderJoinStyle: 'round' // Arrondi légèrement les angles "kick/table/réception"
-                            }
+                            { label: 'Terrain Naturel (MNT)', data: terrainData, borderColor: '#8e44ad', backgroundColor: 'rgba(142, 68, 173, 0.2)', fill: true, tension: 0.2, pointRadius: 0 },
+                            { label: 'Profil du Kicker', data: kickerData, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.4)', fill: false, tension: 0, pointRadius: 0, borderWidth: 4, borderJoinStyle: 'round' },
+                            // NOUVEAU DATASET : LA TRAJECTOIRE
+                            { label: 'Vol du Rider', data: trajData, borderColor: '#e67e22', borderDash: [5, 5], fill: false, tension: 0.4, pointRadius: 0, borderWidth: 3 }
                         ]
                     },
                     options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y: { title: { display: true, text: 'Altitude (m)' } }, x: { title: { display: true, text: 'Distance (m)' } } } }
@@ -296,8 +307,11 @@
                 if (draggedJustNow) return;
                 if (activeModule) {
                     const norm = moduleNorms[activeModule]; const coords = calculatePolygonCoords(e.lngLat, norm.width, norm.length); const uniqueId = Date.now();
-                    // NOUVELLES PROPRIÉTÉS : kickAngle (appel) et landingAngle (réception)
-                    const newFeature = { id: uniqueId, type: 'Feature', properties: { id: uniqueId, name: activeModule, color: norm.color, rotation: 0, projectionDist: 40, kickAngle: 20, landingAngle: 25, baseCoords: JSON.stringify(coords) }, geometry: { type: 'Polygon', coordinates: coords } };
+                    const newFeature = { 
+                        id: uniqueId, type: 'Feature', 
+                        properties: { id: uniqueId, name: activeModule, color: norm.color, rotation: 0, projectionDist: 50, kickAngle: 20, landingAngle: 25, speed: 60, baseCoords: JSON.stringify(coords) }, 
+                        geometry: { type: 'Polygon', coordinates: coords } 
+                    };
                     snowparkFeatures.features.push(newFeature); map.getSource('snowpark-data').setData(snowparkFeatures);
                     selectFeature(uniqueId); activeModule = null; modules.forEach(m => m.style.border = 'none'); map.getCanvas().style.cursor = '';
                     return;
@@ -310,8 +324,9 @@
                 const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
                 document.getElementById('edit-panel').style.display = 'block';
                 document.getElementById('edit-name').innerText = feat.properties.name;
-                document.getElementById('rotation-slider').value = feat.properties.rotation; document.getElementById('angle-display').innerText = feat.properties.rotation;
                 
+                document.getElementById('rotation-slider').value = feat.properties.rotation; document.getElementById('angle-display').innerText = feat.properties.rotation;
+                document.getElementById('speed-slider').value = feat.properties.speed; document.getElementById('speed-display').innerText = feat.properties.speed;
                 document.getElementById('proj-slider').value = feat.properties.projectionDist; document.getElementById('proj-display').innerText = feat.properties.projectionDist;
                 document.getElementById('kick-slider').value = feat.properties.kickAngle; document.getElementById('kick-display').innerText = feat.properties.kickAngle;
                 document.getElementById('land-slider').value = feat.properties.landingAngle; document.getElementById('land-display').innerText = feat.properties.landingAngle;
@@ -324,39 +339,27 @@
             }
 
             // GESTION DES CURSEURS
-            document.getElementById('rotation-slider').addEventListener('input', (e) => {
-                if (selectedFeatureId) {
-                    const val = parseFloat(e.target.value); document.getElementById('angle-display').innerText = val;
-                    const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId); feat.properties.rotation = val;
-                    const basePoly = turf.polygon(JSON.parse(feat.properties.baseCoords)); const rotatedPoly = turf.transformRotate(basePoly, val);
-                    feat.geometry.coordinates = rotatedPoly.geometry.coordinates; map.getSource('snowpark-data').setData(snowparkFeatures);
-                    updateProfileChart(feat);
-                }
-            });
+            function updateFeatProp(propName, sliderId, displayId) {
+                document.getElementById(sliderId).addEventListener('input', (e) => {
+                    if (selectedFeatureId) {
+                        const val = parseFloat(e.target.value); document.getElementById(displayId).innerText = val;
+                        const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
+                        feat.properties[propName] = val;
+                        
+                        if(propName === 'rotation') {
+                            const basePoly = turf.polygon(JSON.parse(feat.properties.baseCoords)); const rotatedPoly = turf.transformRotate(basePoly, val);
+                            feat.geometry.coordinates = rotatedPoly.geometry.coordinates; map.getSource('snowpark-data').setData(snowparkFeatures);
+                        }
+                        updateProfileChart(feat);
+                    }
+                });
+            }
 
-            document.getElementById('proj-slider').addEventListener('input', (e) => {
-                if (selectedFeatureId) {
-                    const val = parseInt(e.target.value); document.getElementById('proj-display').innerText = val;
-                    const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId); feat.properties.projectionDist = val;
-                    updateProfileChart(feat);
-                }
-            });
-
-            document.getElementById('kick-slider').addEventListener('input', (e) => {
-                if (selectedFeatureId) {
-                    const val = parseFloat(e.target.value); document.getElementById('kick-display').innerText = val;
-                    const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId); feat.properties.kickAngle = val;
-                    updateProfileChart(feat);
-                }
-            });
-
-            document.getElementById('land-slider').addEventListener('input', (e) => {
-                if (selectedFeatureId) {
-                    const val = parseFloat(e.target.value); document.getElementById('land-display').innerText = val;
-                    const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId); feat.properties.landingAngle = val;
-                    updateProfileChart(feat);
-                }
-            });
+            updateFeatProp('rotation', 'rotation-slider', 'angle-display');
+            updateFeatProp('speed', 'speed-slider', 'speed-display');
+            updateFeatProp('projectionDist', 'proj-slider', 'proj-display');
+            updateFeatProp('kickAngle', 'kick-slider', 'kick-display');
+            updateFeatProp('landingAngle', 'land-slider', 'land-display');
 
             document.getElementById('delete-btn').addEventListener('click', () => {
                 if (selectedFeatureId) { snowparkFeatures.features = snowparkFeatures.features.filter(f => f.properties.id !== selectedFeatureId); map.getSource('snowpark-data').setData(snowparkFeatures); deselectCurrentFeature(); }
