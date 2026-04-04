@@ -9,11 +9,12 @@
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; color: #333; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; color: #333; overflow: hidden; }
         .app-container { display: flex; height: 100vh; width: 100vw; }
         .sidebar { width: 320px; background-color: #2c3e50; color: #ecf0f1; padding: 20px; box-sizing: border-box; overflow-y: auto; z-index: 10; box-shadow: 2px 0 5px rgba(0,0,0,0.2); }
         .sidebar h2 { margin-top: 0; font-size: 1.5rem; border-bottom: 1px solid #34495e; padding-bottom: 15px; }
@@ -23,31 +24,38 @@
         .btn-primary { background-color: #27ae60; }
         .btn-danger { background-color: #e74c3c; margin-top: 15px; }
         .module-btn { background-color: #e67e22; padding: 10px; margin-bottom: 8px; text-align: center; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
-        .main-workspace { flex-grow: 1; position: relative; }
-        #map-container { position: absolute; top: 0; bottom: 0; width: 100%; background-color: #dcdde1; }
-        input[type=range] { width: 100%; margin-top: 10px; cursor: pointer; }
-        input[type=file] { width: 100%; margin-bottom: 10px; font-size: 0.8rem; color: white; }
+        .main-workspace { flex-grow: 1; position: relative; display: flex; flex-direction: column; }
+        
+        #map-container { flex-grow: 1; position: relative; background-color: #dcdde1; }
+        
+        /* NOUVEAU : Le panneau du graphique en bas */
+        #profile-container { 
+            height: 250px; 
+            background: white; 
+            border-top: 3px solid #34495e; 
+            padding: 10px; 
+            box-sizing: border-box;
+            display: none; /* Caché par défaut */
+            position: relative;
+        }
+        #close-profile { position: absolute; top: 5px; right: 10px; background: none; border: none; font-size: 1.2rem; cursor: pointer; }
         
         #altitude-box { position: absolute; top: 20px; left: 20px; background-color: rgba(44, 62, 80, 0.9); color: #2ecc71; padding: 10px 20px; border-radius: 5px; font-size: 1.2rem; font-weight: bold; z-index: 20; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 2px solid #34495e; }
+        input[type=range] { width: 100%; margin-top: 10px; cursor: pointer; }
+        input[type=file] { width: 100%; margin-bottom: 10px; font-size: 0.8rem; color: white; }
     </style>
 </head>
 <body>
 
     <div class="app-container">
         <div class="sidebar">
-            <h2>🛠️ Snowpark Pro v11</h2>
-            
-            <div class="panel">
-                <h3>📂 Gestion de Projet</h3>
-                <button class="btn btn-primary">Enregistrer</button>
-            </div>
-
+            <h2>🛠️ Snowpark Pro v12</h2>
+            <div class="panel"><button class="btn btn-primary">Enregistrer</button></div>
             <div class="panel">
                 <h3>🗺️ Topographie (MNT)</h3>
                 <label style="font-size: 0.8rem; color: #f1c40f;">Format requis : .tif (Lambert 93)</label>
                 <input type="file" id="mnt-upload" accept=".tif,.tiff">
             </div>
-
             <div class="panel" id="edit-panel" style="display: none; border: 2px solid #3498db;">
                 <h3>⚙️ Édition du Module</h3>
                 <p id="edit-name" style="font-weight: bold; color: #e67e22; margin-top: 0;"></p>
@@ -55,7 +63,6 @@
                 <input type="range" id="rotation-slider" min="0" max="360" value="0">
                 <button class="btn btn-danger" id="delete-btn">🗑️ Supprimer</button>
             </div>
-
             <div class="panel">
                 <h3>⛷️ Modules (Norme)</h3>
                 <div class="module-btn">Kicker S (Débutant)</div>
@@ -67,11 +74,15 @@
         <div class="main-workspace">
             <div id="altitude-box">Altitude: -- m</div>
             <div id="map-container"></div>
+            
+            <div id="profile-container">
+                <button id="close-profile">❌</button>
+                <canvas id="profileChart"></canvas>
+            </div>
         </div>
     </div>
 
     <script>
-        // --- DÉFINITION DU SYSTÈME FRANÇAIS LAMBERT 93 ---
         proj4.defs("EPSG:2154", "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
 
         let map;
@@ -82,11 +93,13 @@
         let startCursorLngLat = null;
         let startBaseCoords = null;
 
-        // Variables MNT
         let mntData = null; 
-        let mntBboxL93 = null; // Emprise en mètres (Lambert 93)
+        let mntBboxL93 = null; 
         let mntWidth = 0;
         let mntHeight = 0;
+
+        // Variables pour le graphique
+        let chartInstance = null;
 
         const moduleNorms = {
             'Kicker S (Débutant)': { width: 10, length: 15, color: '#2ecc71' },
@@ -103,123 +116,165 @@
             const dLat = (lengthM / 2) / R;
             const dLng = (widthM / 2) / (R * Math.cos(Math.PI * lat / 180));
             return [[
-                [lng - dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI],
-                [lng + dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI],
-                [lng + dLng * 180 / Math.PI, lat + dLat * 180 / Math.PI],
-                [lng - dLng * 180 / Math.PI, lat + dLat * 180 / Math.PI],
+                [lng - dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI], // Bas Gauche
+                [lng + dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI], // Bas Droite
+                [lng + dLng * 180 / Math.PI, lat + dLat * 180 / Math.PI], // Haut Droite
+                [lng - dLng * 180 / Math.PI, lat + dLat * 180 / Math.PI], // Haut Gauche
                 [lng - dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI]
             ]];
         }
 
+        // NOUVEAU : Fonction pour interroger l'altitude à un point précis
+        function getAltitudeAt(lng, lat) {
+            if (!mntData || !mntBboxL93) return null;
+            const ptL93 = proj4("EPSG:4326", "EPSG:2154", [lng, lat]);
+            const xL93 = ptL93[0];
+            const yL93 = ptL93[1];
+
+            if (xL93 >= mntBboxL93[0] && xL93 <= mntBboxL93[2] && yL93 >= mntBboxL93[1] && yL93 <= mntBboxL93[3]) {
+                const x = Math.floor(((xL93 - mntBboxL93[0]) / (mntBboxL93[2] - mntBboxL93[0])) * mntWidth);
+                const y = Math.floor(((mntBboxL93[3] - yL93) / (mntBboxL93[3] - mntBboxL93[1])) * mntHeight);
+                let alt = mntData[y * mntWidth + x];
+                if (alt > -100 && alt < 8848) return alt;
+            }
+            return null;
+        }
+
+        // NOUVEAU : Fonction pour générer le graphique de coupe
+        function updateProfileChart(feat) {
+            const coords = feat.geometry.coordinates[0];
+            
+            // On trouve le point central du bord Haut et du bord Bas du module
+            const startPt = [(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2];
+            const endPt = [(coords[0][0]+coords[1][0])/2, (coords[0][1]+coords[1][1])/2];
+
+            const steps = 20; // Nombre de points de mesure (résolution)
+            const labels = [];
+            const terrainData = [];
+
+            // Calcul de la longueur en mètres (avec Turf)
+            const line = turf.lineString([startPt, endPt]);
+            const length = turf.length(line, {units: 'meters'});
+
+            for(let i=0; i<=steps; i++) {
+                const fraction = i/steps;
+                const lng = startPt[0] + (endPt[0]-startPt[0])*fraction;
+                const lat = startPt[1] + (endPt[1]-startPt[1])*fraction;
+                
+                labels.push((length * fraction).toFixed(1) + 'm');
+                
+                const alt = getAltitudeAt(lng, lat);
+                terrainData.push(alt !== null ? alt : 0); // Si pas de MNT chargé, on met 0
+            }
+
+            document.getElementById('profile-container').style.display = 'block';
+            map.resize(); // Ajuste la carte pour faire de la place
+
+            const ctx = document.getElementById('profileChart').getContext('2d');
+
+            if (chartInstance) {
+                chartInstance.data.labels = labels;
+                chartInstance.data.datasets[0].data = terrainData;
+                chartInstance.update();
+            } else {
+                chartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Terrain Naturel (MNT)',
+                            data: terrainData,
+                            borderColor: '#8e44ad',
+                            backgroundColor: 'rgba(142, 68, 173, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false, // Désactivé pour que ça suive en direct quand on glisse !
+                        scales: {
+                            y: { title: { display: true, text: 'Altitude (m)' } },
+                            x: { title: { display: true, text: 'Distance (m)' } }
+                        }
+                    }
+                });
+            }
+        }
+
+        // Bouton pour fermer le graphique
+        document.getElementById('close-profile').addEventListener('click', () => {
+            document.getElementById('profile-container').style.display = 'none';
+            deselectCurrentFeature();
+            map.resize();
+        });
+
+
+        // --- INITIALISATION DE LA CARTE ---
         document.addEventListener('DOMContentLoaded', () => {
             
             map = new maplibregl.Map({
                 container: 'map-container',
-                style: {
-                    'version': 8,
-                    'sources': { 'osm': { 'type': 'raster', 'tiles': ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], 'tileSize': 256 } },
-                    'layers': [{ 'id': 'osm-layer', 'type': 'raster', 'source': 'osm' }]
-                },
-                center: [0.5936, 42.7610],
-                zoom: 14
+                style: { 'version': 8, 'sources': { 'osm': { 'type': 'raster', 'tiles': ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], 'tileSize': 256 } }, 'layers': [{ 'id': 'osm-layer', 'type': 'raster', 'source': 'osm' }] },
+                center: [0.5936, 42.7610], zoom: 14
             });
-
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
             map.on('load', () => {
                 map.addSource('snowpark-data', { type: 'geojson', data: snowparkFeatures });
                 map.addLayer({ id: 'modules-fill', type: 'fill', source: 'snowpark-data', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.6 } });
                 map.addLayer({ id: 'modules-outline', type: 'line', source: 'snowpark-data', paint: { 'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#e74c3c', '#000'], 'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 4, 2] } });
-
                 map.addSource('mnt-bounds', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
                 map.addLayer({ id: 'mnt-bounds-line', type: 'line', source: 'mnt-bounds', paint: { 'line-color': '#e74c3c', 'line-width': 3, 'line-dasharray': [2, 2] } });
             });
 
-            // --- LECTURE DU FICHIER MNT LAMBERT 93 ---
+            // LECTURE MNT (Identique à V11)
             document.getElementById('mnt-upload').addEventListener('change', async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-
                 document.getElementById('altitude-box').innerText = "Traduction L93...";
-
                 try {
                     const tiff = await GeoTIFF.fromBlob(file);
                     const image = await tiff.getImage();
-                    
-                    mntBboxL93 = image.getBoundingBox(); // [minX, minY, maxX, maxY] en Lambert 93
-                    mntWidth = image.getWidth();
-                    mntHeight = image.getHeight();
-                    
-                    const rasters = await image.readRasters();
-                    mntData = rasters[0];
+                    mntBboxL93 = image.getBoundingBox(); 
+                    mntWidth = image.getWidth(); mntHeight = image.getHeight();
+                    const rasters = await image.readRasters(); mntData = rasters[0];
 
-                    // Conversion des 4 coins du cadre de Lambert 93 vers GPS (WGS84)
-                    const bl = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[0], mntBboxL93[1]]); // Bas Gauche
-                    const br = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[2], mntBboxL93[1]]); // Bas Droite
-                    const tr = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[2], mntBboxL93[3]]); // Haut Droite
-                    const tl = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[0], mntBboxL93[3]]); // Haut Gauche
+                    const bl = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[0], mntBboxL93[1]]);
+                    const br = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[2], mntBboxL93[1]]);
+                    const tr = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[2], mntBboxL93[3]]);
+                    const tl = proj4("EPSG:2154", "EPSG:4326", [mntBboxL93[0], mntBboxL93[3]]);
 
-                    // Dessin de l'emprise sur la carte
-                    const boundsGeoJSON = {
-                        type: 'Feature',
-                        geometry: { type: 'Polygon', coordinates: [[bl, br, tr, tl, bl]] }
-                    };
-                    map.getSource('mnt-bounds').setData(boundsGeoJSON);
-                    
-                    // Zoomer sur la zone avec les coordonnées WGS84
+                    map.getSource('mnt-bounds').setData({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[bl, br, tr, tl, bl]] } });
                     map.fitBounds([bl, tr], { padding: 40 });
-
                     document.getElementById('altitude-box').innerText = "Survolez la zone rouge";
-                    alert("MNT Lambert 93 analysé avec succès !");
-
-                } catch (err) {
-                    console.error(err);
-                    alert("Erreur. Le fichier n'est pas un TIFF lisible ou est trop lourd.");
-                    document.getElementById('altitude-box').innerText = "Erreur MNT";
-                }
-            });
-
-            // --- ALTITUDE EN DIRECT AVEC REPROJECTION ---
-            map.on('mousemove', (e) => {
-                if (!mntData || !mntBboxL93) return;
-
-                const lng = e.lngLat.lng;
-                const lat = e.lngLat.lat;
-
-                // 1. On convertit la position de la souris (GPS) vers le Lambert 93 (X,Y en mètres)
-                const mouseL93 = proj4("EPSG:4326", "EPSG:2154", [lng, lat]);
-                const xL93 = mouseL93[0];
-                const yL93 = mouseL93[1];
-
-                // 2. On vérifie si la souris est bien dans le cadre Lambert 93 du fichier
-                if (xL93 >= mntBboxL93[0] && xL93 <= mntBboxL93[2] && yL93 >= mntBboxL93[1] && yL93 <= mntBboxL93[3]) {
                     
-                    // 3. On trouve le pixel correspondant
-                    const x = Math.floor(((xL93 - mntBboxL93[0]) / (mntBboxL93[2] - mntBboxL93[0])) * mntWidth);
-                    const y = Math.floor(((mntBboxL93[3] - yL93) / (mntBboxL93[3] - mntBboxL93[1])) * mntHeight);
-                    
-                    const pixelIndex = y * mntWidth + x;
-                    let altitude = mntData[pixelIndex];
-
-                    if (altitude > -100 && altitude < 8848) {
-                        document.getElementById('altitude-box').innerText = `Altitude: ${altitude.toFixed(2)} m`;
-                    } else {
-                        document.getElementById('altitude-box').innerText = "Altitude: -- m";
+                    // Si un module était sélectionné, on met à jour son graphique
+                    if(selectedFeatureId) {
+                        const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
+                        updateProfileChart(feat);
                     }
-                } else {
-                    document.getElementById('altitude-box').innerText = "Hors zone MNT";
+                } catch (err) {
+                    console.error(err); alert("Erreur fichier TIFF.");
                 }
             });
 
-            // (Le reste du code pour les modules reste inchangé)
+            // ALTITUDE MOUSEMOVE (Identique à V11)
+            map.on('mousemove', (e) => {
+                const alt = getAltitudeAt(e.lngLat.lng, e.lngLat.lat);
+                if (alt !== null) document.getElementById('altitude-box').innerText = `Altitude: ${alt.toFixed(2)} m`;
+                else if (mntData) document.getElementById('altitude-box').innerText = "Hors zone MNT";
+            });
+
+            // DÉPLACEMENT ET SÉLECTION
             map.on('mouseenter', 'modules-fill', () => { if (!activeModule) map.getCanvas().style.cursor = 'move'; });
             map.on('mouseleave', 'modules-fill', () => { if (!activeModule && !isDragging) map.getCanvas().style.cursor = ''; });
 
             map.on('mousedown', 'modules-fill', (e) => {
                 if (activeModule) return;
                 e.preventDefault(); 
-                isDragging = true;
-                map.dragPan.disable();
+                isDragging = true; map.dragPan.disable();
                 startCursorLngLat = e.lngLat;
                 const id = e.features[0].properties.id;
                 selectFeature(id);
@@ -238,12 +293,14 @@
                 const rotatedPoly = turf.transformRotate(basePoly, feat.properties.rotation);
                 feat.geometry.coordinates = rotatedPoly.geometry.coordinates;
                 map.getSource('snowpark-data').setData(snowparkFeatures);
+                
+                // MISE À JOUR DU GRAPHIQUE EN DIRECT PENDANT LE DÉPLACEMENT !
+                updateProfileChart(feat); 
             });
 
             map.on('mouseup', () => {
                 if (isDragging) {
-                    isDragging = false;
-                    draggedJustNow = true;
+                    isDragging = false; draggedJustNow = true;
                     setTimeout(() => draggedJustNow = false, 100);
                     map.dragPan.enable();
                 }
@@ -255,11 +312,9 @@
                     deselectCurrentFeature();
                     modules.forEach(m => m.style.border = 'none');
                     if (activeModule === e.target.innerText) {
-                        activeModule = null;
-                        if(map) map.getCanvas().style.cursor = ''; 
+                        activeModule = null; if(map) map.getCanvas().style.cursor = ''; 
                     } else {
-                        activeModule = e.target.innerText;
-                        e.target.style.border = '3px solid #2ecc71'; 
+                        activeModule = e.target.innerText; e.target.style.border = '3px solid #2ecc71'; 
                         if(map) map.getCanvas().style.cursor = 'crosshair'; 
                     }
                 });
@@ -274,6 +329,9 @@
                     const newFeature = { id: uniqueId, type: 'Feature', properties: { id: uniqueId, name: activeModule, color: norm.color, rotation: 0, baseCoords: JSON.stringify(coords) }, geometry: { type: 'Polygon', coordinates: coords } };
                     snowparkFeatures.features.push(newFeature);
                     map.getSource('snowpark-data').setData(snowparkFeatures);
+                    
+                    selectFeature(uniqueId); // Ouvre le graphique automatiquement à la pose
+                    
                     activeModule = null;
                     modules.forEach(m => m.style.border = 'none');
                     map.getCanvas().style.cursor = '';
@@ -292,6 +350,9 @@
                 document.getElementById('edit-name').innerText = feat.properties.name;
                 document.getElementById('rotation-slider').value = feat.properties.rotation;
                 document.getElementById('angle-display').innerText = feat.properties.rotation;
+                
+                // GÉNÈRE LE GRAPHIQUE
+                updateProfileChart(feat);
             }
 
             function deselectCurrentFeature() {
@@ -299,6 +360,8 @@
                     map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: false });
                     selectedFeatureId = null;
                     document.getElementById('edit-panel').style.display = 'none';
+                    document.getElementById('profile-container').style.display = 'none';
+                    map.resize();
                 }
             }
 
@@ -312,6 +375,9 @@
                     const rotatedPoly = turf.transformRotate(basePoly, angle);
                     feat.geometry.coordinates = rotatedPoly.geometry.coordinates;
                     map.getSource('snowpark-data').setData(snowparkFeatures);
+                    
+                    // MISE À JOUR DU GRAPHIQUE PENDANT LA ROTATION !
+                    updateProfileChart(feat);
                 }
             });
 
