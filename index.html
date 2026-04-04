@@ -8,6 +8,8 @@
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
 
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; color: #333; }
@@ -23,27 +25,47 @@
         .main-workspace { flex-grow: 1; position: relative; }
         #map-container { position: absolute; top: 0; bottom: 0; width: 100%; background-color: #dcdde1; }
         input[type=range] { width: 100%; margin-top: 10px; cursor: pointer; }
+        input[type=file] { width: 100%; margin-bottom: 10px; font-size: 0.8rem; color: white; }
+        
+        /* NOUVEAU : Affichage de l'altitude */
+        #altitude-box {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(44, 62, 80, 0.9);
+            color: #2ecc71;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            z-index: 20;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border: 2px solid #34495e;
+        }
     </style>
 </head>
 <body>
 
     <div class="app-container">
         <div class="sidebar">
-            <h2>🛠️ Snowpark Pro v9</h2>
+            <h2>🛠️ Snowpark Pro v10</h2>
             
             <div class="panel">
                 <h3>📂 Gestion de Projet</h3>
                 <button class="btn btn-primary">Enregistrer</button>
             </div>
 
+            <div class="panel">
+                <h3>🗺️ Topographie (MNT)</h3>
+                <label style="font-size: 0.8rem; color: #bdc3c7;">Format requis : .tif (WGS84)</label>
+                <input type="file" id="mnt-upload" accept=".tif,.tiff">
+            </div>
+
             <div class="panel" id="edit-panel" style="display: none; border: 2px solid #3498db;">
                 <h3>⚙️ Édition du Module</h3>
                 <p id="edit-name" style="font-weight: bold; color: #e67e22; margin-top: 0;"></p>
-                <p style="font-size: 0.8rem; color: #bdc3c7;">🖱️ Cliquez et glissez le module sur la carte pour le déplacer.</p>
-                
                 <label for="rotation-slider" style="font-size: 0.9rem;">Orientation (<span id="angle-display">0</span>°)</label>
                 <input type="range" id="rotation-slider" min="0" max="360" value="0">
-                
                 <button class="btn btn-danger" id="delete-btn">🗑️ Supprimer</button>
             </div>
 
@@ -56,6 +78,7 @@
         </div>
 
         <div class="main-workspace">
+            <div id="altitude-box">Altitude: -- m</div>
             <div id="map-container"></div>
         </div>
     </div>
@@ -64,12 +87,16 @@
         let map;
         let activeModule = null;
         let selectedFeatureId = null;
-
-        // Variables pour la logique de Déplacement (Drag & Drop)
         let isDragging = false;
-        let draggedJustNow = false; // Pour éviter de désélectionner quand on lâche le clic
+        let draggedJustNow = false;
         let startCursorLngLat = null;
         let startBaseCoords = null;
+
+        // --- VARIABLES MNT ---
+        let mntData = null; // Les pixels d'altitude
+        let mntBbox = null; // [minLng, minLat, maxLng, maxLat]
+        let mntWidth = 0;
+        let mntHeight = 0;
 
         const moduleNorms = {
             'Kicker S (Débutant)': { width: 10, length: 15, color: '#2ecc71' },
@@ -85,16 +112,12 @@
             const lng = lngLat.lng;
             const dLat = (lengthM / 2) / R;
             const dLng = (widthM / 2) / (R * Math.cos(Math.PI * lat / 180));
-            
-            const dLatDeg = dLat * 180 / Math.PI;
-            const dLngDeg = dLng * 180 / Math.PI;
-            
             return [[
-                [lng - dLngDeg, lat - dLatDeg],
-                [lng + dLngDeg, lat - dLatDeg],
-                [lng + dLngDeg, lat + dLatDeg],
-                [lng - dLngDeg, lat + dLatDeg],
-                [lng - dLngDeg, lat - dLatDeg]
+                [lng - dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI],
+                [lng + dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI],
+                [lng + dLng * 180 / Math.PI, lat + dLat * 180 / Math.PI],
+                [lng - dLng * 180 / Math.PI, lat + dLat * 180 / Math.PI],
+                [lng - dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI]
             ]];
         }
 
@@ -108,96 +131,131 @@
                     'layers': [{ 'id': 'osm-layer', 'type': 'raster', 'source': 'osm' }]
                 },
                 center: [0.5936, 42.7610],
-                zoom: 18
+                zoom: 14 // Dézoomé pour mieux voir la zone MNT
             });
 
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
             map.on('load', () => {
                 map.addSource('snowpark-data', { type: 'geojson', data: snowparkFeatures });
-                
-                map.addLayer({
-                    id: 'modules-fill',
-                    type: 'fill',
-                    source: 'snowpark-data',
-                    paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.6 }
-                });
+                map.addLayer({ id: 'modules-fill', type: 'fill', source: 'snowpark-data', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.6 } });
+                map.addLayer({ id: 'modules-outline', type: 'line', source: 'snowpark-data', paint: { 'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#e74c3c', '#000'], 'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 4, 2] } });
 
-                map.addLayer({
-                    id: 'modules-outline',
-                    type: 'line',
-                    source: 'snowpark-data',
-                    paint: {
-                        'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#e74c3c', '#000'],
-                        'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 4, 2]
+                // Source vide pour dessiner l'emprise du MNT
+                map.addSource('mnt-bounds', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+                map.addLayer({ id: 'mnt-bounds-line', type: 'line', source: 'mnt-bounds', paint: { 'line-color': '#e74c3c', 'line-width': 3, 'line-dasharray': [2, 2] } });
+            });
+
+            // --- LECTURE DU FICHIER MNT (.TIF) ---
+            document.getElementById('mnt-upload').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                document.getElementById('altitude-box').innerText = "Chargement...";
+
+                try {
+                    // Utilisation de la bibliothèque GeoTIFF
+                    const tiff = await GeoTIFF.fromBlob(file);
+                    const image = await tiff.getImage();
+                    
+                    mntBbox = image.getBoundingBox(); // Récupère les coordonnées GPS du cadre
+                    mntWidth = image.getWidth();
+                    mntHeight = image.getHeight();
+                    
+                    const rasters = await image.readRasters();
+                    mntData = rasters[0]; // Récupère le tableau des altitudes
+
+                    // Dessiner le cadre rouge sur la carte pour vérifier l'emplacement
+                    const boundsGeoJSON = {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[[mntBbox[0], mntBbox[1]], [mntBbox[2], mntBbox[1]], [mntBbox[2], mntBbox[3]], [mntBbox[0], mntBbox[3]], [mntBbox[0], mntBbox[1]]]]
+                        }
+                    };
+                    map.getSource('mnt-bounds').setData(boundsGeoJSON);
+                    
+                    // Zoomer automatiquement sur le MNT
+                    map.fitBounds([[mntBbox[0], mntBbox[1]], [mntBbox[2], mntBbox[3]]], { padding: 20 });
+
+                    document.getElementById('altitude-box').innerText = "Survolez la zone rouge";
+                    alert("MNT chargé avec succès !");
+
+                } catch (err) {
+                    console.error("Erreur MNT :", err);
+                    alert("Erreur lors de la lecture. Assurez-vous que c'est un vrai fichier GeoTIFF en EPSG:4326.");
+                    document.getElementById('altitude-box').innerText = "Erreur MNT";
+                }
+            });
+
+            // --- LECTURE DE L'ALTITUDE EN DIRECT ---
+            map.on('mousemove', (e) => {
+                if (!mntData || !mntBbox) return;
+
+                const lng = e.lngLat.lng;
+                const lat = e.lngLat.lat;
+
+                // Vérifier si la souris est à l'intérieur du MNT
+                if (lng >= mntBbox[0] && lng <= mntBbox[2] && lat >= mntBbox[1] && lat <= mntBbox[3]) {
+                    // Convertir les coordonnées GPS en pixels (X, Y) de l'image
+                    const x = Math.floor(((lng - mntBbox[0]) / (mntBbox[2] - mntBbox[0])) * mntWidth);
+                    // L'axe Y est inversé dans les images
+                    const y = Math.floor(((mntBbox[3] - lat) / (mntBbox[3] - mntBbox[1])) * mntHeight);
+                    
+                    const pixelIndex = y * mntWidth + x;
+                    let altitude = mntData[pixelIndex];
+
+                    // Sécurité anti-valeurs aberrantes (no-data)
+                    if (altitude > -100 && altitude < 8848) {
+                        document.getElementById('altitude-box').innerText = `Altitude: ${altitude.toFixed(2)} m`;
+                    } else {
+                        document.getElementById('altitude-box').innerText = "Altitude: -- m";
                     }
-                });
+                } else {
+                    document.getElementById('altitude-box').innerText = "Hors zone MNT";
+                }
             });
 
-            // GESTION DU CURSEUR (quand on survole un module pour le déplacer)
-            map.on('mouseenter', 'modules-fill', () => {
-                if (!activeModule) map.getCanvas().style.cursor = 'move';
-            });
-            map.on('mouseleave', 'modules-fill', () => {
-                if (!activeModule && !isDragging) map.getCanvas().style.cursor = '';
-            });
-
-            // --- LA LOGIQUE DE DÉPLACEMENT (DRAG & DROP SUR CARTE) ---
+            // --- RESTE DU CODE (Déplacement, Rotation, Dessin) ---
+            // (La logique des phases précédentes reste intacte)
             
-            // 1. On attrape le module (Mousedown)
+            map.on('mouseenter', 'modules-fill', () => { if (!activeModule) map.getCanvas().style.cursor = 'move'; });
+            map.on('mouseleave', 'modules-fill', () => { if (!activeModule && !isDragging) map.getCanvas().style.cursor = ''; });
+
             map.on('mousedown', 'modules-fill', (e) => {
-                if (activeModule) return; // Si on est en train de poser un objet, on annule
+                if (activeModule) return;
                 e.preventDefault(); 
-                
                 isDragging = true;
-                map.dragPan.disable(); // MAGIE : On bloque le déplacement de la caméra
+                map.dragPan.disable();
                 startCursorLngLat = e.lngLat;
-                
                 const id = e.features[0].properties.id;
-                selectFeature(id); // On sélectionne le module cliqué
-                
-                // On mémorise la position de départ de sa forme
+                selectFeature(id);
                 const feat = snowparkFeatures.features.find(f => f.properties.id === id);
                 startBaseCoords = JSON.parse(feat.properties.baseCoords);
             });
 
-            // 2. On déplace la souris (Mousemove)
             map.on('mousemove', (e) => {
                 if (!isDragging || !selectedFeatureId) return;
-                
-                // On calcule de combien on a bougé la souris
                 const lngOffset = e.lngLat.lng - startCursorLngLat.lng;
                 const latOffset = e.lngLat.lat - startCursorLngLat.lat;
-
                 const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
-                
-                // On applique ce décalage à tous les points du module
                 const newBaseCoords = startBaseCoords[0].map(coord => [coord[0] + lngOffset, coord[1] + latOffset]);
                 feat.properties.baseCoords = JSON.stringify([newBaseCoords]);
-
-                // On remet l'angle de rotation par dessus les nouvelles coordonnées
                 const basePoly = turf.polygon([newBaseCoords]);
                 const rotatedPoly = turf.transformRotate(basePoly, feat.properties.rotation);
                 feat.geometry.coordinates = rotatedPoly.geometry.coordinates;
-
-                // On met à jour l'affichage en direct
                 map.getSource('snowpark-data').setData(snowparkFeatures);
             });
 
-            // 3. On lâche le clic (Mouseup)
             map.on('mouseup', () => {
                 if (isDragging) {
                     isDragging = false;
                     draggedJustNow = true;
-                    setTimeout(() => draggedJustNow = false, 100); // Chrono pour ignorer le clic final
-                    map.dragPan.enable(); // On débloque la caméra de la carte
+                    setTimeout(() => draggedJustNow = false, 100);
+                    map.dragPan.enable();
                 }
             });
 
-
-            // --- FIN DE LA LOGIQUE DE DÉPLACEMENT ---
-
-            // CLIC BARRE DE GAUCHE
             const modules = document.querySelectorAll('.module-btn');
             modules.forEach(mod => {
                 mod.addEventListener('click', (e) => {
@@ -214,51 +272,29 @@
                 });
             });
 
-            // CLIC CARTE (Pose d'un nouveau module ou clic dans le vide)
             map.on('click', (e) => {
-                if (draggedJustNow) return; // Si on vient de finir un glisser-déposer, on ignore ce clic
-
+                if (draggedJustNow) return;
                 if (activeModule) {
                     const norm = moduleNorms[activeModule];
                     const coords = calculatePolygonCoords(e.lngLat, norm.width, norm.length);
                     const uniqueId = Date.now();
-
-                    const newFeature = {
-                        id: uniqueId,
-                        type: 'Feature',
-                        properties: {
-                            id: uniqueId,
-                            name: activeModule,
-                            color: norm.color,
-                            rotation: 0,
-                            baseCoords: JSON.stringify(coords) 
-                        },
-                        geometry: { type: 'Polygon', coordinates: coords }
-                    };
-
+                    const newFeature = { id: uniqueId, type: 'Feature', properties: { id: uniqueId, name: activeModule, color: norm.color, rotation: 0, baseCoords: JSON.stringify(coords) }, geometry: { type: 'Polygon', coordinates: coords } };
                     snowparkFeatures.features.push(newFeature);
                     map.getSource('snowpark-data').setData(snowparkFeatures);
-
                     activeModule = null;
                     modules.forEach(m => m.style.border = 'none');
                     map.getCanvas().style.cursor = '';
                     return;
                 }
-
-                // Clic dans le vide = on désélectionne
                 const clickedFeatures = map.queryRenderedFeatures(e.point, { layers: ['modules-fill'] });
-                if (clickedFeatures.length === 0) {
-                    deselectCurrentFeature();
-                }
+                if (clickedFeatures.length === 0) deselectCurrentFeature();
             });
 
-            // --- FONCTIONS PANNEAU ---
             function selectFeature(id) {
                 deselectCurrentFeature();
                 selectedFeatureId = id;
                 map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: true });
                 const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
-                
                 document.getElementById('edit-panel').style.display = 'block';
                 document.getElementById('edit-name').innerText = feat.properties.name;
                 document.getElementById('rotation-slider').value = feat.properties.rotation;
@@ -273,26 +309,19 @@
                 }
             }
 
-            // Gérer la rotation
             document.getElementById('rotation-slider').addEventListener('input', (e) => {
                 if (selectedFeatureId) {
                     const angle = parseFloat(e.target.value);
                     document.getElementById('angle-display').innerText = angle;
-                    
-                    const featureIndex = snowparkFeatures.features.findIndex(f => f.properties.id === selectedFeatureId);
-                    const feat = snowparkFeatures.features[featureIndex];
+                    const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
                     feat.properties.rotation = angle;
-                    
-                    const baseCoords = JSON.parse(feat.properties.baseCoords);
-                    const basePoly = turf.polygon(baseCoords);
+                    const basePoly = turf.polygon(JSON.parse(feat.properties.baseCoords));
                     const rotatedPoly = turf.transformRotate(basePoly, angle);
-                    
                     feat.geometry.coordinates = rotatedPoly.geometry.coordinates;
                     map.getSource('snowpark-data').setData(snowparkFeatures);
                 }
             });
 
-            // Gérer la suppression
             document.getElementById('delete-btn').addEventListener('click', () => {
                 if (selectedFeatureId) {
                     snowparkFeatures.features = snowparkFeatures.features.filter(f => f.properties.id !== selectedFeatureId);
