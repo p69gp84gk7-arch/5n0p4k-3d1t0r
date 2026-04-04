@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snowpark Designer Pro - CAO V37</title>
+    <title>Snowpark Designer Pro - CAO V38</title>
     
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -13,7 +13,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        /* DESIGN CAO STRICT */
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Arial, sans-serif; background-color: #1e1e1e; color: #d4d4d4; overflow: hidden; }
         .app-container { display: flex; height: 100vh; width: 100vw; }
         
@@ -46,8 +45,6 @@
         .tool-btn { background: #333337; border: 1px solid #555; color: #d4d4d4; padding: 4px 10px; cursor: pointer; font-size: 0.7rem; text-transform: uppercase; }
         .tool-btn:hover { background: #444; }
         .tool-btn.active { background: #27ae60; border-color: #27ae60; color: white; }
-        .btn-3d { background: #8e44ad; border-color: #8e44ad; margin-left: auto; font-weight: bold; }
-        .btn-3d.active { background: #f39c12; border-color: #f39c12; }
         
         #map-container { flex-grow: 1; position: relative; } 
         #profile-container { height: 320px; background: #252526; border-top: 2px solid #0e639c; padding: 5px; box-sizing: border-box; display: none; position: relative; }
@@ -87,7 +84,7 @@
     <div class="app-container">
         
         <div class="sidebar sidebar-left">
-            <h2>CAO V37</h2>
+            <h2>CAO V38</h2>
             <div class="panel" style="padding: 5px;">
                 <button class="btn btn-primary" id="btn-export" style="margin-bottom: 5px;">EXPORTER PROJET (.JSON)</button>
                 <label for="import-upload" class="btn" style="margin-bottom: 0; text-align: center; display: block; box-sizing: border-box;">CHARGER PROJET</label>
@@ -115,8 +112,6 @@
                 <button class="tool-btn" data-tool="profile">LIGNE DE PROFIL</button>
                 <button class="tool-btn" data-tool="distance">DISTANCE</button>
                 <button class="tool-btn" data-tool="surface">SURFACE</button>
-                
-                <button class="tool-btn btn-3d" id="btn-3d-toggle">VUE 3D TERRAIN</button>
             </div>
 
             <div id="instruction-box">
@@ -196,6 +191,7 @@
     </div>
 
     <script>
+        // === 1. CONFIG GLOBALE ===
         proj4.defs("EPSG:2154", "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
 
         const moduleNorms = {
@@ -207,7 +203,7 @@
         let activeModule = null, activeDrawTool = null, selectedFeatureId = null;
         let isMoveModeActive = false, isDragging = false, startCursorLngLat = null, startBaseCoords = null;
         let isDraggingVertex = false, draggedVertexIndex = null;
-        let isProfileOpen = false, is3DActive = false;
+        let isProfileOpen = false;
         let mntData = null, mntBboxL93 = null, mntWidth = 0, mntHeight = 0;
 
         let lines = [{ id: 1, name: "RUN 1" }];
@@ -217,7 +213,7 @@
         let decorationsFeatures = { type: 'FeatureCollection', features: [] };
         let verticesFeatures = { type: 'FeatureCollection', features: [] };
         
-        let currentChartParams = null;
+        let currentChartParams = null; let isDraggingStartOnChart = false;
         let currentDrawCoords = [];
         let liveDrawGeoJSON = { type: 'FeatureCollection', features: [] };
 
@@ -265,42 +261,51 @@
             return null;
         }
 
+        // --- NOUVEAU : Fonction de calcul de la neige croisée pour un point donné (Pour l'outil Profil) ---
         function getSnowZAtPoint(ptLngLat, zTerrain) {
             let highestZ = zTerrain;
             snowparkFeatures.features.filter(f => f.properties.itemType === 'module' && f.properties.visible).forEach(mod => {
-                if (turf.booleanPointInPolygon(turf.point(ptLngLat), mod)) {
+                const pt = turf.point(ptLngLat);
+                if (turf.booleanPointInPolygon(pt, mod)) {
                     const coords = mod.geometry.coordinates[0];
                     const ptHaut = turf.point([(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2]);
                     const ptBas = turf.point([(coords[0][0]+coords[1][0])/2, (coords[0][1]+coords[1][1])/2]);
                     const bearing = turf.bearing(ptHaut, ptBas);
-                    const pt = turf.point(ptLngLat);
+                    
                     const distToHaut = turf.distance(ptHaut, pt, {units: 'meters'});
                     const angleToPt = turf.bearing(ptHaut, pt);
-                    const projDist = distToHaut * Math.cos((angleToPt - bearing) * Math.PI / 180);
+                    const angleDiff = (angleToPt - bearing) * Math.PI / 180;
+                    const projDist = distToHaut * Math.cos(angleDiff);
+                    const projDistX = distToHaut * Math.sin(angleDiff);
 
-                    const kickLen = mod.properties.kickLen; const tableLen = mod.properties.tableLen;
-                    let zStartKicker = (getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0) + (mod.properties.baseSnow / 100);
-                    const zKickEnd = zStartKicker + (kickLen * Math.tan(mod.properties.kickAngle * Math.PI / 180));
-                    
-                    let zK = null;
-                    if (projDist >= 0 && projDist <= kickLen) zK = zStartKicker + (projDist * Math.tan(mod.properties.kickAngle * Math.PI / 180));
-                    else if (projDist <= kickLen + tableLen) zK = zKickEnd;
-                    else zK = zKickEnd - ((projDist - kickLen - tableLen) * Math.tan(mod.properties.landingAngle * Math.PI / 180));
+                    // Vérifie si on est bien sur la largeur du Kicker
+                    if (Math.abs(projDistX) <= mod.properties.width / 2) {
+                        const kickLen = mod.properties.kickLen; const tableLen = mod.properties.tableLen;
+                        let zStartKicker = (getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0) + (mod.properties.baseSnow / 100);
+                        const zKickEnd = zStartKicker + (kickLen * Math.tan(mod.properties.kickAngle * Math.PI / 180));
+                        
+                        let zK = null;
+                        if (projDist >= 0 && projDist <= kickLen) zK = zStartKicker + (projDist * Math.tan(mod.properties.kickAngle * Math.PI / 180));
+                        else if (projDist > kickLen && projDist <= kickLen + tableLen) zK = zKickEnd;
+                        else if (projDist > kickLen + tableLen) zK = zKickEnd - ((projDist - kickLen - tableLen) * Math.tan(mod.properties.landingAngle * Math.PI / 180));
 
-                    if (zK !== null && zK > highestZ) highestZ = zK;
+                        if (zK !== null && zK > highestZ) highestZ = zK;
+                    }
                 }
             });
             return highestZ;
         }
 
+        // --- NOUVEAU : Fonction de calcul de la trajectoire croisée ---
         function getTrajZAtPoint(ptLngLat, zTerrain) {
             let highestTraj = null;
             snowparkFeatures.features.filter(f => f.properties.itemType === 'module' && f.properties.visible).forEach(mod => {
+                const pt = turf.point(ptLngLat);
                 const coords = mod.geometry.coordinates[0];
                 const ptHaut = turf.point([(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2]);
                 const ptBas = turf.point([(coords[0][0]+coords[1][0])/2, (coords[0][1]+coords[1][1])/2]);
                 const bearing = turf.bearing(ptHaut, ptBas);
-                const pt = turf.point(ptLngLat);
+                
                 const distToHaut = turf.distance(ptHaut, pt, {units: 'meters'});
                 const angleToPt = turf.bearing(ptHaut, pt);
                 const angleDiff = (angleToPt - bearing) * Math.PI / 180;
@@ -314,8 +319,11 @@
                         const kickAngle = mod.properties.kickAngle;
                         const zKickEnd = zStartKicker + (kickLen * Math.tan(kickAngle * Math.PI / 180));
                         const v0 = mod.properties.speed / 3.6; const theta = kickAngle * Math.PI / 180; const g = 9.81;
-                        const t = (projDistY - kickLen) / (v0 * Math.cos(theta));
+                        
+                        const xRel = projDistY - kickLen; 
+                        const t = xRel / (v0 * Math.cos(theta));
                         const zTraj = zKickEnd + (v0 * Math.sin(theta) * t) - (0.5 * g * t * t);
+                        
                         if (zTraj > zTerrain) { if (highestTraj === null || zTraj > highestTraj) highestTraj = zTraj; }
                     }
                 }
@@ -323,20 +331,17 @@
             return highestTraj;
         }
 
-        // SAUVEGARDE ET IMPORT
+        // === SAUVEGARDE / IMPORT ===
         document.getElementById('btn-export').addEventListener('click', () => {
             const projectName = prompt("Nom du projet :", "snowpark_projet") || "snowpark_projet";
             const dataToSave = { lines: lines, activeLineId: activeLineId, lineCounter: lineCounter, features: snowparkFeatures };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToSave));
             const dlAnchorElem = document.getElementById('downloadAnchorElem');
-            dlAnchorElem.setAttribute("href", dataStr);
-            dlAnchorElem.setAttribute("download", projectName + ".json");
-            dlAnchorElem.click();
+            dlAnchorElem.setAttribute("href", dataStr); dlAnchorElem.setAttribute("download", projectName + ".json"); dlAnchorElem.click();
         });
 
         document.getElementById('import-upload').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+            const file = e.target.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = (evt) => {
                 try {
@@ -352,10 +357,9 @@
             reader.readAsText(file);
         });
 
-        // GESTION UI LISTES
+        // === GESTION UI LISTES ===
         function renderLayerList() {
-            const container = document.getElementById('layer-list-container');
-            container.innerHTML = '';
+            const container = document.getElementById('layer-list-container'); container.innerHTML = '';
             lines.forEach(line => {
                 const isLineActive = (activeLineId === line.id) ? 'active' : '';
                 let lineHtml = `
@@ -417,6 +421,7 @@
         });
         document.getElementById('close-profile').addEventListener('click', () => { isProfileOpen = false; document.getElementById('profile-container').style.display = 'none'; map.resize(); });
 
+        // === ACTUALISATION CARTE ===
         function refreshMapData() {
             const visibleFeatures = { type: 'FeatureCollection', features: snowparkFeatures.features.filter(f => f.properties.visible) };
             map.getSource('snowpark-data').setData(visibleFeatures);
@@ -473,30 +478,39 @@
             map.getSource('vertices-data').setData(verticesFeatures);
         }
 
-        // === PLUGIN DE DESSIN DU START ET HOVER ===
-        const startLinePlugin = {
-            id: 'startLine',
+        // === MOTEUR GRAPHIQUE CAO ===
+        const customPlugins = {
+            id: 'customPlugins',
             afterDraw: chart => {
-                if (currentChartParams && currentChartParams.startDistanceX !== null) {
-                    const xAxis = chart.scales.x; const yAxis = chart.scales.y;
-                    const xIndex = (currentChartParams.startDistanceX / currentChartParams.totalDistance) * currentChartParams.steps;
-                    const xPos = xAxis.getPixelForValue(xIndex);
-                    const c = chart.ctx; c.save();
-                    c.beginPath(); c.moveTo(xPos, yAxis.top); c.lineTo(xPos, yAxis.bottom);
-                    c.lineWidth = 2; c.strokeStyle = '#27ae60'; c.stroke();
-                    c.fillStyle = '#27ae60'; c.fillRect(xPos - 20, yAxis.top, 40, 16);
-                    c.fillStyle = '#fff'; c.font = 'bold 9px Arial'; c.textAlign = 'center'; c.fillText('START', xPos, yAxis.top + 11); c.restore();
-                }
-                
+                // Ligne de Suivi Verticale (Crosshair / Hover)
                 if (chart.tooltip?._active?.length && !isDraggingStartOnChart) {
-                    let x = chart.tooltip._active[0].element.x; let yAxis = chart.scales.y; let c = chart.ctx;
-                    c.save(); c.beginPath(); c.setLineDash([2, 2]); c.moveTo(x, yAxis.top); c.lineTo(x, yAxis.bottom);
-                    c.lineWidth = 1; c.strokeStyle = '#fff'; c.stroke(); c.restore();
+                    let x = chart.tooltip._active[0].element.x;
+                    let yAxis = chart.scales.y; let ctx = chart.ctx;
+                    ctx.save(); ctx.beginPath(); ctx.moveTo(x, yAxis.top); ctx.lineTo(x, yAxis.bottom);
+                    ctx.lineWidth = 1; ctx.strokeStyle = '#fff'; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.restore();
+                }
+
+                // Dessin du START Interactive
+                if (currentChartParams && currentChartParams.startDistanceX !== null && chart.config.options.plugins.title.text.includes('APEX')) {
+                    const xAxis = chart.scales.x; const yAxis = chart.scales.y;
+                    const fraction = currentChartParams.startDistanceX / currentChartParams.totalDistance;
+                    const xIndex = fraction * (chart.data.labels.length - 1);
+                    
+                    // Récupération de la position X exacte en pixels
+                    let xPos = 0;
+                    if(xAxis.getPixelForValue) { xPos = xAxis.getPixelForValue(Math.round(xIndex)); }
+
+                    if (xPos > 0) {
+                        const c = chart.ctx; c.save();
+                        c.beginPath(); c.moveTo(xPos, yAxis.top); c.lineTo(xPos, yAxis.bottom);
+                        c.lineWidth = 2; c.strokeStyle = '#27ae60'; c.stroke();
+                        c.fillStyle = '#27ae60'; c.fillRect(xPos - 20, yAxis.top, 40, 16);
+                        c.fillStyle = '#fff'; c.font = 'bold 9px Arial'; c.textAlign = 'center'; c.fillText('START', xPos, yAxis.top + 11); c.restore();
+                    }
                 }
             }
         };
 
-        // === PHYSIQUE ET GRAPHIQUE CORRIGÉS ===
         function updateProfileChart(feat) {
             if (feat.properties.itemType !== 'module') { updateGenericProfileChart(feat); return; }
 
@@ -524,7 +538,7 @@
             const lipDist = projDist + kickLen;
             const v0 = speedKmh / 3.6; const theta = kickAngle * Math.PI / 180; const g = 9.81;
             const apexStr = ((v0 * Math.sin(theta))**2 / (2 * g)).toFixed(2);
-            let hasLanded = false; let maxZ = -10000; let minZ = 10000;
+            let hasLanded = false; 
             let crossSectionArea = 0, maxSnowDepth = 0, jumpDistance = 0;
             const deltaX = totalDistance / steps;
 
@@ -543,7 +557,6 @@
                 
                 const zTerrain = getAltitudeAt(ptX.geometry.coordinates[0], ptX.geometry.coordinates[1]) || 0;
                 terrainData.push(zTerrain);
-                if (zTerrain > maxZ) maxZ = zTerrain; if (zTerrain < minZ) minZ = zTerrain;
 
                 let zK = null;
                 if (curD >= projDist && curD <= projDist + kickerLength) {
@@ -551,12 +564,12 @@
                     if (d <= kickLen) zK = zStartKicker + (d * Math.tan(kickAngle * Math.PI / 180));
                     else if (d <= kickLen + tableLen) zK = zKickEnd;
                     else zK = zKickEnd - ((d - kickLen - tableLen) * Math.tan(landAngle * Math.PI / 180));
+                    
                     if (zK > zTerrain) { let depth = zK - zTerrain; crossSectionArea += depth * deltaX; if (depth > maxSnowDepth) maxSnowDepth = depth; }
                 } else if (baseSnow > 0) {
                     zK = zTerrain + baseSnow;
                 }
                 kickerData.push(zK);
-                if (zK !== null && zK > maxZ) maxZ = zK;
 
                 if (curD >= lipDist && !hasLanded) {
                     const t = (curD - lipDist) / (v0 * Math.cos(theta));
@@ -564,7 +577,6 @@
                     const localGround = zK !== null ? zK : zTerrain;
                     if (zTraj >= localGround) { trajData.push(zTraj); } 
                     else { trajData.push(localGround); hasLanded = true; jumpDistance = curD - lipDist; }
-                    if (zTraj > maxZ) maxZ = zTraj;
                 } else trajData.push(null);
             }
 
@@ -576,7 +588,7 @@
             currentChartParams = { amontPt, bearing, totalDistance, steps, projDist, zStartKicker, startDistanceX: startDistX };
 
             if(!isProfileOpen) return;
-            drawChart(labels, terrainData, kickerData, trajData, minZ, maxZ, `PROFIL KICKER - APEX: ${apexStr}m`);
+            drawChart(labels, terrainData, kickerData, trajData, `PROFIL KICKER - APEX: ${apexStr}m`);
         }
 
         function updateGenericProfileChart(feat) {
@@ -595,17 +607,17 @@
                 const curD = (i/steps)*totalDistance;
                 const pt = turf.along(lineGeom, curD, {units: 'meters'});
                 labels.push(curD.toFixed(1) + 'm');
+                
                 const zTerrain = getAltitudeAt(pt.geometry.coordinates[0], pt.geometry.coordinates[1]) || 0;
                 terrainData.push(zTerrain);
+                if(zTerrain > maxZ) maxZ = zTerrain; if(zTerrain < minZ) minZ = zTerrain;
                 
+                // Croisement avec neige et vol !
                 const zSnow = getSnowZAtPoint(pt.geometry.coordinates, zTerrain);
-                if(zSnow > zTerrain + 0.1) snowData.push(zSnow); else snowData.push(null);
+                if(zSnow > zTerrain + 0.1) { snowData.push(zSnow); if(zSnow > maxZ) maxZ = zSnow; } else snowData.push(null);
                 
                 const zTraj = getTrajZAtPoint(pt.geometry.coordinates, zTerrain);
-                if(zTraj !== null && zTraj > (zSnow > zTerrain ? zSnow : zTerrain)) trajData.push(zTraj); else trajData.push(null);
-
-                if(zTerrain > maxZ) maxZ = zTerrain; if(zTerrain < minZ) minZ = zTerrain;
-                if(zSnow > maxZ) maxZ = zSnow; if(zTraj > maxZ) maxZ = zTraj;
+                if(zTraj !== null && zTraj > (zSnow > zTerrain ? zSnow : zTerrain)) { trajData.push(zTraj); if(zTraj > maxZ) maxZ = zTraj; } else trajData.push(null);
             }
 
             const deniv = (maxZ !== -10000 && minZ !== 10000) ? (maxZ - minZ) : 0;
@@ -620,42 +632,48 @@
 
             currentChartParams = null; // Pas de start draggable sur profil générique
             if(!isProfileOpen) return;
-            drawChart(labels, terrainData, snowData, trajData, minZ, maxZ, `PROFIL TOPOGRAPHIQUE`);
+            drawChart(labels, terrainData, snowData, trajData, `PROFIL TOPOGRAPHIQUE CROSS-SECTION`);
         }
 
-        function drawChart(labels, terrainData, kickerData, trajData, minZ, maxZ, titleStr) {
+        // DESTRUCTION ET REDESSIN TOTAL DU GRAPHIQUE POUR EVITER LES BUGS
+        function drawChart(labels, terrainData, kickerData, trajData, titleStr) {
             const ctx = document.getElementById('profileChart').getContext('2d');
             Chart.defaults.color = '#888'; Chart.defaults.font.family = 'Segoe UI';
 
-            let datasets = [{ label: 'Terrain', data: terrainData, borderColor: '#7f8c8d', backgroundColor: 'rgba(127, 140, 141, 0.2)', fill: true, pointRadius: 0, tension: 0.1, borderWidth: 1 }];
-            if (kickerData && kickerData.length > 0) datasets.push({ label: 'Neige Base+Module', data: kickerData, borderColor: '#0e639c', backgroundColor: 'rgba(14, 99, 156, 0.4)', fill: true, pointRadius: 0, tension: 0, borderWidth: 2 });
-            if (trajData && trajData.length > 0) datasets.push({ label: 'Trajectoire Vol', data: trajData, borderColor: '#c74c3c', borderDash: [4,4], borderWidth: 2, pointRadius: 0, tension: 0.3 });
-
             if (chartInstance) {
-                chartInstance.options.plugins.title.text = titleStr;
-                chartInstance.options.scales.y.min = minZ - 2;
-                chartInstance.options.scales.y.max = maxZ + 5;
-                chartInstance.data.labels = labels; 
-                chartInstance.data.datasets = datasets;
-                chartInstance.update();
-            } else {
-                chartInstance = new Chart(ctx, {
-                    type: 'line', data: { labels: labels, datasets: datasets },
-                    options: { 
-                        responsive: true, maintainAspectRatio: false, animation: false,
-                        interaction: { mode: 'index', intersect: false },
-                        plugins: { title: { display: true, text: titleStr, color: '#fff' }, tooltip: { enabled: true }, legend: {display: true, labels:{color:'#d4d4d4', font:{size:10}}} },
-                        scales: { y: { min: minZ - 2, max: maxZ + 5, grid: { color: '#333' } }, x: { grid: { color: '#333' }, ticks: { maxTicksLimit: 10 } } },
-                        onHover: (e, active) => {
-                            if(!isDraggingStartOnChart && active.length > 0 && currentChartParams) {
-                                const pt = turf.destination(currentChartParams.amontPt, (active[0].index/currentChartParams.steps)*currentChartParams.totalDistance, currentChartParams.bearing, {units: 'meters'});
-                                hoverMarker.setLngLat(pt.geometry.coordinates).addTo(map);
-                            }
-                        }
-                    },
-                    plugins: [startLinePlugin]
-                });
+                chartInstance.destroy();
             }
+
+            let datasets = [{ label: 'Terrain', data: terrainData, borderColor: '#7f8c8d', backgroundColor: 'rgba(127, 140, 141, 0.2)', fill: true, pointRadius: 0, tension: 0.1, borderWidth: 1 }];
+            
+            // On n'ajoute la neige que si elle existe vraiment pour ne pas casser le graphe
+            if (kickerData && kickerData.length > 0 && kickerData.some(v => v !== null)) {
+                datasets.push({ label: 'Neige (Module)', data: kickerData, borderColor: '#0e639c', backgroundColor: 'rgba(14, 99, 156, 0.4)', fill: true, pointRadius: 0, tension: 0, borderWidth: 2 });
+            }
+            // On n'ajoute le vol que si existant
+            if (trajData && trajData.length > 0 && trajData.some(v => v !== null)) {
+                datasets.push({ label: 'Trajectoire Vol', data: trajData, borderColor: '#c74c3c', borderDash: [4,4], fill: false, pointRadius: 0, tension: 0.3, borderWidth: 2 });
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'line', 
+                data: { labels: labels, datasets: datasets },
+                options: { 
+                    responsive: true, maintainAspectRatio: false, animation: false,
+                    interaction: { mode: 'index', intersect: false }, // Indispensable pour le Hover Tooltip !
+                    plugins: { title: { display: true, text: titleStr, color: '#fff' }, tooltip: { enabled: true }, legend: {display: true, labels:{color:'#d4d4d4', font:{size:10}}} },
+                    scales: { y: { grid: { color: '#333' } }, x: { grid: { color: '#333' }, ticks: { maxTicksLimit: 10 } } },
+                    onHover: (e, active) => {
+                        if(!isDraggingStartOnChart && active.length > 0 && currentChartParams) {
+                            const fraction = active[0].index / currentChartParams.steps;
+                            const dist = fraction * currentChartParams.totalDistance;
+                            const pt = turf.destination(currentChartParams.amontPt, dist, currentChartParams.bearing, {units: 'meters'});
+                            hoverMarker.setLngLat(pt.geometry.coordinates).addTo(map);
+                        }
+                    }
+                },
+                plugins: [customPlugins]
+            });
         }
 
         // DRAG DU START SUR GRAPHIQUE
@@ -666,8 +684,9 @@
             const distClick = (xIndex / currentChartParams.steps) * currentChartParams.totalDistance;
             if (Math.abs(distClick - currentChartParams.startDistanceX) < 3) { isDraggingStartOnChart = true; canvas.style.cursor = 'ew-resize'; }
         });
+        
         canvas.addEventListener('mousemove', (e) => {
-            if (!chartInstance || !currentChartParams || !currentChartParams.startDistanceX) return;
+            if (!chartInstance || !currentChartParams) return;
             const xIndex = Math.max(0, Math.min(currentChartParams.steps, chartInstance.scales.x.getValueForPixel(e.offsetX)));
             const distHover = (xIndex / currentChartParams.steps) * currentChartParams.totalDistance;
 
@@ -724,20 +743,6 @@
                 renderLayerList();
             });
 
-            // GESTION 3D TOGGLE
-            document.getElementById('btn-3d-toggle').addEventListener('click', (e) => {
-                is3DActive = !is3DActive;
-                if(is3DActive) {
-                    map.setTerrain({ 'source': 'terrain-source', 'exaggeration': 1.2 });
-                    map.easeTo({ pitch: 70, bearing: map.getBearing() + 45 });
-                    e.target.classList.add('active');
-                } else {
-                    map.setTerrain(null);
-                    map.easeTo({ pitch: 0, bearing: 0 });
-                    e.target.classList.remove('active');
-                }
-            });
-
             document.getElementById('mnt-upload').addEventListener('change', async (e) => {
                 document.getElementById('topbar-alt').innerText = "Lecture...";
                 const tiff = await GeoTIFF.fromBlob(e.target.files[0]); const img = await tiff.getImage();
@@ -769,7 +774,7 @@
                 else { disableAllTools(); deselectFeature(); activeModule = name; e.target.classList.add('active'); map.getCanvas().style.cursor = 'crosshair'; }
             }));
 
-            document.querySelectorAll('.tool-btn:not(#btn-3d-toggle)').forEach(b => b.addEventListener('click', (e) => {
+            document.querySelectorAll('.tool-btn').forEach(b => b.addEventListener('click', (e) => {
                 const tool = e.target.getAttribute('data-tool');
                 if (activeDrawTool === tool) { disableAllTools(); }
                 else { disableAllTools(); deselectFeature(); activeDrawTool = tool; e.target.classList.add('active'); map.getCanvas().style.cursor = 'crosshair'; document.getElementById('instruction-box').style.display = 'flex'; }
@@ -795,7 +800,6 @@
                 if (cleanCoords.length < 2) { disableAllTools(); return; }
 
                 const id = Date.now(); let finalGeom; let color = '#fff'; let name = '';
-                
                 if (activeDrawTool === 'dameuse') { color = '#27ae60'; name = 'TRACE DAMEUSE'; finalGeom = createDameuseGeom(cleanCoords); } 
                 else if (activeDrawTool === 'profile') { color = '#f39c12'; name = 'LIGNE PROFIL'; finalGeom = turf.lineString(cleanCoords).geometry; }
                 else if (activeDrawTool === 'distance') { color = '#8e44ad'; name = 'DISTANCE'; finalGeom = turf.lineString(cleanCoords).geometry; }
