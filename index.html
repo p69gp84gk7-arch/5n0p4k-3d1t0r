@@ -107,38 +107,37 @@
             // Ajout des contrôles de zoom
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
         });
-       // --- NOUVEAU CODE : GLISSER-DÉPOSER (VERSION CANVAS DIRECT) ---
-            let draggedModule = null;
+       // --- NOUVEAU CODE : MÉTHODE PRO CAO (CLIC & PLACEMENT) ---
+            let activeModule = null;
 
-            // 1. Détection du glisser
+            // 1. Gérer le clic sur les boutons de la barre de gauche
             const modules = document.querySelectorAll('.module-btn');
             modules.forEach(mod => {
-                mod.addEventListener('dragstart', (e) => {
-                    draggedModule = e.target.innerText;
-                    e.dataTransfer.setData('text/plain', draggedModule);
+                mod.addEventListener('click', (e) => {
+                    // On enlève la bordure de tous les boutons pour réinitialiser
+                    modules.forEach(m => m.style.border = 'none');
+                    
+                    // Si on reclique sur le module déjà actif, on annule l'action
+                    if (activeModule === e.target.innerText) {
+                        activeModule = null;
+                        map.getCanvas().style.cursor = ''; // Remet le curseur normal
+                    } else {
+                        // On active ce module
+                        activeModule = e.target.innerText;
+                        e.target.style.border = '3px solid #2ecc71'; // Bordure verte pour montrer qu'il est prêt
+                        map.getCanvas().style.cursor = 'crosshair'; // Curseur en forme de cible sur la carte
+                    }
                 });
             });
 
-            // 2. On cible DIRECTEMENT la toile de la carte (CanvasContainer)
-            const canvasContainer = map.getCanvasContainer();
-            
-            canvasContainer.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'copy';
-            });
+            // 2. Gérer le clic sur la carte
+            map.on('click', (e) => {
+                // Si un module a été sélectionné dans la barre de gauche
+                if (activeModule) {
+                    // MapLibre nous donne directement les coordonnées GPS du clic !
+                    const lngLat = e.lngLat;
 
-            // 3. Action au moment de lâcher
-            canvasContainer.addEventListener('drop', (e) => {
-                e.preventDefault();
-                
-                if (draggedModule) {
-                    // Calcul précis sur la toile
-                    const rect = canvasContainer.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
-                    const lngLat = map.unproject([x, y]);
-
-                    // Création de l'étiquette
+                    // Création de notre étiquette de module
                     const el = document.createElement('div');
                     el.style.backgroundColor = '#e67e22';
                     el.style.color = 'white';
@@ -147,15 +146,18 @@
                     el.style.fontWeight = 'bold';
                     el.style.border = '2px solid white';
                     el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
-                    el.style.cursor = 'grab';
-                    el.innerHTML = '🏂 ' + draggedModule;
+                    el.style.cursor = 'pointer';
+                    el.innerHTML = '🏂 ' + activeModule;
 
-                    // Ajout sur la carte avec option déplaçable
+                    // On pose le module sur la carte (toujours déplaçable après l'avoir posé)
                     new maplibregl.Marker({element: el, draggable: true})
                         .setLngLat(lngLat)
                         .addTo(map);
                         
-                    draggedModule = null;
+                    // Une fois posé, on désélectionne l'outil pour éviter d'en poser partout par erreur
+                    activeModule = null;
+                    modules.forEach(m => m.style.border = 'none');
+                    map.getCanvas().style.cursor = '';
                 }
             });
             // --- FIN DU NOUVEAU CODE ---
