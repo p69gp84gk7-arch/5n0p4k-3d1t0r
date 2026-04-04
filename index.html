@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snowpark Designer Pro - V22</title>
+    <title>Snowpark Designer Pro - V23</title>
     
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -43,7 +43,6 @@
         
         #altitude-box { position: absolute; top: 15px; left: 15px; background-color: rgba(30, 30, 30, 0.8); color: #4daaf1; padding: 8px 15px; font-size: 1rem; font-family: monospace; z-index: 20; border: 1px solid #3e3e42; }
         
-        /* === NOUVEAU DESIGN : LIGNES ET MODULES === */
         .line-group { border: 1px solid #3e3e42; margin-bottom: 10px; background: #1e1e1e; }
         .line-header { background: #333337; padding: 8px 10px; font-weight: bold; font-size: 0.9rem; border-bottom: 1px solid #3e3e42; cursor: pointer; display:flex; justify-content: space-between;}
         .line-header.active { border-left: 4px solid #27ae60; }
@@ -63,7 +62,7 @@
     <div class="app-container">
         
         <div class="sidebar sidebar-left">
-            <h2>Snowpark Pro V22</h2>
+            <h2>Snowpark Pro V23</h2>
             <div class="panel"><button class="btn btn-primary">Enregistrer Projet</button></div>
             
             <div class="panel">
@@ -73,7 +72,6 @@
             
             <div class="panel">
                 <h3>Catalogue Modules</h3>
-                <p style="font-size: 0.75rem; color:#888;">Ajouté à la ligne active</p>
                 <div class="module-btn" data-name="Kicker S (Débutant)">Kicker S (Débutant)</div>
                 <div class="module-btn" data-name="Kicker M (Intermédiaire)">Kicker M (Intermédiaire)</div>
             </div>
@@ -90,9 +88,7 @@
 
         <div class="sidebar sidebar-right">
             <h2>Gestionnaire de Run</h2>
-            
             <button class="btn btn-success" id="btn-add-line">+ Nouvelle Ligne</button>
-            
             <div id="layer-list-container"></div>
 
             <div id="properties-panel" class="panel" style="display: none; margin-top: 20px;">
@@ -132,12 +128,11 @@
         let map, chartInstance, currentChartParams = null;
         let activeModule = null, selectedFeatureId = null;
         let isDragging = false, draggedJustNow = false, startCursorLngLat = null, startBaseCoords = null;
+        let isDraggingStartOnChart = false; // NOUVEAU : Flag pour le drag du start
         let mntData = null, mntBboxL93 = null, mntWidth = 0, mntHeight = 0;
 
-        // === GESTION DES LIGNES (RUNS) ===
         let lines = [{ id: 1, name: "Ligne 1" }];
-        let activeLineId = 1;
-        let lineCounter = 1;
+        let activeLineId = 1, lineCounter = 1;
 
         let snowparkFeatures = { type: 'FeatureCollection', features: [] };
         let decorationsFeatures = { type: 'FeatureCollection', features: [] };
@@ -146,9 +141,7 @@
         hoverEl.style.width = '10px'; hoverEl.style.height = '10px'; hoverEl.style.backgroundColor = '#e74c3c'; hoverEl.style.borderRadius = '50%'; hoverEl.style.boxShadow = '0 0 5px white';
         const hoverMarker = new maplibregl.Marker({element: hoverEl});
 
-        function getBaseCenter(baseCoords) {
-            const pts = baseCoords[0]; return { lng: (pts[0][0] + pts[2][0])/2, lat: (pts[0][1] + pts[2][1])/2 };
-        }
+        function getBaseCenter(baseCoords) { const pts = baseCoords[0]; return { lng: (pts[0][0] + pts[2][0])/2, lat: (pts[0][1] + pts[2][1])/2 }; }
 
         function calculatePolygonCoords(lngLat, widthM, lengthM) {
             const R = 6378137; const lat = lngLat.lat; const lng = lngLat.lng;
@@ -174,64 +167,41 @@
             return null;
         }
 
-        // === RENDU DU GESTIONNAIRE PAR LIGNES ===
         function renderLayerList() {
             const container = document.getElementById('layer-list-container');
             container.innerHTML = '';
-            
             lines.forEach(line => {
                 const isLineActive = (activeLineId === line.id) ? 'active' : '';
-                let lineHtml = `<div class="line-group">
-                    <div class="line-header ${isLineActive}" onclick="setActiveLine(${line.id})">
-                        <span>🏔️ ${line.name}</span>
-                    </div>`;
-                
-                const modsInLine = snowparkFeatures.features.filter(f => f.properties.lineId === line.id);
-                modsInLine.forEach((feat, idx) => {
+                let lineHtml = `<div class="line-group"><div class="line-header ${isLineActive}" onclick="setActiveLine(${line.id})"><span>🏔️ ${line.name}</span></div>`;
+                snowparkFeatures.features.filter(f => f.properties.lineId === line.id).forEach((feat, idx) => {
                     const isModActive = (feat.properties.id === selectedFeatureId) ? 'active' : '';
-                    lineHtml += `
-                        <div class="layer-item ${isModActive}" onclick="selectFeature(${feat.properties.id})">
-                            <span>↳ ${idx+1}. ${feat.properties.name}</span>
-                        </div>
-                    `;
+                    lineHtml += `<div class="layer-item ${isModActive}" onclick="selectFeature(${feat.properties.id})"><span>↳ ${idx+1}. ${feat.properties.name}</span></div>`;
                 });
                 lineHtml += `</div>`;
                 container.insertAdjacentHTML('beforeend', lineHtml);
             });
         }
 
-        window.setActiveLine = function(id) {
-            activeLineId = id; renderLayerList();
-        }
-
-        document.getElementById('btn-add-line').addEventListener('click', () => {
-            lineCounter++;
-            const newLine = { id: lineCounter, name: `Ligne ${lineCounter}` };
-            lines.push(newLine); activeLineId = newLine.id;
-            renderLayerList();
-        });
+        window.setActiveLine = function(id) { activeLineId = id; renderLayerList(); }
+        document.getElementById('btn-add-line').addEventListener('click', () => { lineCounter++; const newLine = { id: lineCounter, name: `Ligne ${lineCounter}` }; lines.push(newLine); activeLineId = newLine.id; renderLayerList(); });
 
         function refreshMapData() {
             map.getSource('snowpark-data').setData(snowparkFeatures);
             refreshDecorations();
         }
 
-        // === CALCUL DE LA PHYSIQUE ET DES DÉCORS SUR LA CARTE ===
         function refreshDecorations() {
             decorationsFeatures.features = [];
-            
             snowparkFeatures.features.forEach(feat => {
                 const coords = feat.geometry.coordinates[0];
                 const ptHaut = turf.point([(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2]);
                 const ptBas = turf.point([(coords[0][0]+coords[1][0])/2, (coords[0][1]+coords[1][1])/2]);
                 const bearing = turf.bearing(ptHaut, ptBas);
                 
-                // 1. AXE DE COUPE
                 const amontPt = turf.destination(ptHaut, feat.properties.projectionDist, bearing - 180, {units: 'meters'});
                 const avalPt = turf.destination(amontPt, feat.properties.projectionDist*2 + turf.distance(ptHaut, ptBas, {units: 'meters'}), bearing, {units: 'meters'});
                 decorationsFeatures.features.push({ type: 'Feature', properties: { type: 'axis' }, geometry: { type: 'LineString', coordinates: [amontPt.geometry.coordinates, avalPt.geometry.coordinates] }});
                 
-                // 2. DÉMARCATION ZONES (Kick / Table / Réception)
                 const kL = feat.properties.kickLen; const tL = feat.properties.tableLen;
                 [[kL, 'zone'], [kL+tL, 'zone']].forEach(z => {
                     const lA = turf.destination(turf.point(coords[3]), z[0], bearing, {units: 'meters'}).geometry.coordinates;
@@ -239,7 +209,6 @@
                     decorationsFeatures.features.push({ type: 'Feature', properties: { type: z[1] }, geometry: { type: 'LineString', coordinates: [lA, lB] }});
                 });
 
-                // 3. BARRE DE START (Drop-in)
                 const vMps = feat.properties.speed / 3.6;
                 const hNeeded = (vMps * vMps) / (2 * 9.81 * 0.9);
                 let zStartKicker = getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0;
@@ -248,7 +217,6 @@
                     const checkPt = turf.destination(ptHaut, d, bearing - 180, {units: 'meters'});
                     const zCheck = getAltitudeAt(checkPt.geometry.coordinates[0], checkPt.geometry.coordinates[1]);
                     if (zCheck && (zCheck - zStartKicker) >= hNeeded) {
-                        // On a trouvé le point ! On trace une ligne perpendiculaire de 6 mètres
                         const pLeft = turf.destination(checkPt, 3, bearing - 90, {units: 'meters'}).geometry.coordinates;
                         const pRight = turf.destination(checkPt, 3, bearing + 90, {units: 'meters'}).geometry.coordinates;
                         decorationsFeatures.features.push({ type: 'Feature', properties: { type: 'start' }, geometry: { type: 'LineString', coordinates: [pLeft, pRight] }});
@@ -273,34 +241,33 @@
             const kickLen = feat.properties.kickLen;
             const tableLen = feat.properties.tableLen;
 
-            const amontPt = turf.destination(ptHaut, projDist, bearing - 180, {units: 'meters'});
-            const totalDistance = projDist * 2 + kickerLength;
-            const steps = 120;
-            currentChartParams = { amontPt, bearing, totalDistance, steps };
-
             const vMps = speedKmh / 3.6;
             const hNeeded = (vMps * vMps) / (2 * 9.81 * 0.9);
             let zStartKicker = getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0;
             
-            // Calcul de la distance du point de départ sur le graphique
             let startDistanceX = null;
             for(let d=1; d<200; d+=0.5) {
                 const checkPt = turf.destination(ptHaut, d, bearing - 180, {units: 'meters'});
                 const zCheck = getAltitudeAt(checkPt.geometry.coordinates[0], checkPt.geometry.coordinates[1]);
                 if (zCheck && (zCheck - zStartKicker) >= hNeeded) { 
-                    startDistanceX = projDist - d; // Position X sur le graph
+                    startDistanceX = projDist - d; 
                     break; 
                 }
             }
 
-            const labels = [], terrainData = [], kickerData = [], trajData = [], startBarData = [];
+            const amontPt = turf.destination(ptHaut, projDist, bearing - 180, {units: 'meters'});
+            const totalDistance = projDist * 2 + kickerLength;
+            const steps = 120;
+            
+            // Sauvegarde des paramètres pour l'interaction souris
+            currentChartParams = { amontPt, bearing, totalDistance, steps, projDist, zStartKicker, startDistanceX };
+
+            const labels = [], terrainData = [], kickerData = [], trajData = [];
             const zKickEnd = zStartKicker + (kickLen * Math.tan(kickAngle * Math.PI / 180));
             const lipDist = projDist + kickLen;
             const v0 = vMps; const theta = kickAngle * Math.PI / 180; const g = 9.81;
             const apexStr = ((v0 * Math.sin(theta))**2 / (2 * g)).toFixed(2);
-            let hasLanded = false;
-
-            let maxZ = -1000;
+            let hasLanded = false; let maxZ = -1000;
 
             for(let i=0; i<=steps; i++) {
                 const fraction = i/steps; const curD = fraction * totalDistance;
@@ -328,62 +295,136 @@
                     else { trajData.push(zK || zTerrain); hasLanded = true; }
                     if (zTraj > maxZ) maxZ = zTraj;
                 } else trajData.push(null);
-
-                // Placement de la barre START sur le graph
-                if (startDistanceX !== null && Math.abs(curD - startDistanceX) < (totalDistance/steps)) {
-                    startBarData.push(10000); // Valeur immense pour dépasser le haut du graph
-                } else {
-                    startBarData.push(null);
-                }
             }
 
             document.getElementById('profile-container').style.display = 'block'; map.resize();
             const ctx = document.getElementById('profileChart').getContext('2d');
 
-            Chart.defaults.color = '#888';
-            Chart.defaults.font.family = 'Segoe UI';
+            Chart.defaults.color = '#888'; Chart.defaults.font.family = 'Segoe UI';
+
+            // --- PLUGIN CUSTOM : Dessiner la Ligne de START interactive ---
+            const startLinePlugin = {
+                id: 'startLine',
+                afterDraw: chart => {
+                    if (currentChartParams && currentChartParams.startDistanceX !== null) {
+                        const xAxis = chart.scales.x; const yAxis = chart.scales.y;
+                        const xIndex = (currentChartParams.startDistanceX / currentChartParams.totalDistance) * currentChartParams.steps;
+                        const xPos = xAxis.getPixelForValue(xIndex);
+
+                        const c = chart.ctx; c.save();
+                        c.beginPath(); c.moveTo(xPos, yAxis.top); c.lineTo(xPos, yAxis.bottom);
+                        c.lineWidth = 3; c.strokeStyle = '#27ae60'; c.stroke();
+                        
+                        // Poignée START
+                        c.fillStyle = '#27ae60'; c.fillRect(xPos - 25, yAxis.top, 50, 20);
+                        c.fillStyle = '#fff'; c.font = '10px Arial'; c.textAlign = 'center';
+                        c.fillText('START', xPos, yAxis.top + 14);
+                        c.restore();
+                    }
+                    
+                    // Ligne verticale de Scrubbing (survol simple)
+                    if (chart.tooltip?._active?.length && !isDraggingStartOnChart) {
+                        let x = chart.tooltip._active[0].element.x;
+                        let yAxis = chart.scales.y; let c = chart.ctx;
+                        c.save(); c.beginPath(); c.setLineDash([3, 3]);
+                        c.moveTo(x, yAxis.top); c.lineTo(x, yAxis.bottom);
+                        c.lineWidth = 1; c.strokeStyle = '#fff'; c.stroke(); c.restore();
+                    }
+                }
+            };
 
             if (chartInstance) {
                 chartInstance.options.plugins.title.text = `APEX Vol: ${apexStr}m`;
-                chartInstance.options.scales.y.max = maxZ + 5; // Ajuste l'échelle Y
+                chartInstance.options.scales.y.max = maxZ + 5;
                 chartInstance.data.labels = labels; 
                 chartInstance.data.datasets[0].data = terrainData;
                 chartInstance.data.datasets[1].data = kickerData; 
                 chartInstance.data.datasets[2].data = trajData;
-                chartInstance.data.datasets[3].data = startBarData;
                 chartInstance.update();
             } else {
                 chartInstance = new Chart(ctx, {
                     type: 'line',
                     data: { labels: labels, datasets: [
                         { label: 'Terrain (MNT)', data: terrainData, borderColor: '#7f8c8d', backgroundColor: 'rgba(127, 140, 141, 0.2)', fill: true, pointRadius: 0, tension: 0.1 },
-                        { label: 'Neige', data: kickerData, borderColor: '#4daaf1', borderWidth: 3, pointRadius: 0, tension: 0 },
-                        { label: 'Trajectoire', data: trajData, borderColor: '#c74c3c', borderDash: [5,5], borderWidth: 2, pointRadius: 0, tension: 0.3 },
-                        { type: 'bar', label: 'START', data: startBarData, backgroundColor: '#27ae60', barThickness: 3 }
+                        { label: 'Ouvrage (Neige)', data: kickerData, borderColor: '#4daaf1', borderWidth: 3, pointRadius: 0, tension: 0 },
+                        { label: 'Trajectoire', data: trajData, borderColor: '#c74c3c', borderDash: [5,5], borderWidth: 2, pointRadius: 0, tension: 0.3 }
                     ]},
                     options: { 
                         responsive: true, maintainAspectRatio: false, animation: false,
-                        plugins: { 
-                            title: { display: true, text: `APEX Vol: ${apexStr}m`, color: '#fff', font: {size: 14} },
-                            legend: { labels: { color: '#d4d4d4', filter: function(item) { return item.text !== 'START'; } } }, // Cache le Start de la légende
-                            tooltip: { mode: 'index', intersect: false } 
-                        },
-                        scales: { 
-                            y: { max: maxZ + 5, grid: { color: '#333' } },
-                            x: { grid: { color: '#333' }, ticks: { maxTicksLimit: 10 } }
-                        },
+                        plugins: { title: { display: true, text: `APEX Vol: ${apexStr}m`, color: '#fff', font: {size: 14} }, legend: { labels: { color: '#d4d4d4' } }, tooltip: { mode: 'index', intersect: false } },
+                        scales: { y: { max: maxZ + 5, grid: { color: '#333' } }, x: { grid: { color: '#333' }, ticks: { maxTicksLimit: 10 } } },
                         onHover: (e, active) => {
-                            if(active.length > 0 && currentChartParams) {
+                            if(!isDraggingStartOnChart && active.length > 0 && currentChartParams) {
                                 const pt = turf.destination(currentChartParams.amontPt, (active[0].index/currentChartParams.steps)*currentChartParams.totalDistance, currentChartParams.bearing, {units: 'meters'});
                                 hoverMarker.setLngLat(pt.geometry.coordinates).addTo(map);
                             }
                         }
-                    }
+                    },
+                    plugins: [startLinePlugin]
                 });
             }
         }
 
-        // === 6. INIT CARTE ===
+        // === 7. GESTION DES ÉVÉNEMENTS CANVAS (DRAG DU START) ===
+        const canvas = document.getElementById('profileChart');
+        
+        canvas.addEventListener('mousedown', (e) => {
+            if (!chartInstance || !currentChartParams || currentChartParams.startDistanceX === null) return;
+            const xIndex = chartInstance.scales.x.getValueForPixel(e.offsetX);
+            const distClick = (xIndex / currentChartParams.steps) * currentChartParams.totalDistance;
+
+            // Si clic à moins de 3 mètres de la barre START
+            if (Math.abs(distClick - currentChartParams.startDistanceX) < 3) {
+                isDraggingStartOnChart = true;
+                canvas.style.cursor = 'ew-resize';
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!chartInstance || !currentChartParams) return;
+            const xIndex = Math.max(0, Math.min(currentChartParams.steps, chartInstance.scales.x.getValueForPixel(e.offsetX)));
+            const distHover = (xIndex / currentChartParams.steps) * currentChartParams.totalDistance;
+
+            if (isDraggingStartOnChart && selectedFeatureId) {
+                // On empêche de glisser le start "SUR" ou "APRÈS" le kicker (il faut au moins 1m d'élan)
+                let newStartDist = distHover;
+                if (newStartDist >= currentChartParams.projDist - 1) newStartDist = currentChartParams.projDist - 1;
+
+                const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
+                const ptX = turf.destination(currentChartParams.amontPt, newStartDist, currentChartParams.bearing, {units: 'meters'});
+                const zStart = getAltitudeAt(ptX.geometry.coordinates[0], ptX.geometry.coordinates[1]);
+
+                if (zStart !== null) {
+                    const deltaH = zStart - currentChartParams.zStartKicker;
+                    if (deltaH > 0) { // Si on est bien plus haut que le kicker
+                        const vMps = Math.sqrt(deltaH * 2 * 9.81 * 0.9);
+                        let speedKmh = vMps * 3.6;
+                        speedKmh = Math.max(5, Math.min(100, speedKmh)); // Bloqué entre 5 et 100 km/h
+                        
+                        // Met à jour la propriété et le curseur
+                        feat.properties.speed = speedKmh;
+                        document.getElementById('speed-slider').value = speedKmh;
+                        document.getElementById('speed-display').innerText = speedKmh.toFixed(1);
+                        
+                        updateProfileChart(feat);
+                        refreshDecorations(); // Met à jour la ligne verte sur la 2D !
+                    }
+                }
+            } else {
+                // Changement de curseur si on survole le start
+                if (currentChartParams.startDistanceX !== null && Math.abs(distHover - currentChartParams.startDistanceX) < 3) {
+                    canvas.style.cursor = 'ew-resize';
+                } else {
+                    canvas.style.cursor = 'default';
+                }
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isDraggingStartOnChart) { isDraggingStartOnChart = false; canvas.style.cursor = 'default'; }
+        });
+
+        // === 8. INIT CARTE ET EVENTS ===
         document.addEventListener('DOMContentLoaded', () => {
             map = new maplibregl.Map({ 
                 container: 'map-container', 
@@ -400,9 +441,7 @@
                 map.addSource('decorations-data', { type: 'geojson', data: decorationsFeatures });
                 map.addLayer({ id: 'axis-layer', type: 'line', source: 'decorations-data', filter: ['==', 'type', 'axis'], paint: { 'line-color': '#f39c12', 'line-width': 1, 'line-dasharray': [4, 4] } });
                 map.addLayer({ id: 'zone-layer', type: 'line', source: 'decorations-data', filter: ['==', 'type', 'zone'], paint: { 'line-color': '#fff', 'line-width': 1, 'line-dasharray': [2, 2] } });
-                map.addLayer({ id: 'start-layer', type: 'line', source: 'decorations-data', filter: ['==', 'type', 'start'], paint: { 'line-color': '#27ae60', 'line-width': 5 } }); // Barre START verte épaisse
-                
-                renderLayerList();
+                map.addLayer({ id: 'start-layer', type: 'line', source: 'decorations-data', filter: ['==', 'type', 'start'], paint: { 'line-color': '#27ae60', 'line-width': 5 } }); 
             });
 
             document.getElementById('mnt-upload').addEventListener('change', async (e) => {
@@ -440,45 +479,33 @@
                             id, name: activeModule, lineId: activeLineId, visible: true, color: n.color, 
                             rotation: 0, projectionDist: 40, speed: 40, 
                             kickLen: n.kickLen, tableLen: n.defaultTable, landLen: n.defaultLandLen, 
-                            kickAngle: n.defaultKickAngle, landingAngle: 25, 
-                            baseCoords: JSON.stringify(c) 
-                        }, 
-                        geometry: { type: 'Polygon', coordinates: c } 
+                            kickAngle: n.defaultKickAngle, landingAngle: 25, baseCoords: JSON.stringify(c) 
+                        }, geometry: { type: 'Polygon', coordinates: c } 
                     };
                     
                     snowparkFeatures.features.push(nf); refreshMapData(); selectFeature(id);
                     activeModule = null; mods.forEach(b => b.classList.remove('active')); map.getCanvas().style.cursor = '';
-                } else if (!map.queryRenderedFeatures(e.point, { layers: ['modules-fill'] }).length) {
-                    deselectFeature();
-                }
+                } else if (!map.queryRenderedFeatures(e.point, { layers: ['modules-fill'] }).length) deselectFeature();
             });
 
-            // DRAG & DROP
             map.on('mousedown', 'modules-fill', (e) => {
                 if (activeModule) return; 
-                e.preventDefault(); isDragging = true; map.dragPan.disable(); 
-                startCursorLngLat = e.lngLat;
-                const id = e.features[0].properties.id;
-                selectFeature(id);
+                e.preventDefault(); isDragging = true; map.dragPan.disable(); startCursorLngLat = e.lngLat;
+                const id = e.features[0].properties.id; selectFeature(id);
                 startBaseCoords = JSON.parse(snowparkFeatures.features.find(f => f.properties.id === id).properties.baseCoords);
             });
 
             map.on('mousemove', (e) => {
                 if (!isDragging || !selectedFeatureId) return;
                 const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
-                const lngOffset = e.lngLat.lng - startCursorLngLat.lng; 
-                const latOffset = e.lngLat.lat - startCursorLngLat.lat;
-                
+                const lngOffset = e.lngLat.lng - startCursorLngLat.lng; const latOffset = e.lngLat.lat - startCursorLngLat.lat;
                 const newBaseCoords = startBaseCoords[0].map(c => [c[0] + lngOffset, c[1] + latOffset]);
                 feat.properties.baseCoords = JSON.stringify([newBaseCoords]);
                 feat.geometry.coordinates = turf.transformRotate(turf.polygon([newBaseCoords]), feat.properties.rotation).geometry.coordinates;
-                
                 refreshMapData(); updateProfileChart(feat); 
             });
 
-            map.on('mouseup', () => { 
-                if(isDragging) { isDragging=false; draggedJustNow=true; setTimeout(()=>draggedJustNow=false,100); map.dragPan.enable(); }
-            });
+            map.on('mouseup', () => { if(isDragging) { isDragging=false; draggedJustNow=true; setTimeout(()=>draggedJustNow=false,100); map.dragPan.enable(); }});
 
             document.getElementById('close-profile').addEventListener('click', deselectFeature);
             document.getElementById('delete-btn').addEventListener('click', () => {
@@ -486,55 +513,38 @@
                 deselectFeature();
             });
 
-            // GESTION DES CURSEURS
             function syncSlider(propName, sliderId, displayId, isLength) {
                 document.getElementById(sliderId).addEventListener('input', (e) => {
                     if(!selectedFeatureId) return;
                     const val = parseFloat(e.target.value); document.getElementById(displayId).innerText = val;
                     const f = snowparkFeatures.features.find(x => x.properties.id === selectedFeatureId);
-                    
                     f.properties[propName] = val;
                     if (isLength) { 
-                        const norm = moduleNorms[f.properties.name];
-                        const newTotalLen = f.properties.kickLen + f.properties.tableLen + f.properties.landLen;
-                        const center = getBaseCenter(JSON.parse(f.properties.baseCoords));
-                        const newCoords = calculatePolygonCoords(center, norm.width, newTotalLen);
-                        f.properties.baseCoords = JSON.stringify(newCoords);
-                        f.geometry.coordinates = turf.transformRotate(turf.polygon(newCoords), f.properties.rotation).geometry.coordinates;
+                        const norm = moduleNorms[f.properties.name]; const newTotalLen = f.properties.kickLen + f.properties.tableLen + f.properties.landLen;
+                        const center = getBaseCenter(JSON.parse(f.properties.baseCoords)); const newCoords = calculatePolygonCoords(center, norm.width, newTotalLen);
+                        f.properties.baseCoords = JSON.stringify(newCoords); f.geometry.coordinates = turf.transformRotate(turf.polygon(newCoords), f.properties.rotation).geometry.coordinates;
                         refreshMapData(); updateProfileChart(f);
                     } else if (propName === 'rotation') {
                         f.geometry.coordinates = turf.transformRotate(turf.polygon(JSON.parse(f.properties.baseCoords)), val).geometry.coordinates;
                         refreshMapData(); updateProfileChart(f);
-                    } else {
-                        refreshMapData(); updateProfileChart(f);
-                    }
+                    } else { refreshMapData(); updateProfileChart(f); }
                 });
             }
             
-            syncSlider('rotation', 'rotation-slider', 'angle-display', false);
-            syncSlider('tableLen', 'table-slider', 'table-display', true);
-            syncSlider('landLen', 'landlen-slider', 'landlen-display', true);
-            syncSlider('kickAngle', 'kick-slider', 'kick-display', false);
-            syncSlider('landingAngle', 'land-slider', 'land-display', false);
-            syncSlider('speed', 'speed-slider', 'speed-display', false);
+            syncSlider('rotation', 'rotation-slider', 'angle-display', false); syncSlider('tableLen', 'table-slider', 'table-display', true);
+            syncSlider('landLen', 'landlen-slider', 'landlen-display', true); syncSlider('kickAngle', 'kick-slider', 'kick-display', false);
+            syncSlider('landingAngle', 'land-slider', 'land-display', false); syncSlider('speed', 'speed-slider', 'speed-display', false);
             syncSlider('projectionDist', 'proj-slider', 'proj-display', false);
         });
 
         window.selectFeature = function(id) {
             if(selectedFeatureId) map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: false });
             selectedFeatureId = id; map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: true });
-            
             const f = snowparkFeatures.features.find(x => x.properties.id === id);
-            
-            // ---> NOUVEAU : CENTRAGE AUTOMATIQUE DE LA CARTE <---
             const center = getBaseCenter(JSON.parse(f.properties.baseCoords));
             map.flyTo({ center: [center.lng, center.lat], zoom: 19, speed: 1.2, curve: 1 });
-
-            document.getElementById('properties-panel').style.display = 'block';
-            document.getElementById('prop-title').innerText = f.properties.name;
-            document.getElementById('kick-slider').min = moduleNorms[f.properties.name].minKickAngle;
-            document.getElementById('kick-slider').max = moduleNorms[f.properties.name].maxKickAngle;
-
+            document.getElementById('properties-panel').style.display = 'block'; document.getElementById('prop-title').innerText = f.properties.name;
+            document.getElementById('kick-slider').min = moduleNorms[f.properties.name].minKickAngle; document.getElementById('kick-slider').max = moduleNorms[f.properties.name].maxKickAngle;
             ['rotation', 'speed', 'table', 'landlen', 'kick', 'land', 'proj'].forEach(p => {
                 let sid = (p==='table'?'table-slider':p==='landlen'?'landlen-slider':p==='land'?'land-slider':p==='proj'?'proj-slider':p+'-slider');
                 let val = (p==='table'?f.properties.tableLen:p==='landlen'?f.properties.landLen:p==='proj'?f.properties.projectionDist:p==='land'?f.properties.landingAngle:f.properties[p+(p==='kick'?'Angle':'')]);
@@ -545,9 +555,8 @@
 
         function deselectFeature() {
             if(selectedFeatureId) map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: false });
-            selectedFeatureId = null; document.getElementById('properties-panel').style.display = 'none';
-            document.getElementById('profile-container').style.display = 'none'; startMarker.remove(); hoverMarker.remove();
-            renderLayerList(); refreshMapData(); map.resize();
+            selectedFeatureId = null; document.getElementById('properties-panel').style.display = 'none'; document.getElementById('profile-container').style.display = 'none'; 
+            hoverMarker.remove(); renderLayerList(); refreshMapData(); map.resize();
         }
     </script>
 </body>
