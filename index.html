@@ -24,12 +24,11 @@
         .btn-danger { background-color: #e74c3c; margin-top: 15px; }
         .module-btn { background-color: #e67e22; padding: 10px; margin-bottom: 8px; text-align: center; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
         .main-workspace { flex-grow: 1; position: relative; display: flex; flex-direction: column; }
-        #map-container { flex-grow: 1; position: relative; background-color: #2c3e50; } /* Fond sombre pour la vue satellite */
+        #map-container { flex-grow: 1; position: relative; background-color: #2c3e50; } 
         
         #profile-container { height: 350px; background: white; border-top: 3px solid #34495e; padding: 10px; box-sizing: border-box; display: none; position: relative; }
         #close-profile { position: absolute; top: 5px; right: 10px; background: none; border: none; font-size: 1.2rem; cursor: pointer; }
         
-        /* Affichage de l'altitude ajusté pour plus de précision */
         #altitude-box { position: absolute; top: 20px; left: 20px; background-color: rgba(44, 62, 80, 0.9); color: #2ecc71; padding: 10px 20px; border-radius: 5px; font-size: 1.2rem; font-weight: bold; z-index: 20; box-shadow: 0 4px 6px rgba(0,0,0,0.5); border: 2px solid #34495e; }
         
         input[type=range] { width: 100%; margin-top: 2px; margin-bottom: 8px; cursor: pointer; }
@@ -42,7 +41,7 @@
 
     <div class="app-container">
         <div class="sidebar">
-            <h2>🛠️ Snowpark Pro v17</h2>
+            <h2>🛠️ Snowpark Pro v18</h2>
             <div class="panel"><button class="btn btn-primary">Enregistrer</button></div>
             <div class="panel">
                 <h3>🗺️ Topographie (MNT)</h3>
@@ -103,12 +102,25 @@
         let mntData = null; let mntBboxL93 = null; let mntWidth = 0; let mntHeight = 0;
         let chartInstance = null;
 
+        // NOUVEAU : Mémoire des données du graphique pour faire le lien avec le curseur
+        let currentChartParams = null;
+        // Création du pointeur rouge qui se baladera sur la carte
+        const hoverEl = document.createElement('div');
+        hoverEl.style.width = '14px'; hoverEl.style.height = '14px';
+        hoverEl.style.backgroundColor = '#e74c3c';
+        hoverEl.style.border = '2px solid white';
+        hoverEl.style.borderRadius = '50%';
+        hoverEl.style.boxShadow = '0 0 5px rgba(0,0,0,0.8)';
+        let hoverMarker = new maplibregl.Marker({element: hoverEl});
+
         const moduleNorms = {
             'Kicker S (Débutant)': { width: 6, kickLen: 3, minKickAngle: 10, maxKickAngle: 20, defaultKickAngle: 15, defaultTable: 4, defaultLandLen: 8, color: '#2ecc71' },
             'Kicker M (Intermédiaire)': { width: 8, kickLen: 4, minKickAngle: 20, maxKickAngle: 30, defaultKickAngle: 25, defaultTable: 8, defaultLandLen: 12, color: '#f1c40f' }
         };
 
         let snowparkFeatures = { type: 'FeatureCollection', features: [] };
+        // Base de données pour les lignes (Axe et Zones)
+        let decorationsFeatures = { type: 'FeatureCollection', features: [] };
 
         function getBaseCenter(baseCoords) {
             const pts = baseCoords[0]; return { lng: (pts[0][0] + pts[2][0])/2, lat: (pts[0][1] + pts[2][1])/2 };
@@ -126,42 +138,21 @@
             ]];
         }
 
-        // NOUVEAU : INTERPOLATION BILINÉAIRE POUR UNE PRÉCISION OPTIMALE DU MNT
         function getAltitudeAt(lng, lat) {
             if (!mntData || !mntBboxL93) return null;
             const ptL93 = proj4("EPSG:4326", "EPSG:2154", [lng, lat]);
-            const xL93 = ptL93[0];
-            const yL93 = ptL93[1];
-
+            const xL93 = ptL93[0]; const yL93 = ptL93[1];
             if (xL93 >= mntBboxL93[0] && xL93 <= mntBboxL93[2] && yL93 >= mntBboxL93[1] && yL93 <= mntBboxL93[3]) {
-                // Coordonnées exactes en pixels (décimales)
                 const xF = ((xL93 - mntBboxL93[0]) / (mntBboxL93[2] - mntBboxL93[0])) * mntWidth;
                 const yF = ((mntBboxL93[3] - yL93) / (mntBboxL93[3] - mntBboxL93[1])) * mntHeight;
-
-                // Trouver les 4 pixels environnants
                 const x0 = Math.floor(xF); const x1 = Math.min(x0 + 1, mntWidth - 1);
                 const y0 = Math.floor(yF); const y1 = Math.min(y0 + 1, mntHeight - 1);
-
-                // Poids d'interpolation
-                const tx = xF - x0;
-                const ty = yF - y0;
-
-                // Valeurs des 4 pixels
-                const alt00 = mntData[y0 * mntWidth + x0];
-                const alt10 = mntData[y0 * mntWidth + x1];
-                const alt01 = mntData[y1 * mntWidth + x0];
-                const alt11 = mntData[y1 * mntWidth + x1];
-
-                // Si on tombe sur une zone "No Data" de ton fichier
+                const tx = xF - x0; const ty = yF - y0;
+                const alt00 = mntData[y0 * mntWidth + x0]; const alt10 = mntData[y0 * mntWidth + x1];
+                const alt01 = mntData[y1 * mntWidth + x0]; const alt11 = mntData[y1 * mntWidth + x1];
                 if (alt00 < -100 || alt10 < -100 || alt01 < -100 || alt11 < -100) return null;
                 if (alt00 > 8848) return null;
-
-                // Formule de l'interpolation bilinéaire (lisse la courbe parfaitement)
-                const alt = (1 - tx) * (1 - ty) * alt00 +
-                            tx * (1 - ty) * alt10 +
-                            (1 - tx) * ty * alt01 +
-                            tx * ty * alt11;
-                return alt;
+                return (1 - tx) * (1 - ty) * alt00 + tx * (1 - ty) * alt10 + (1 - tx) * ty * alt01 + tx * ty * alt11;
             }
             return null;
         }
@@ -184,11 +175,33 @@
             const amontPt = turf.destination(ptHaut, projDist, bearing - 180, {units: 'meters'});
             const totalDistance = projDist * 2 + kickerLength;
             
+            // --- DESSIN DES LIGNES SUR LA CARTE (Axe + Zones) ---
+            decorationsFeatures.features = [];
+            
+            // Ligne d'axe principale
+            const avalPt = turf.destination(amontPt, totalDistance, bearing, {units: 'meters'});
+            decorationsFeatures.features.push({ type: 'Feature', properties: { type: 'axis' }, geometry: { type: 'LineString', coordinates: [amontPt.geometry.coordinates, avalPt.geometry.coordinates] }});
+
+            // Ligne de séparation 1 (Fin du Kick)
+            const l1_left = turf.destination(turf.point(coords[3]), kickLen, bearing, {units: 'meters'}).geometry.coordinates;
+            const l1_right = turf.destination(turf.point(coords[2]), kickLen, bearing, {units: 'meters'}).geometry.coordinates;
+            decorationsFeatures.features.push({ type: 'Feature', properties: { type: 'zone' }, geometry: { type: 'LineString', coordinates: [l1_left, l1_right] }});
+
+            // Ligne de séparation 2 (Fin de la Table / Début Réception)
+            const l2_left = turf.destination(turf.point(coords[3]), kickLen + tableLen, bearing, {units: 'meters'}).geometry.coordinates;
+            const l2_right = turf.destination(turf.point(coords[2]), kickLen + tableLen, bearing, {units: 'meters'}).geometry.coordinates;
+            decorationsFeatures.features.push({ type: 'Feature', properties: { type: 'zone' }, geometry: { type: 'LineString', coordinates: [l2_left, l2_right] }});
+
+            map.getSource('decorations-data').setData(decorationsFeatures);
+            // -----------------------------------------------------
+
             const stepResolution = 0.2; 
             const steps = Math.min(Math.ceil(totalDistance / stepResolution), 600); 
             
-            const labels = []; const terrainData = []; const kickerData = []; const trajData = [];
+            // On mémorise les paramètres pour le Hover
+            currentChartParams = { amontPt, bearing, totalDistance, steps };
 
+            const labels = []; const terrainData = []; const kickerData = []; const trajData = [];
             let zStartKicker = getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0;
             const zKickEnd = zStartKicker + (kickLen * Math.tan(kickAngle * Math.PI / 180));
             const lipDistance = projDist + kickLen; 
@@ -226,7 +239,6 @@
                     const xRel = currentDist - lipDistance; 
                     const t = xRel / (v0 * Math.cos(theta)); 
                     const zTraj = zKickEnd + (v0 * Math.sin(theta) * t) - (0.5 * g * t * t);
-                    
                     const surfaceZ = zKickerCalc !== null ? zKickerCalc : zTerrain;
                     
                     if (zTraj >= surfaceZ) trajData.push(zTraj);
@@ -253,10 +265,26 @@
                         datasets: [
                             { label: 'MNT', data: terrainData, borderColor: '#8e44ad', backgroundColor: 'rgba(142, 68, 173, 0.2)', fill: true, tension: 0.1, pointRadius: 0 },
                             { label: 'Neige', data: kickerData, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.4)', fill: false, tension: 0, pointRadius: 0, borderWidth: 4, borderJoinStyle: 'round' },
-                            { label: 'Vol du Rider', data: trajData, borderColor: '#e67e22', borderDash: [5, 5], fill: false, tension: 0.2, pointRadius: 0, borderWidth: 3 }
+                            { label: 'Vol', data: trajData, borderColor: '#e67e22', borderDash: [5, 5], fill: false, tension: 0.2, pointRadius: 0, borderWidth: 3 }
                         ]
                     },
-                    options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y: { title: { display: true, text: 'Altitude (m)' } }, x: { title: { display: true, text: 'Distance (m)' }, ticks: { maxTicksLimit: 15 } } } }
+                    options: { 
+                        responsive: true, maintainAspectRatio: false, animation: false, 
+                        scales: { y: { title: { display: true, text: 'Altitude (m)' } }, x: { title: { display: true, text: 'Distance (m)' }, ticks: { maxTicksLimit: 15 } } },
+                        interaction: { intersect: false, mode: 'index' },
+                        // NOUVEAU : On gère le survol de la souris pour bouger le point sur la carte !
+                        onHover: (event, activeElements) => {
+                            if (activeElements.length > 0 && currentChartParams) {
+                                const index = activeElements[0].index;
+                                const fraction = index / currentChartParams.steps;
+                                const dist = fraction * currentChartParams.totalDistance;
+                                const hoverPt = turf.destination(currentChartParams.amontPt, dist, currentChartParams.bearing, {units: 'meters'});
+                                hoverMarker.setLngLat(hoverPt.geometry.coordinates).addTo(map);
+                            } else {
+                                hoverMarker.remove();
+                            }
+                        }
+                    }
                 });
             }
         }
@@ -280,30 +308,23 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             
-            // NOUVEAU : CARTE SATELLITE (ESRI World Imagery)
             map = new maplibregl.Map({ 
                 container: 'map-container', 
-                style: { 
-                    'version': 8, 
-                    'sources': { 
-                        'esri-satellite': { 
-                            'type': 'raster', 
-                            'tiles': ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], 
-                            'tileSize': 256,
-                            'attribution': '&copy; Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN'
-                        } 
-                    }, 
-                    'layers': [{ 'id': 'satellite-layer', 'type': 'raster', 'source': 'esri-satellite' }] 
-                }, 
-                center: [0.5936, 42.7610], 
-                zoom: 14 
+                style: { 'version': 8, 'sources': { 'esri-sat': { 'type': 'raster', 'tiles': ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], 'tileSize': 256 } }, 'layers': [{ 'id': 'sat-layer', 'type': 'raster', 'source': 'esri-sat' }] }, 
+                center: [0.5936, 42.7610], zoom: 14 
             });
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
             map.on('load', () => {
                 map.addSource('snowpark-data', { type: 'geojson', data: snowparkFeatures });
-                map.addLayer({ id: 'modules-fill', type: 'fill', source: 'snowpark-data', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.6 } });
+                map.addLayer({ id: 'modules-fill', type: 'fill', source: 'snowpark-data', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.5 } });
                 map.addLayer({ id: 'modules-outline', type: 'line', source: 'snowpark-data', paint: { 'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#e74c3c', '#ffffff'], 'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 4, 2] } });
+                
+                // NOUVELLES COUCHES : L'axe et les zones
+                map.addSource('decorations-data', { type: 'geojson', data: decorationsFeatures });
+                map.addLayer({ id: 'axis-layer', type: 'line', source: 'decorations-data', filter: ['==', 'type', 'axis'], paint: { 'line-color': '#f39c12', 'line-width': 3, 'line-dasharray': [3, 3] } });
+                map.addLayer({ id: 'zone-layer', type: 'line', source: 'decorations-data', filter: ['==', 'type', 'zone'], paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-dasharray': [2, 2] } });
+
                 map.addSource('mnt-bounds', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
                 map.addLayer({ id: 'mnt-bounds-line', type: 'line', source: 'mnt-bounds', paint: { 'line-color': '#e74c3c', 'line-width': 3, 'line-dasharray': [2, 2] } });
             });
@@ -413,7 +434,19 @@
             }
 
             function deselectCurrentFeature() {
-                if (selectedFeatureId) { map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: false }); selectedFeatureId = null; document.getElementById('edit-panel').style.display = 'none'; document.getElementById('profile-container').style.display = 'none'; map.resize(); }
+                if (selectedFeatureId) { 
+                    map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: false }); 
+                    selectedFeatureId = null; 
+                    document.getElementById('edit-panel').style.display = 'none'; 
+                    document.getElementById('profile-container').style.display = 'none'; 
+                    
+                    // NOUVEAU : Effacer les décorations et le pointeur quand on désélectionne
+                    decorationsFeatures.features = [];
+                    map.getSource('decorations-data').setData(decorationsFeatures);
+                    hoverMarker.remove();
+                    
+                    map.resize(); 
+                }
             }
 
             function updateFeatProp(propName, sliderId, displayId) {
