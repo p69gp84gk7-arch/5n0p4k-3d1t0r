@@ -1,39 +1,53 @@
 <!DOCTYPE html>
 <html lang="fr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Snowpark Designer - Normes de Sécurité</title>
-    <link rel="stylesheet" href="./style.css">
-  </head>
-  <body>
-    <div id="ui-panel">
-      <h2>Snowpark Designer</h2>
-      
-      <div class="control-group">
-        <label for="mnt-upload">1. Charger MNT (.tif) :</label>
-        <input type="file" id="mnt-upload" accept=".tif,.tiff" />
-      </div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snowpark Designer Pro</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
-      <div class="control-group">
-        <label for="snow-slider">2. Neige de culture (<span id="snow-val">0</span>m) :</label>
-        <input type="range" id="snow-slider" min="0" max="5" step="0.1" value="0">
-      </div>
-
-      <div class="control-group">
-        <label>3. Conception (Norme AFNOR) :</label>
-        <button id="btn-draw" class="action-btn">✏️ Tracer un Saut (4 clics)</button>
-        <button id="btn-clear" class="action-btn btn-red">🧹 Effacer</button>
+    <div class="sidebar">
+        <h2>🛠️ Snowpark Pro</h2>
         
-        <div id="norm-panel" class="hidden">
-            <h4>Analyse Balistique</h4>
-            <p>Vitesse élan : <b id="stat-vitesse">--</b> km/h</p>
-            <p>Distance vol : <b id="stat-vol">--</b> m</p>
-            <div id="stat-status" class="status-badge">En attente...</div>
+        <div class="panel">
+            <h3>📂 Gestion de Projet</h3>
+            <button class="btn">Charger un projet</button>
+            <button class="btn btn-primary">Enregistrer sur Sheets</button>
         </div>
-      </div>
+
+        <div class="panel">
+            <h3>🗺️ Topographie & Calques</h3>
+            <label>Importer un MNT (.tif)</label>
+            <input type="file" id="mnt-upload" accept=".tif">
+            
+            <label>Importer des repères (.kmz)</label>
+            <input type="file" id="kmz-upload" accept=".kmz">
+            
+            <ul id="layer-list">
+                <li>Couche MNT <button>👁️</button> <button>❌</button></li>
+            </ul>
+        </div>
+
+        <div class="panel">
+            <h3>⛷️ Modules (Norme)</h3>
+            <p class="info-text">Glissez un module sur la carte.</p>
+            <div class="module-btn">Kicker S (Débutant)</div>
+            <div class="module-btn">Kicker M (Intermédiaire)</div>
+            <div class="module-btn">Rail Plat (6m)</div>
+        </div>
     </div>
 
-    <script type="module" src="./main.js"></script>
-  </body>
+    <div class="main-workspace">
+        <div id="map-container">
+            <p style="text-align:center; padding-top: 20%; color: #7f8c8d;">La carte 2D/3D apparaîtra ici à la Phase 2.</p>
+        </div>
+        
+        <div id="profile-container" style="display: none;">
+            <p>Graphique de coupe, neige et trajectoire</p>
+        </div>
+    </div>
+
+</body>
 </html>
