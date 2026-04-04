@@ -7,7 +7,6 @@
     
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-    
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
     <style>
@@ -22,9 +21,8 @@
         .btn-danger { background-color: #e74c3c; margin-top: 15px; }
         .module-btn { background-color: #e67e22; padding: 10px; margin-bottom: 8px; text-align: center; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
         .main-workspace { flex-grow: 1; position: relative; }
-        #map-container { position: absolute; top: 0; bottom: 0; width: 100%; }
-        
-        /* Style du curseur de rotation */
+        /* Fond gris clair pour bien voir si la zone de la carte charge */
+        #map-container { position: absolute; top: 0; bottom: 0; width: 100%; background-color: #dcdde1; }
         input[type=range] { width: 100%; margin-top: 10px; cursor: pointer; }
     </style>
 </head>
@@ -32,7 +30,7 @@
 
     <div class="app-container">
         <div class="sidebar">
-            <h2>🛠️ Snowpark Pro v7</h2>
+            <h2>🛠️ Snowpark Pro v8</h2>
             
             <div class="panel">
                 <h3>📂 Gestion de Projet</h3>
@@ -46,7 +44,7 @@
                 <label for="rotation-slider" style="font-size: 0.9rem;">Orientation (<span id="angle-display">0</span>°)</label>
                 <input type="range" id="rotation-slider" min="0" max="360" value="0">
                 
-                <button class="btn btn-danger" id="delete-btn">🗑️ Supprimer le module</button>
+                <button class="btn btn-danger" id="delete-btn">🗑️ Supprimer</button>
             </div>
 
             <div class="panel">
@@ -65,7 +63,7 @@
     <script>
         let map;
         let activeModule = null;
-        let selectedFeatureId = null; // Mémoire du module cliqué
+        let selectedFeatureId = null;
 
         const moduleNorms = {
             'Kicker S (Débutant)': { width: 10, length: 15, color: '#2ecc71' },
@@ -81,8 +79,12 @@
             const lng = lngLat.lng;
             const dLat = (lengthM / 2) / R;
             const dLng = (widthM / 2) / (R * Math.cos(Math.PI * lat / 180));
+            
+            const dLatDeg = dLat * 180 / Math.PI;
+            const dLngDeg = dLng * 180 / Math.PI;
+            
             return [[
-                [lng - dLngDeg = dLng * 180 / Math.PI, lat - dLatDeg = dLat * 180 / Math.PI],
+                [lng - dLngDeg, lat - dLatDeg],
                 [lng + dLngDeg, lat - dLatDeg],
                 [lng + dLngDeg, lat + dLatDeg],
                 [lng - dLngDeg, lat + dLatDeg],
@@ -108,7 +110,6 @@
             map.on('load', () => {
                 map.addSource('snowpark-data', { type: 'geojson', data: snowparkFeatures });
                 
-                // Couche de remplissage
                 map.addLayer({
                     id: 'modules-fill',
                     type: 'fill',
@@ -116,26 +117,22 @@
                     paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.6 }
                 });
 
-                // Couche de contour
                 map.addLayer({
                     id: 'modules-outline',
                     type: 'line',
                     source: 'snowpark-data',
                     paint: {
-                        // Le contour devient rouge si le module est sélectionné
                         'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#e74c3c', '#000'],
                         'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 4, 2]
                     }
                 });
             });
 
-            // GESTION DES BOUTONS DE LA BARRE
+            // CLIC BARRE DE GAUCHE
             const modules = document.querySelectorAll('.module-btn');
             modules.forEach(mod => {
                 mod.addEventListener('click', (e) => {
-                    // Si on sélectionne un outil de pose, on désélectionne les modules sur la carte
                     deselectCurrentFeature();
-                    
                     modules.forEach(m => m.style.border = 'none');
                     if (activeModule === e.target.innerText) {
                         activeModule = null;
@@ -148,23 +145,21 @@
                 });
             });
 
-            // CLIC SUR LA CARTE
+            // CLIC CARTE
             map.on('click', (e) => {
-                // 1. Si on est en train de poser un NOUVEAU module
                 if (activeModule) {
                     const norm = moduleNorms[activeModule];
                     const coords = calculatePolygonCoords(e.lngLat, norm.width, norm.length);
-                    const uniqueId = Date.now(); // Identifiant unique pour le retrouver
+                    const uniqueId = Date.now();
 
                     const newFeature = {
-                        id: uniqueId, // ID essentiel pour la sélection
+                        id: uniqueId,
                         type: 'Feature',
                         properties: {
                             id: uniqueId,
                             name: activeModule,
                             color: norm.color,
                             rotation: 0,
-                            // On stocke les coordonnées "droites" pour pouvoir calculer la rotation proprement
                             baseCoords: JSON.stringify(coords) 
                         },
                         geometry: { type: 'Polygon', coordinates: coords }
@@ -179,30 +174,20 @@
                     return;
                 }
 
-                // 2. Si on clique sur un module DÉJÀ POSÉ pour l'éditer
                 const clickedFeatures = map.queryRenderedFeatures(e.point, { layers: ['modules-fill'] });
-                
                 if (clickedFeatures.length > 0) {
                     selectFeature(clickedFeatures[0].properties.id);
                 } else {
-                    // Si on clique dans le vide, on désélectionne
                     deselectCurrentFeature();
                 }
             });
 
-            // --- FONCTIONS D'ÉDITION ---
-
             function selectFeature(id) {
-                deselectCurrentFeature(); // Nettoie la sélection précédente
+                deselectCurrentFeature();
                 selectedFeatureId = id;
-                
-                // Mettre en surbrillance sur la carte
                 map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: true });
-                
-                // Trouver le module dans notre base de données
                 const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
                 
-                // Afficher le panneau
                 document.getElementById('edit-panel').style.display = 'block';
                 document.getElementById('edit-name').innerText = feat.properties.name;
                 document.getElementById('rotation-slider').value = feat.properties.rotation;
@@ -217,7 +202,6 @@
                 }
             }
 
-            // Gérer la rotation avec le curseur
             document.getElementById('rotation-slider').addEventListener('input', (e) => {
                 if (selectedFeatureId) {
                     const angle = parseFloat(e.target.value);
@@ -225,31 +209,24 @@
                     
                     const featureIndex = snowparkFeatures.features.findIndex(f => f.properties.id === selectedFeatureId);
                     const feat = snowparkFeatures.features[featureIndex];
-                    
                     feat.properties.rotation = angle;
                     
-                    // On récupère les coordonnées de base et on utilise Turf.js pour les pivoter
                     const baseCoords = JSON.parse(feat.properties.baseCoords);
                     const basePoly = turf.polygon(baseCoords);
-                    const rotatedPoly = turf.transformRotate(basePoly, angle); // La magie de Turf.js
+                    const rotatedPoly = turf.transformRotate(basePoly, angle);
                     
                     feat.geometry.coordinates = rotatedPoly.geometry.coordinates;
-                    
-                    // Mise à jour de la carte
                     map.getSource('snowpark-data').setData(snowparkFeatures);
                 }
             });
 
-            // Gérer la suppression
             document.getElementById('delete-btn').addEventListener('click', () => {
                 if (selectedFeatureId) {
-                    // On filtre notre tableau pour retirer le module sélectionné
                     snowparkFeatures.features = snowparkFeatures.features.filter(f => f.properties.id !== selectedFeatureId);
                     map.getSource('snowpark-data').setData(snowparkFeatures);
                     deselectCurrentFeature();
                 }
             });
-
         });
     </script>
 </body>
