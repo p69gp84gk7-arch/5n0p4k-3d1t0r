@@ -7,6 +7,8 @@
     
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    
+    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; color: #333; }
@@ -17,26 +19,38 @@
         .panel h3 { margin-top: 0; font-size: 1.1rem; color: #3498db; }
         .btn { width: 100%; padding: 10px; margin-bottom: 10px; border: none; border-radius: 5px; background-color: #7f8c8d; color: white; cursor: pointer; font-weight: bold; }
         .btn-primary { background-color: #27ae60; }
+        .btn-danger { background-color: #e74c3c; margin-top: 15px; }
         .module-btn { background-color: #e67e22; padding: 10px; margin-bottom: 8px; text-align: center; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
         .main-workspace { flex-grow: 1; position: relative; }
         #map-container { position: absolute; top: 0; bottom: 0; width: 100%; }
+        
+        /* Style du curseur de rotation */
+        input[type=range] { width: 100%; margin-top: 10px; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div class="app-container">
         <div class="sidebar">
-            <h2>🛠️ Snowpark Pro v6</h2>
+            <h2>🛠️ Snowpark Pro v7</h2>
             
             <div class="panel">
                 <h3>📂 Gestion de Projet</h3>
-                <button class="btn">Charger un projet</button>
                 <button class="btn btn-primary">Enregistrer</button>
+            </div>
+
+            <div class="panel" id="edit-panel" style="display: none; border: 2px solid #3498db;">
+                <h3>⚙️ Édition du Module</h3>
+                <p id="edit-name" style="font-weight: bold; color: #e67e22; margin-top: 0;"></p>
+                
+                <label for="rotation-slider" style="font-size: 0.9rem;">Orientation (<span id="angle-display">0</span>°)</label>
+                <input type="range" id="rotation-slider" min="0" max="360" value="0">
+                
+                <button class="btn btn-danger" id="delete-btn">🗑️ Supprimer le module</button>
             </div>
 
             <div class="panel">
                 <h3>⛷️ Modules (Norme)</h3>
-                <p style="font-size: 0.8rem; color: #bdc3c7;">Les dimensions sont réelles au sol.</p>
                 <div class="module-btn">Kicker S (Débutant)</div>
                 <div class="module-btn">Kicker M (Intermédiaire)</div>
                 <div class="module-btn">Rail Plat (6m)</div>
@@ -51,38 +65,28 @@
     <script>
         let map;
         let activeModule = null;
+        let selectedFeatureId = null; // Mémoire du module cliqué
 
-        // Base de données des normes de tes modules (Largeur x Longueur en mètres)
         const moduleNorms = {
-            'Kicker S (Débutant)': { width: 10, length: 15, color: '#2ecc71' }, // Vert
-            'Kicker M (Intermédiaire)': { width: 15, length: 22, color: '#f1c40f' }, // Jaune
-            'Rail Plat (6m)': { width: 2, length: 6, color: '#e74c3c' } // Rouge
+            'Kicker S (Débutant)': { width: 10, length: 15, color: '#2ecc71' },
+            'Kicker M (Intermédiaire)': { width: 15, length: 22, color: '#f1c40f' },
+            'Rail Plat (6m)': { width: 2, length: 6, color: '#e74c3c' }
         };
 
-        // On stocke tous nos modules dessinés ici
-        let snowparkFeatures = {
-            type: 'FeatureCollection',
-            features: []
-        };
+        let snowparkFeatures = { type: 'FeatureCollection', features: [] };
 
-        // Fonction mathématique pour transformer des mètres en surface GPS
         function calculatePolygonCoords(lngLat, widthM, lengthM) {
-            const R = 6378137; // Rayon de la Terre en mètres
+            const R = 6378137;
             const lat = lngLat.lat;
             const lng = lngLat.lng;
-            
             const dLat = (lengthM / 2) / R;
             const dLng = (widthM / 2) / (R * Math.cos(Math.PI * lat / 180));
-            
-            const dLatDeg = dLat * 180 / Math.PI;
-            const dLngDeg = dLng * 180 / Math.PI;
-            
             return [[
-                [lng - dLngDeg, lat - dLatDeg], // Bas Gauche
-                [lng + dLngDeg, lat - dLatDeg], // Bas Droite
-                [lng + dLngDeg, lat + dLatDeg], // Haut Droite
-                [lng - dLngDeg, lat + dLatDeg], // Haut Gauche
-                [lng - dLngDeg, lat - dLatDeg]  // On boucle au départ pour fermer la forme
+                [lng - dLngDeg = dLng * 180 / Math.PI, lat - dLatDeg = dLat * 180 / Math.PI],
+                [lng + dLngDeg, lat - dLatDeg],
+                [lng + dLngDeg, lat + dLatDeg],
+                [lng - dLngDeg, lat + dLatDeg],
+                [lng - dLngDeg, lat - dLatDeg]
             ]];
         }
 
@@ -92,61 +96,46 @@
                 container: 'map-container',
                 style: {
                     'version': 8,
-                    'sources': {
-                        'osm': {
-                            'type': 'raster',
-                            'tiles': ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                            'tileSize': 256
-                        }
-                    },
-                    'layers': [{
-                        'id': 'osm-layer',
-                        'type': 'raster',
-                        'source': 'osm'
-                    }]
+                    'sources': { 'osm': { 'type': 'raster', 'tiles': ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], 'tileSize': 256 } },
+                    'layers': [{ 'id': 'osm-layer', 'type': 'raster', 'source': 'osm' }]
                 },
                 center: [0.5936, 42.7610],
-                zoom: 18 // On zoome beaucoup pour voir les modules !
+                zoom: 18
             });
 
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-            // QUAND LA CARTE EST CHARGÉE, ON CRÉE NOTRE COUCHE DE DESSIN
             map.on('load', () => {
+                map.addSource('snowpark-data', { type: 'geojson', data: snowparkFeatures });
                 
-                // 1. On déclare la source de données pour nos polygones
-                map.addSource('snowpark-data', {
-                    type: 'geojson',
-                    data: snowparkFeatures
-                });
-
-                // 2. On crée une couche visuelle pour "remplir" la forme (légèrement transparente)
+                // Couche de remplissage
                 map.addLayer({
                     id: 'modules-fill',
                     type: 'fill',
                     source: 'snowpark-data',
-                    paint: {
-                        'fill-color': ['get', 'color'], // Récupère la couleur selon le module
-                        'fill-opacity': 0.6 // Transparence pour voir le terrain !
-                    }
+                    paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.6 }
                 });
 
-                // 3. On crée une couche visuelle pour le "contour" de la forme
+                // Couche de contour
                 map.addLayer({
                     id: 'modules-outline',
                     type: 'line',
                     source: 'snowpark-data',
                     paint: {
-                        'line-color': '#000000',
-                        'line-width': 2
+                        // Le contour devient rouge si le module est sélectionné
+                        'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#e74c3c', '#000'],
+                        'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 4, 2]
                     }
                 });
             });
 
-            // GESTION DES CLICS
+            // GESTION DES BOUTONS DE LA BARRE
             const modules = document.querySelectorAll('.module-btn');
             modules.forEach(mod => {
                 mod.addEventListener('click', (e) => {
+                    // Si on sélectionne un outil de pose, on désélectionne les modules sur la carte
+                    deselectCurrentFeature();
+                    
                     modules.forEach(m => m.style.border = 'none');
                     if (activeModule === e.target.innerText) {
                         activeModule = null;
@@ -159,35 +148,105 @@
                 });
             });
 
-            // CLIC SUR LA CARTE = DESSIN DE LA SURFACE
+            // CLIC SUR LA CARTE
             map.on('click', (e) => {
+                // 1. Si on est en train de poser un NOUVEAU module
                 if (activeModule) {
                     const norm = moduleNorms[activeModule];
-                    
-                    // On calcule la forme géométrique
                     const coords = calculatePolygonCoords(e.lngLat, norm.width, norm.length);
+                    const uniqueId = Date.now(); // Identifiant unique pour le retrouver
 
-                    // On crée l'entité cartographique
                     const newFeature = {
+                        id: uniqueId, // ID essentiel pour la sélection
                         type: 'Feature',
                         properties: {
+                            id: uniqueId,
                             name: activeModule,
-                            color: norm.color
+                            color: norm.color,
+                            rotation: 0,
+                            // On stocke les coordonnées "droites" pour pouvoir calculer la rotation proprement
+                            baseCoords: JSON.stringify(coords) 
                         },
-                        geometry: {
-                            type: 'Polygon',
-                            coordinates: coords
-                        }
+                        geometry: { type: 'Polygon', coordinates: coords }
                     };
 
-                    // On l'ajoute à notre base de données et on met à jour la carte
                     snowparkFeatures.features.push(newFeature);
                     map.getSource('snowpark-data').setData(snowparkFeatures);
 
-                    // Réinitialisation de l'outil
                     activeModule = null;
                     modules.forEach(m => m.style.border = 'none');
                     map.getCanvas().style.cursor = '';
+                    return;
+                }
+
+                // 2. Si on clique sur un module DÉJÀ POSÉ pour l'éditer
+                const clickedFeatures = map.queryRenderedFeatures(e.point, { layers: ['modules-fill'] });
+                
+                if (clickedFeatures.length > 0) {
+                    selectFeature(clickedFeatures[0].properties.id);
+                } else {
+                    // Si on clique dans le vide, on désélectionne
+                    deselectCurrentFeature();
+                }
+            });
+
+            // --- FONCTIONS D'ÉDITION ---
+
+            function selectFeature(id) {
+                deselectCurrentFeature(); // Nettoie la sélection précédente
+                selectedFeatureId = id;
+                
+                // Mettre en surbrillance sur la carte
+                map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: true });
+                
+                // Trouver le module dans notre base de données
+                const feat = snowparkFeatures.features.find(f => f.properties.id === selectedFeatureId);
+                
+                // Afficher le panneau
+                document.getElementById('edit-panel').style.display = 'block';
+                document.getElementById('edit-name').innerText = feat.properties.name;
+                document.getElementById('rotation-slider').value = feat.properties.rotation;
+                document.getElementById('angle-display').innerText = feat.properties.rotation;
+            }
+
+            function deselectCurrentFeature() {
+                if (selectedFeatureId) {
+                    map.setFeatureState({ source: 'snowpark-data', id: selectedFeatureId }, { selected: false });
+                    selectedFeatureId = null;
+                    document.getElementById('edit-panel').style.display = 'none';
+                }
+            }
+
+            // Gérer la rotation avec le curseur
+            document.getElementById('rotation-slider').addEventListener('input', (e) => {
+                if (selectedFeatureId) {
+                    const angle = parseFloat(e.target.value);
+                    document.getElementById('angle-display').innerText = angle;
+                    
+                    const featureIndex = snowparkFeatures.features.findIndex(f => f.properties.id === selectedFeatureId);
+                    const feat = snowparkFeatures.features[featureIndex];
+                    
+                    feat.properties.rotation = angle;
+                    
+                    // On récupère les coordonnées de base et on utilise Turf.js pour les pivoter
+                    const baseCoords = JSON.parse(feat.properties.baseCoords);
+                    const basePoly = turf.polygon(baseCoords);
+                    const rotatedPoly = turf.transformRotate(basePoly, angle); // La magie de Turf.js
+                    
+                    feat.geometry.coordinates = rotatedPoly.geometry.coordinates;
+                    
+                    // Mise à jour de la carte
+                    map.getSource('snowpark-data').setData(snowparkFeatures);
+                }
+            });
+
+            // Gérer la suppression
+            document.getElementById('delete-btn').addEventListener('click', () => {
+                if (selectedFeatureId) {
+                    // On filtre notre tableau pour retirer le module sélectionné
+                    snowparkFeatures.features = snowparkFeatures.features.filter(f => f.properties.id !== selectedFeatureId);
+                    map.getSource('snowpark-data').setData(snowparkFeatures);
+                    deselectCurrentFeature();
                 }
             });
 
