@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Snowpark Designer Pro</title>
     <link rel="stylesheet" href="style.css">
+    
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 </head>
 <body>
 
@@ -33,21 +36,20 @@
         <div class="panel">
             <h3>⛷️ Modules (Norme)</h3>
             <p class="info-text">Glissez un module sur la carte.</p>
-            <div class="module-btn">Kicker S (Débutant)</div>
-            <div class="module-btn">Kicker M (Intermédiaire)</div>
-            <div class="module-btn">Rail Plat (6m)</div>
+            <div class="module-btn" draggable="true">Kicker S (Débutant)</div>
+            <div class="module-btn" draggable="true">Kicker M (Intermédiaire)</div>
+            <div class="module-btn" draggable="true">Rail Plat (6m)</div>
         </div>
     </div>
 
     <div class="main-workspace">
-        <div id="map-container">
-            <p style="text-align:center; padding-top: 20%; color: #7f8c8d;">La carte 2D/3D apparaîtra ici à la Phase 2.</p>
-        </div>
+        <div id="map-container"></div>
         
         <div id="profile-container" style="display: none;">
             <p>Graphique de coupe, neige et trajectoire</p>
         </div>
     </div>
 
+    <script src="script.js"></script>
 </body>
 </html>
