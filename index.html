@@ -591,9 +591,12 @@
                 document.getElementById('module-props').style.display = 'block'; document.getElementById('measure-props').style.display = 'none';
                 
                 const p = f.properties;
-                document.getElementById('kick-settings').style.display = (p.modType === 'jump') ? 'block' : 'none';
-                document.getElementById('jib-settings').style.display = (p.modType === 'jib') ? 'block' : 'none';
-                document.getElementById('turn-settings').style.display = (p.modType === 'turn') ? 'block' : 'none';
+                // BOUCLIER DE RÉTROCOMPATIBILITÉ POUR ANCIENS FICHIERS JSON
+                const currentModType = p.modType || 'jump'; 
+                
+                document.getElementById('kick-settings').style.display = (currentModType === 'jump') ? 'block' : 'none';
+                document.getElementById('jib-settings').style.display = (currentModType === 'jib') ? 'block' : 'none';
+                document.getElementById('turn-settings').style.display = (currentModType === 'turn') ? 'block' : 'none';
 
                 ['rotation', 'width', 'baseSnow', 'tableLen', 'landLen', 'kickAngle', 'landingAngle', 'speed', 'projectionDist', 'gapDist', 'boxLen', 'boxHeight', 'turnRadius', 'turnAngle'].forEach(prop => { 
                     const el = document.getElementById(prop+'-slider'); 
@@ -631,23 +634,26 @@
             if(prop === 'baseSnow' && (f.properties.itemType === 'surface' || f.properties.itemType === 'profile')) setTxt('surfaceSnow-display', val);
             else if(document.getElementById(prop+'-display')) setTxt(prop+'-display', val);
 
-            if (f.properties.itemType === 'module') {
-                if (['rotation', 'width', 'tableLen', 'landLen', 'kickLen', 'gapDist', 'boxLen', 'turnRadius', 'turnAngle'].includes(prop)) {
-                    const center = getBaseCenter(JSON.parse(f.properties.baseCoords));
-                    const p = f.properties;
-                    let newC;
-                    if (p.modType === 'jump') {
-                        const totLen = (parseFloat(p.kickLen)||3) + (parseFloat(p.tableLen)||4) + (parseFloat(p.landLen)||8);
-                        newC = calculatePolygonCoords(center, parseFloat(p.width)||6, totLen);
-                    } else if (p.modType === 'jib') {
-                        const totLen = (parseFloat(p.kickLen)||2) + ((parseFloat(p.gapDist)||1)*2) + (parseFloat(p.boxLen)||6) + (parseFloat(p.landLen)||6);
-                        newC = calculatePolygonCoords(center, parseFloat(p.width)||2, totLen);
-                    } else if (p.modType === 'turn') {
-                        newC = calculateTurnCoords({lng: center.lng, lat: center.lat}, parseFloat(p.turnRadius)||15, parseFloat(p.width)||8, parseFloat(p.turnAngle)||90);
-                    }
-                    f.properties.baseCoords = JSON.stringify(newC);
-                    f.geometry.coordinates = turf.transformRotate(turf.polygon(newC), parseFloat(p.rotation)||0).geometry.coordinates;
+            if(['rotation', 'width', 'tableLen', 'landLen', 'kickLen', 'gapDist', 'boxLen', 'turnRadius', 'turnAngle'].includes(prop) && f.properties.itemType === 'module') {
+                const center = getBaseCenter(JSON.parse(f.properties.baseCoords));
+                const p = f.properties;
+                // BOUCLIER DE RÉTROCOMPATIBILITÉ POUR LE DESSIN
+                const currentModType = p.modType || 'jump'; 
+                
+                let newC;
+                if (currentModType === 'jump') {
+                    const totLen = (parseFloat(p.kickLen)||3) + (parseFloat(p.tableLen)||4) + (parseFloat(p.landLen)||8);
+                    newC = calculatePolygonCoords(center, parseFloat(p.width)||6, totLen);
+                } else if (currentModType === 'jib') {
+                    const totLen = (parseFloat(p.kickLen)||2) + ((parseFloat(p.gapDist)||1)*2) + (parseFloat(p.boxLen)||6) + (parseFloat(p.landLen)||6);
+                    newC = calculatePolygonCoords(center, parseFloat(p.width)||2, totLen);
+                } else if (currentModType === 'turn') {
+                    newC = calculateTurnCoords({lng: center.lng, lat: center.lat}, parseFloat(p.turnRadius)||15, parseFloat(p.width)||8, parseFloat(p.turnAngle)||90);
                 }
+                
+                f.properties.baseCoords = JSON.stringify(newC);
+                f.geometry.coordinates = turf.transformRotate(turf.polygon(newC), parseFloat(p.rotation)||0).geometry.coordinates;
+                
             } else if (f.properties.itemType !== 'module' && prop !== 'name' && prop !== 'color' && prop !== 'baseSnow' && prop !== 'trajColor') {
                 if(f.properties.itemType === 'dameuse') f.geometry = createDameuseGeom(JSON.parse(f.properties.originalLine));
             }
