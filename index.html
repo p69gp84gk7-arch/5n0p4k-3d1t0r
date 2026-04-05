@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snowpark Designer Pro - CAO V53</title>
+    <title>Snowpark Designer Pro - CAO V54</title>
     
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -73,10 +73,8 @@
 <body>
 
     <div class="app-container">
-        
         <div class="sidebar sidebar-left">
-            <h2>CAO V53 - INGÉNIERIE</h2>
-            
+            <h2>CAO V54 - INGÉNIERIE</h2>
             <div class="panel">
                 <h3>1. TOPOGRAPHIE (MNT)</h3>
                 <label for="mnt-upload" class="btn btn-warning" style="margin-bottom: 10px;">+ AJOUTER MNT (.TIF)</label>
@@ -225,11 +223,8 @@
             </div>
         </div>
     </div>
+
     <script>
-<script>
-        /* ===================================================================
-           CHAPITRE 1 : CONFIGURATION, NORMES ET VARIABLES GLOBALES
-           =================================================================== */
         proj4.defs("EPSG:2154", "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
 
         const moduleNorms = {
@@ -257,9 +252,7 @@
 
         const setTxt = (id, text) => { const el = document.getElementById(id); if(el) el.innerText = text; };
 
-        /* ===================================================================
-           CHAPITRE 2 : GÉOMÉTRIE SPATIALE (TURF.JS)
-           =================================================================== */
+        // GEOMETRIE
         function getBaseCenter(coords) { const pts = coords[0]; return { lng: (pts[0][0] + pts[2][0])/2, lat: (pts[0][1] + pts[2][1])/2 }; }
         function calculatePolygonCoords(lngLat, widthM, lengthM) {
             const R = 6378137; const lat = lngLat.lat; const lng = lngLat.lng;
@@ -280,9 +273,7 @@
             return createFlatBuffer(lineGeom.geometry.coordinates, w) || turf.buffer(lineGeom, w/2, {units:'meters'}).geometry;
         }
 
-        /* ===================================================================
-           CHAPITRE 3 : TOPOGRAPHIE MULTI-MNT ET CROISEMENTS
-           =================================================================== */
+        // TOPOGRAPHIE MULTI-MNT
         function getAltitudeAt(lng, lat) {
             const pt = proj4("EPSG:4326", "EPSG:2154", [lng, lat]);
             for (let i = 0; i < mntLayers.length; i++) {
@@ -296,7 +287,7 @@
                     const tx = xF - x0, ty = yF - y0;
                     const z00 = layer.data[y0 * layer.width + x0]; const z10 = layer.data[y0 * layer.width + x0 + 1];
                     const z01 = layer.data[(y0 + 1) * layer.width + x0]; const z11 = layer.data[(y0 + 1) * layer.width + x0 + 1];
-                    
+                    // BOUCLIER ANTI-NODATA ET ANTI-NAN
                     if (z00 < -10000 || z10 < -10000 || z01 < -10000 || z11 < -10000 || isNaN(z00) || isNaN(z10)) continue;
                     return (1-tx)*(1-ty)*z00 + tx*(1-ty)*z10 + (1-tx)*ty*z01 + tx*ty*z11;
                 }
@@ -367,9 +358,7 @@
             return { approach: highestApp, traj: highestTraj };
         }
 
-        /* ===================================================================
-           CHAPITRE 4 : GESTIONNAIRES DE FICHIERS (IMPORT KMZ RÉCURSIF)
-           =================================================================== */
+        // GESTION FICHIERS
         window.renderMntList = function() {
             const container = document.getElementById('mnt-list-container'); container.innerHTML = '';
             mntLayers.forEach(layer => {
@@ -465,9 +454,7 @@
             reader.readAsText(file);
         });
 
-        /* ===================================================================
-           CHAPITRE 5 : GESTION UI RUNS ET PROPRIETES
-           =================================================================== */
+        // INTERFACE RUNS ET PROPRIETES
         window.renderLayerList = function() {
             const container = document.getElementById('layer-list-container'); container.innerHTML = '';
             lines.forEach(line => {
@@ -481,12 +468,11 @@
                 container.insertAdjacentHTML('beforeend', html + `</div>`);
             });
         };
-        
         window.setActiveLine = function(id) { activeLineId = id; window.renderLayerList(); };
         window.addRun = function() { lineCounter++; lines.push({ id: lineCounter, name: `RUN ${lineCounter}` }); activeLineId = lineCounter; window.renderLayerList(); };
         window.deleteRun = function(id, e) { e.stopPropagation(); if(confirm("Supprimer ?")) { lines = lines.filter(l => l.id !== id); snowparkFeatures.features = snowparkFeatures.features.filter(f => f.properties.lineId !== id); window.deselectFeature(); if(lines.length>0) activeLineId = lines[0].id; window.refreshMapData(); window.renderLayerList(); } };
         window.toggleVisibility = function(id, e) { e.stopPropagation(); const f = snowparkFeatures.features.find(x => x.properties.id === id); if(f) { f.properties.visible = !f.properties.visible; window.refreshMapData(); window.renderLayerList(); }};
-        
+
         window.toggleProperties = function() { const c = document.getElementById('prop-content'); const b = document.getElementById('btn-collapse'); if(c.style.display==='none'){c.style.display='block';b.innerText='[-]';}else{c.style.display='none';b.innerText='[+]';} };
         window.openProfile = function() { isProfileOpen = true; document.getElementById('profile-container').style.display = 'block'; map.resize(); const f = snowparkFeatures.features.find(x => x.properties.id === selectedFeatureId); if(f) window.updateProfileChart(f); };
         window.closeProfile = function() { isProfileOpen = false; document.getElementById('profile-container').style.display = 'none'; map.resize(); };
@@ -566,9 +552,7 @@
             window.refreshMapData(); if(isProfileOpen) window.updateProfileChart(f);
         };
 
-        /* ===================================================================
-           CHAPITRE 6 : CALCULS CARTE ET DÉCORATIONS
-           =================================================================== */
+        // CARTE, ZONES ET VERTICES
         window.refreshVertices = function() {
             verticesFeatures.features = [];
             if (selectedFeatureId) {
@@ -630,9 +614,7 @@
             window.activateTool(null, false); window.refreshMapData(); window.selectFeature(id);
         };
 
-        /* ===================================================================
-           CHAPITRE 7 : MOTEUR BALISTIQUE ET DYNAMIQUE DES COULEURS
-           =================================================================== */
+        // ANALYSE PHYSIQUE ET GRAPHIQUE
         window.updateProfileChart = function(feat) {
             if(!feat || !feat.geometry || !feat.geometry.coordinates) return;
 
@@ -675,7 +657,7 @@
                         const d = (i/steps)*totalDist;
                         const pt = turf.destination(amontPt, d, bearing, {units:'meters'});
                         
-                        // ZÉRO AU START
+                        // ZERO AU START
                         if (startDistY !== null) { labels.push((d - startDistY).toFixed(0) + "m"); } 
                         else { labels.push((d - projDist).toFixed(0) + "m"); }
                         
@@ -721,19 +703,19 @@
                                 const impactAngle = Math.abs(angleTrajRad - angleLandRad);
                                 const v_perp = (impactStats.vImpact / 3.6) * Math.sin(impactAngle);
                                 impactStats.efh = (v_perp * v_perp) / (2 * g);
-                                // G-FORCE: amorti sur 0.4m (flexion des jambes)
+                                // G-FORCE avec 40cm absorption
                                 impactStats.gforce = 1 + ((v_perp * v_perp) / (2 * g * 0.4));
                             }
                         } else if (hasLanded) { trajData.push(null); postLandData.push(ground + 1); } 
                         else { trajData.push(null); postLandData.push(null); }
                     }
 
-                    // DYNAMIQUE DES COULEURS DE TRAJECTOIRE (SELON L'IMPACT)
-                    let safetyColor = '#e74c3c'; // Défaut rouge
-                    if (impactStats.efh > 0) {
-                        if (impactStats.efh <= 0.8) safetyColor = '#2ecc71'; // Safe
-                        else if (impactStats.efh <= 1.5) safetyColor = '#f39c12'; // Acceptable
-                        else safetyColor = '#e74c3c'; // Danger
+                    // COULEUR DE LA TRAJECTOIRE SELON SECURITE (si pas forcé par user)
+                    let finalTrajColor = p.trajColor;
+                    if (!finalTrajColor || finalTrajColor === '#e74c3c') {
+                        if (impactStats.efh <= 0.8) finalTrajColor = '#2ecc71'; 
+                        else if (impactStats.efh <= 1.5) finalTrajColor = '#f39c12'; 
+                        else finalTrajColor = '#e74c3c'; 
                     }
 
                     const moduleVolume = pureModuleArea * (parseFloat(p.width) || 6);
@@ -756,9 +738,7 @@
                     }
 
                     title = `ANALYSE SAUT: ${p.name}`; currentChartParams = { amontPt, bearing, totalDist, steps, startDistY };
-                    
-                    // On force la couleur de trajectoire selon la sécurité, ou on laisse l'user choisir
-                    drawChart(labels, terrainData, snowData, approachData, trajData, postLandData, title, p.color || '#0e639c', safetyColor);
+                    drawChart(labels, terrainData, snowData, approachData, trajData, postLandData, title, p.color || '#0e639c', finalTrajColor);
 
                 } else {
                     let coords = [];
@@ -812,7 +792,7 @@
                     title = `PROFIL LIGNE : ${feat.properties.name}`; currentChartParams = { amontPt: turf.point(coords[0]), bearing: turf.bearing(turf.point(coords[0]), turf.point(coords[1])), totalDist: len, steps: steps, startDistY: null };
                     drawChart(labels, terrainData, snowData, approachData, trajData, [], title, feat.properties.color || '#f39c12', '#e74c3c');
                 }
-            } catch (err) { console.error("Erreur de profil empêchée: ", err); }
+            } catch (err) { console.error("Erreur de profil: ", err); }
         };
 
         function drawChart(labels, terrain, snow, approach, traj, postLand, title, customColor, trajColor) {
@@ -858,7 +838,7 @@
         }
 
         /* ===================================================================
-           CHAPITRE 8 : INITIALISATION GLOBALE MAPLIBRE ET VUE 3D
+           CHAPITRE 8 : INITIALISATION MAPLIBRE ET VUE 3D
            =================================================================== */
         document.addEventListener('DOMContentLoaded', () => {
             map = new maplibregl.Map({ 
@@ -866,8 +846,7 @@
                 style: { 
                     'version': 8, 
                     'sources': { 
-                        'esri-sat': { 'type': 'raster', 'tiles': ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], 'tileSize': 256 },
-                        'terrain-aws': { 'type': 'raster-dem', 'tiles': ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'], 'encoding': 'terrarium', 'tileSize': 256, 'maxzoom': 14 }
+                        'esri-sat': { 'type': 'raster', 'tiles': ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], 'tileSize': 256 }
                     }, 
                     'layers': [{ 'id': 'sat', 'type': 'raster', 'source': 'esri-sat' }] 
                 }, 
@@ -906,6 +885,7 @@
             document.getElementById('btn-3d-toggle').addEventListener('click', (e) => {
                 is3DActive = !is3DActive;
                 if(is3DActive) {
+                    if (!map.getSource('terrain-aws')) { map.addSource('terrain-aws', { 'type': 'raster-dem', 'tiles': ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'], 'encoding': 'terrarium', 'tileSize': 256, 'maxzoom': 14 }); }
                     map.setTerrain({ 'source': 'terrain-aws', 'exaggeration': 1.2 });
                     map.easeTo({ pitch: 60, bearing: map.getBearing() + 30 });
                     e.target.classList.add('active');
@@ -983,5 +963,3 @@
             });
         });
     </script>
-    </body>
-</html>
