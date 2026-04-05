@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snowpark Designer Pro - CAO V55 Master</title>
+    <title>Snowpark Designer Pro - CAO V56</title>
     
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -79,7 +79,7 @@
 
     <div class="app-container">
         <div class="sidebar sidebar-left">
-            <h2>CAO V55 - INGÉNIERIE</h2>
+            <h2>CAO V56 - INGÉNIERIE</h2>
             <div class="panel">
                 <h3>1. TOPOGRAPHIE (MNT)</h3>
                 <label for="mnt-upload" class="btn btn-warning" style="margin-bottom: 10px;">+ AJOUTER MNT (.TIF)</label>
@@ -160,15 +160,9 @@
                         <button class="btn btn-toggle" id="btn-move-toggle" onclick="window.toggleMoveMode()">DÉPLACER : OFF</button>
                         <button class="btn btn-primary" onclick="window.openProfile()">VOIR PROFIL ET BALISTIQUE</button>
                         
-                        <div style="display:flex; justify-content:space-between; gap:10px; margin-top: 15px;">
-                            <div style="width: 50%;">
-                                <label>Couleur Module</label>
-                                <input type="color" id="module-color-input" style="width: 100%; height: 35px; background: none; border: 1px solid #555; cursor:pointer;" oninput="window.updateFeatureProp('color', this.value)">
-                            </div>
-                            <div style="width: 50%;">
-                                <label>Couleur Vol</label>
-                                <input type="color" id="traj-color-input" style="width: 100%; height: 35px; background: none; border: 1px solid #555; cursor:pointer;" oninput="window.updateFeatureProp('trajColor', this.value)">
-                            </div>
+                        <div style="margin-top: 15px;">
+                            <label>Couleur Module (Graph & Carte)</label>
+                            <input type="color" id="module-color-input" style="width: 100%; height: 35px; background: none; border: 1px solid #555; cursor:pointer;" oninput="window.updateFeatureProp('color', this.value)">
                         </div>
 
                         <hr>
@@ -253,9 +247,8 @@
             </div>
         </div>
     </div>
-
     <script>
-       /* ===================================================================
+        /* ===================================================================
            CHAPITRE 1 : CONFIGURATION, NORMES ET VARIABLES GLOBALES
            =================================================================== */
         proj4.defs("EPSG:2154", "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
@@ -324,7 +317,7 @@
         }
 
         /* ===================================================================
-           CHAPITRE 3 : TOPOGRAPHIE MULTI-MNT ET CROISEMENTS
+           CHAPITRE 3 : TOPOGRAPHIE MULTI-MNT
            =================================================================== */
         function getAltitudeAt(lng, lat) {
             const pt = proj4("EPSG:4326", "EPSG:2154", [lng, lat]);
@@ -339,7 +332,6 @@
                     const tx = xF - x0, ty = yF - y0;
                     const z00 = layer.data[y0 * layer.width + x0]; const z10 = layer.data[y0 * layer.width + x0 + 1];
                     const z01 = layer.data[(y0 + 1) * layer.width + x0]; const z11 = layer.data[(y0 + 1) * layer.width + x0 + 1];
-                    
                     if (z00 < -10000 || z10 < -10000 || z01 < -10000 || z11 < -10000 || isNaN(z00) || isNaN(z10)) continue;
                     return (1-tx)*(1-ty)*z00 + tx*(1-ty)*z10 + (1-tx)*ty*z01 + tx*ty*z11;
                 }
@@ -351,110 +343,20 @@
             if (!feature || !feature.geometry) return 0;
             const area2D = turf.area(feature);
             if (area2D === 0 || depthMeters === 0) return 0;
-            
             let coords = [];
             if(feature.geometry.type === 'Polygon') coords = feature.geometry.coordinates[0];
             else if(feature.geometry.type === 'LineString') coords = feature.geometry.coordinates;
             else return area2D * depthMeters; 
-
             if(coords.length < 3) return area2D * depthMeters;
-
             let zMax = -10000, zMin = 10000;
             coords.forEach(c => {
                 const z = getAltitudeAt(c[0], c[1]);
                 if(z !== null) { if(z > zMax) zMax = z; if(z < zMin) zMin = z; }
             });
             if(zMax === -10000) return area2D * depthMeters; 
-
             const maxDist = turf.distance(turf.point(coords[0]), turf.point(coords[Math.floor(coords.length/2)]), {units:'meters'});
             const slopeRad = Math.atan((zMax - zMin) / (maxDist > 0 ? maxDist : 1));
-            const area3D = area2D / Math.cos(slopeRad);
-            return area3D * depthMeters;
-        }
-
-        function getSnowZAtPoint(ptLngLat, zTerrain) {
-            let highestZ = zTerrain;
-            snowparkFeatures.features.filter(f => f.properties.itemType === 'module' && f.properties.visible).forEach(mod => {
-                if (turf.booleanPointInPolygon(turf.point(ptLngLat), mod)) {
-                    const coords = mod.geometry.coordinates[0];
-                    const ptHaut = turf.point([(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2]);
-                    const ptBas = turf.point([(coords[0][0]+coords[1][0])/2, (coords[0][1]+coords[1][1])/2]);
-                    const bearing = turf.bearing(ptHaut, ptBas);
-                    const distToHaut = turf.distance(ptHaut, turf.point(ptLngLat), {units: 'meters'});
-                    const projDist = distToHaut * Math.cos((turf.bearing(ptHaut, turf.point(ptLngLat)) - bearing) * Math.PI / 180);
-
-                    const p = mod.properties;
-                    const modType = p.modType || 'jump'; // RÉTROCOMPATIBILITÉ
-                    let zStartKicker = (getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0) + ((parseFloat(p.baseSnow)||0) / 100);
-                    const zKickEnd = zStartKicker + ((parseFloat(p.kickLen)||3) * Math.tan((parseFloat(p.kickAngle)||15) * Math.PI / 180));
-                    
-                    let zK = null;
-                    if (modType === 'jump') {
-                        if (projDist >= 0 && projDist <= (parseFloat(p.kickLen)||3)) { zK = zStartKicker + (projDist * Math.tan((parseFloat(p.kickAngle)||15) * Math.PI / 180)); } 
-                        else if (projDist > (parseFloat(p.kickLen)||3) && projDist <= (parseFloat(p.kickLen)||3) + (parseFloat(p.tableLen)||4)) { zK = zKickEnd; } 
-                        else if (projDist > (parseFloat(p.kickLen)||3) + (parseFloat(p.tableLen)||4)) { zK = zKickEnd - ((projDist - (parseFloat(p.kickLen)||3) - (parseFloat(p.tableLen)||4)) * Math.tan((parseFloat(p.landingAngle)||25) * Math.PI / 180)); }
-                    } else if (modType === 'jib') {
-                        const gap = parseFloat(p.gapDist)||1; const bLen = parseFloat(p.boxLen)||6; const bH = parseFloat(p.boxHeight)||1;
-                        if (projDist >= 0 && projDist <= (parseFloat(p.kickLen)||3)) { zK = zStartKicker + (projDist * Math.tan((parseFloat(p.kickAngle)||15) * Math.PI / 180)); }
-                        else if (projDist > (parseFloat(p.kickLen)||3) + gap && projDist <= (parseFloat(p.kickLen)||3) + gap + bLen) {
-                            if (p.subtype === 'flat') zK = zStartKicker + bH;
-                            else if (p.subtype === 'rainbow') {
-                                const halfB = bLen/2; const a = -bH / (halfB*halfB);
-                                zK = (zStartKicker + bH) - bH + (a * Math.pow((projDist - (parseFloat(p.kickLen)||3) - gap) - halfB, 2) + bH);
-                            }
-                        }
-                        else if (projDist > (parseFloat(p.kickLen)||3) + gap + bLen + gap) {
-                            zK = (zStartKicker + bH) - ((projDist - (parseFloat(p.kickLen)||3) - gap - bLen - gap) * Math.tan((parseFloat(p.landingAngle)||25) * Math.PI / 180));
-                        }
-                    } else if (modType === 'turn') {
-                        const w = parseFloat(p.width)||8;
-                        if (projDist >= 0 && projDist <= w) { zK = zStartKicker + ((w*0.4) * Math.pow(projDist/w, 2)); }
-                    }
-
-                    if (zK !== null && zK > highestZ) highestZ = zK;
-                }
-            });
-            return highestZ;
-        }
-
-        function getApproachAndTrajZAtPoint(ptLngLat, zTerrain) {
-            let highestApp = null, highestTraj = null;
-            snowparkFeatures.features.filter(f => f.properties.itemType === 'module' && f.properties.visible).forEach(mod => {
-                const modType = mod.properties.modType || 'jump'; // RÉTROCOMPATIBILITÉ
-                if (modType === 'turn') return; // Pas de trajectoire balistique pour les virages
-                
-                const pt = turf.point(ptLngLat);
-                const coords = mod.geometry.coordinates[0];
-                const ptHaut = turf.point([(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2]);
-                const ptBas = turf.point([(coords[0][0]+coords[1][0])/2, (coords[0][1]+coords[1][1])/2]);
-                const bearing = turf.bearing(ptHaut, ptBas);
-                
-                const distToHaut = turf.distance(ptHaut, pt, {units: 'meters'});
-                const angleDiff = (turf.bearing(ptHaut, pt) - bearing) * Math.PI / 180;
-                const projDistY = distToHaut * Math.cos(angleDiff); const projDistX = distToHaut * Math.sin(angleDiff); 
-                
-                if (Math.abs(projDistX) <= (parseFloat(mod.properties.width)||6) / 2) {
-                    const p = mod.properties;
-                    const zStartKicker = (getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0) + ((parseFloat(p.baseSnow)||0) / 100);
-                    const vMps = (parseFloat(p.speed)||40) / 3.6; const hNeeded = (vMps * vMps) / (2 * 9.81 * 0.9);
-                    let startDistY = null;
-                    for(let d=1; d<150; d++) {
-                        const checkPt = turf.destination(ptHaut, d, bearing - 180, {units: 'meters'});
-                        const zCheck = getAltitudeAt(checkPt.geometry.coordinates[0], checkPt.geometry.coordinates[1]);
-                        if (zCheck && (zCheck - zStartKicker) >= hNeeded) { startDistY = -d; break; }
-                    }
-
-                    if (startDistY !== null && projDistY >= startDistY && projDistY <= (parseFloat(p.kickLen)||3)) highestApp = Math.max(highestApp || -1000, zTerrain);
-                    if (projDistY > (parseFloat(p.kickLen)||3)) { 
-                        const theta = (parseFloat(p.kickAngle)||15) * Math.PI / 180;
-                        const zKickEnd = zStartKicker + ((parseFloat(p.kickLen)||3) * Math.tan(theta));
-                        const t = (projDistY - (parseFloat(p.kickLen)||3)) / (vMps * Math.cos(theta));
-                        const zTraj = zKickEnd + (vMps * Math.sin(theta) * t) - (0.5 * 9.81 * t * t);
-                        if (zTraj > zTerrain) highestTraj = Math.max(highestTraj || -1000, zTraj);
-                    }
-                }
-            });
-            return { approach: highestApp, traj: highestTraj };
+            return (area2D / Math.cos(slopeRad)) * depthMeters;
         }
 
         /* ===================================================================
@@ -478,7 +380,7 @@
                     const tiff = await GeoTIFF.fromBlob(files[i]); const img = await tiff.getImage(); const bbox = img.getBoundingBox();
                     mntLayers.unshift({ id: Date.now()+i, name: files[i].name, bbox: bbox, width: img.getWidth(), height: img.getHeight(), data: (await img.readRasters())[0], visible: true });
                     if (i === files.length - 1) { const bl = proj4("EPSG:2154", "EPSG:4326", [bbox[0], bbox[1]]); const tr = proj4("EPSG:2154", "EPSG:4326", [bbox[2], bbox[3]]); map.fitBounds([bl, tr], { padding: 50 }); }
-                } catch (err) { alert("Erreur chargement MNT."); }
+                } catch (err) { alert("Erreur MNT."); }
             }
             document.getElementById('topbar-alt').innerText = "MNT OK"; e.target.value = ''; window.renderMntList(); window.refreshMapData();
         });
@@ -515,18 +417,17 @@
                     if (files[i].name.toLowerCase().endsWith('.kmz')) {
                         const zip = await JSZip.loadAsync(files[i]);
                         const kmlFile = Object.keys(zip.files).find(f => f.toLowerCase().endsWith('.kml'));
-                        if(!kmlFile) throw new Error("Pas de KML dans le KMZ.");
+                        if(!kmlFile) throw new Error("Pas de KML");
                         kmlText = await zip.files[kmlFile].async("string");
                     } else { kmlText = await files[i].text(); }
                     
                     const converter = window.toGeoJSON || window.tj;
                     const geojson = converter.kml(new DOMParser().parseFromString(kmlText, "text/xml"));
-                    
                     const validFeatures = geojson.features.filter(f => f.geometry);
                     if (validFeatures.length > 0) {
                         kmzLayers.unshift({ id: Date.now()+i, name: files[i].name.toUpperCase(), color: '#8e44ad', width: 3, opacity: 0.6, visible: true, features: validFeatures });
-                    } else { alert("Aucun tracé valide dans " + files[i].name); }
-                } catch (err) { alert("Erreur KMZ : " + err.message); }
+                    }
+                } catch (err) { alert("Erreur KMZ."); }
             }
             e.target.value = ''; window.renderKmzList(); window.refreshKmzData();
         });
@@ -535,7 +436,7 @@
             const dataToSave = { lines, activeLineId, lineCounter, features: snowparkFeatures };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToSave));
             const dlAnchorElem = document.getElementById('downloadAnchorElem');
-            dlAnchorElem.setAttribute("href", dataStr); dlAnchorElem.setAttribute("download", "Projet_Superbagneres.json"); dlAnchorElem.click();
+            dlAnchorElem.setAttribute("href", dataStr); dlAnchorElem.setAttribute("download", "Projet_CAO.json"); dlAnchorElem.click();
         };
 
         document.getElementById('import-upload').addEventListener('change', (e) => {
@@ -554,9 +455,8 @@
             };
             reader.readAsText(file);
         });
-
         /* ===================================================================
-           CHAPITRE 5 : INTERFACE UTILISATEUR ET ÉDITION
+           CHAPITRE 5 : GESTION UI RUNS ET PROPRIETES
            =================================================================== */
         window.renderLayerList = function() {
             const container = document.getElementById('layer-list-container'); container.innerHTML = '';
@@ -593,7 +493,6 @@
             else if (toolName) { activeDrawTool = toolName; map.getCanvas().style.cursor = 'crosshair'; const btn = document.getElementById(`tool-${toolName}`); if(btn) btn.classList.add('active'); document.getElementById('instruction-box').style.display = 'flex'; }
         };
 
-        // LE BOUCLIER DE RÉTROCOMPATIBILITÉ EST ICI
         window.selectFeature = function(id) {
             if(selectedFeatureId === id) return; 
 
@@ -621,15 +520,13 @@
                 });
                 
                 document.getElementById('module-color-input').value = p.color || '#0e639c';
-                document.getElementById('traj-color-input').value = p.trajColor || '#e74c3c';
             } else {
                 document.getElementById('module-props').style.display = 'none'; document.getElementById('measure-props').style.display = 'block';
                 document.getElementById('color-input').value = f.properties.color || '#fff'; document.getElementById('lineWidth-slider').value = f.properties.lineWidth || 3; setTxt('lineWidth-display', f.properties.lineWidth || 3);
                 
                 if (f.properties.itemType === 'surface' || f.properties.itemType === 'profile') {
                     document.getElementById('surface-snow-container').style.display = 'block';
-                    document.getElementById('surfaceSnow-slider').value = f.properties.baseSnow || 0;
-                    setTxt('surfaceSnow-display', f.properties.baseSnow || 0);
+                    document.getElementById('surfaceSnow-slider').value = f.properties.baseSnow || 0; setTxt('surfaceSnow-display', f.properties.baseSnow || 0);
                 } else {
                     document.getElementById('surface-snow-container').style.display = 'none';
                 }
@@ -646,7 +543,7 @@
         window.updateFeatureProp = function(prop, val) {
             if(!selectedFeatureId) return;
             const f = snowparkFeatures.features.find(x => x.properties.id === selectedFeatureId);
-            if (prop === 'name' || prop === 'color' || prop === 'trajColor') { f.properties[prop] = val; } else { f.properties[prop] = parseFloat(val); }
+            if (prop === 'name' || prop === 'color') { f.properties[prop] = val; } else { f.properties[prop] = parseFloat(val); }
             
             if(prop === 'baseSnow' && (f.properties.itemType === 'surface' || f.properties.itemType === 'profile')) setTxt('surfaceSnow-display', val);
             else if(document.getElementById(prop+'-display')) setTxt(prop+'-display', val);
@@ -668,9 +565,8 @@
                 }
                 
                 f.properties.baseCoords = JSON.stringify(newC);
-                // Utilisation du PIVOT pour le virage
                 f.geometry.coordinates = turf.transformRotate(turf.polygon(newC), parseFloat(p.rotation)||0, { pivot: [center.lng, center.lat] }).geometry.coordinates;
-            } else if (f.properties.itemType !== 'module' && prop !== 'name' && prop !== 'color' && prop !== 'baseSnow' && prop !== 'trajColor') {
+            } else if (f.properties.itemType !== 'module' && prop !== 'name' && prop !== 'color' && prop !== 'baseSnow') {
                 if(f.properties.itemType === 'dameuse') f.geometry = createDameuseGeom(JSON.parse(f.properties.originalLine));
             }
             
@@ -701,8 +597,7 @@
             visibleFeatures.features.filter(f => f.properties.itemType === 'module').forEach(feat => {
                 const p = feat.properties;
                 const currentModType = p.modType || 'jump'; 
-                
-                if (currentModType === 'turn') return; // Pas de déco sur virage
+                if (currentModType === 'turn') return; // Pas d'axe sur virage
                 
                 const coords = feat.geometry.coordinates[0];
                 const ptHaut = turf.point([(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2]);
@@ -756,33 +651,70 @@
         };
 
         /* ===================================================================
-           CHAPITRE 7 : MOTEUR BALISTIQUE ET GRAPHIQUE (BOUCLIER ANTI-NAN)
+           CHAPITRE 7 : MOTEUR BALISTIQUE ET GRAPHIQUE MULTI-TRAJ
            =================================================================== */
+        
+        // FONCTION UTILITAIRE POUR CALCULER UNE COURBE DE VOL (Module unique ou Ligne de Profil)
+        function calcFlightTraj(p, dRel, ground, v0, g, zStartKicker, kickLen, tableLen, landLen, gapDist, boxLen, boxHeight) {
+            const currentModType = p.modType || 'jump';
+            if (currentModType === 'turn') return null; // Pas de vol sur virage
+            
+            let zTraj = null;
+            const theta = (parseFloat(p.kickAngle)||15) * Math.PI / 180;
+            const landAngle = parseFloat(p.landingAngle) || 25;
+            
+            if (currentModType === 'jump') {
+                if (dRel > kickLen && v0 > 0) {
+                    // Courbe parabolique du Kicker
+                    const a_kick = Math.tan(theta) / (2 * kickLen);
+                    const zKickEnd = zStartKicker + a_kick * Math.pow(kickLen, 2);
+                    const t = (dRel - kickLen) / (v0 * Math.cos(theta));
+                    zTraj = zKickEnd + (v0 * Math.sin(theta) * t) - (0.5 * g * t * t);
+                }
+            } else if (currentModType === 'jib') {
+                const boxEndD = kickLen + gapDist + boxLen;
+                // Vol 1: Kicker -> Box (Gap)
+                if (dRel > kickLen && dRel <= boxEndD && v0 > 0) {
+                    const a_kick = Math.tan(theta) / (2 * kickLen);
+                    const zKickEnd = zStartKicker + a_kick * Math.pow(kickLen, 2);
+                    const t = (dRel - kickLen) / (v0 * Math.cos(theta));
+                    zTraj = zKickEnd + (v0 * Math.sin(theta) * t) - (0.5 * g * t * t);
+                }
+                // Vol 2: Sortie de Box -> Recep (Trick Landing)
+                else if (dRel > boxEndD && v0 > 0) {
+                    const exitAngle = (p.subtype === 'rainbow') ? -theta : 0;
+                    const zExit = (p.subtype === 'rainbow') ? zStartKicker : (zStartKicker + boxHeight);
+                    const t = (dRel - boxEndD) / (v0 * Math.cos(exitAngle));
+                    zTraj = zExit + (v0 * Math.sin(exitAngle) * t) - (0.5 * g * t * t);
+                }
+            }
+            return zTraj;
+        }
+
         window.updateProfileChart = function(feat) {
             if(!feat || !feat.geometry || !feat.geometry.coordinates) return;
 
             try {
                 let labels = [], terrainData = [], snowData = [], trajData = [], approachData = [], postLandData = [];
                 let title = "PROFIL";
+                let finalTrajColor = '#e74c3c'; // Defaut Rouge
                 
+                // === 1. ANALYSE D'UN SEUL MODULE ===
                 if (feat.properties.itemType === 'module') {
                     const p = feat.properties;
+                    const currentModType = p.modType || 'jump'; 
                     const coords = feat.geometry.coordinates[0];
                     let ptHaut, ptBas, bearing, totalDist;
                     const projDist = parseFloat(p.projectionDist) || 30;
-                    const currentModType = p.modType || 'jump'; 
                     
                     if (currentModType === 'turn') {
                         title = `COUPE VIRAGE: ${p.name}`;
-                        ptHaut = turf.point(coords[Math.floor(coords.length * 0.25)]);
-                        ptBas = turf.point(coords[Math.floor(coords.length * 0.75)]);
-                        bearing = turf.bearing(ptHaut, ptBas);
-                        totalDist = projDist + turf.distance(ptHaut, ptBas, {units:'meters'}) + 20;
+                        ptHaut = turf.point(coords[Math.floor(coords.length * 0.25)]); ptBas = turf.point(coords[Math.floor(coords.length * 0.75)]);
+                        bearing = turf.bearing(ptHaut, ptBas); totalDist = projDist + turf.distance(ptHaut, ptBas, {units:'meters'}) + 20;
                     } else {
-                        ptHaut = turf.point([(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2]);
-                        ptBas = turf.point([(coords[0][0]+coords[1][0])/2, (coords[0][1]+coords[1][1])/2]);
-                        bearing = turf.bearing(ptHaut, ptBas);
-                        totalDist = projDist + turf.distance(ptHaut, ptBas, {units:'meters'}) + 20;
+                        title = `ANALYSE SAUT: ${p.name}`;
+                        ptHaut = turf.point([(coords[3][0]+coords[2][0])/2, (coords[3][1]+coords[2][1])/2]); ptBas = turf.point([(coords[0][0]+coords[1][0])/2, (coords[0][1]+coords[1][1])/2]);
+                        bearing = turf.bearing(ptHaut, ptBas); totalDist = projDist + turf.distance(ptHaut, ptBas, {units:'meters'}) + 20;
                     }
                     
                     const amontPt = turf.destination(ptHaut, projDist, bearing - 180, {units:'meters'});
@@ -820,29 +752,32 @@
                         let zS = null; const dRel = d - projDist; 
                         const localBase = zT + (baseSnow/100);
 
+                        // FORME DU KICKER PARABOLIQUE (Plus realiste)
+                        const a_kick = Math.tan(theta) / (2 * kickLen);
+
                         if (currentModType === 'jump') {
-                            const zKickEnd = zStartKicker + (kickLen * Math.tan(theta));
+                            const zKickEnd = zStartKicker + a_kick * Math.pow(kickLen, 2);
                             if (d >= projDist && dRel <= kickLen + tableLen + landLen) {
-                                if (dRel <= kickLen) zS = zStartKicker + (dRel * Math.tan(theta));
+                                if (dRel <= kickLen) zS = zStartKicker + a_kick * Math.pow(dRel, 2);
                                 else if (dRel <= kickLen + tableLen) zS = zKickEnd;
                                 else zS = zKickEnd - ((dRel - kickLen - tableLen) * Math.tan(landAngle * Math.PI/180));
                                 if (zS > localBase) pureModuleArea += (zS - localBase) * deltaX;
                             } else if (baseSnow > 0) { zS = localBase; }
                         } 
                         else if (currentModType === 'jib') {
-                            const zKickEnd = zStartKicker + (kickLen * Math.tan(theta));
+                            const zKickEnd = zStartKicker + a_kick * Math.pow(kickLen, 2);
                             const boxStartD = kickLen + gapDist; const boxEndD = boxStartD + boxLen;
                             const zBoxStart = zStartKicker + boxHeight; 
                             
                             if (d >= projDist && dRel <= kickLen + gapDist + boxLen + gapDist + landLen) {
-                                if (dRel <= kickLen) { zS = zStartKicker + (dRel * Math.tan(theta)); } 
+                                if (dRel <= kickLen) { zS = zStartKicker + a_kick * Math.pow(dRel, 2); } 
                                 else if (dRel > kickLen && dRel <= boxStartD) { zS = localBase; } 
                                 else if (dRel > boxStartD && dRel <= boxEndD) {
                                     if (p.subtype === 'flat') { zS = zBoxStart; } 
                                     else if (p.subtype === 'rainbow') { 
                                         const halfB = boxLen / 2; const distInBox = dRel - boxStartD;
-                                        const a = -boxHeight / (halfB * halfB);
-                                        zS = zBoxStart - boxHeight + (a * Math.pow(distInBox - halfB, 2) + boxHeight);
+                                        const a_rain = -boxHeight / (halfB * halfB);
+                                        zS = zBoxStart - boxHeight + (a_rain * Math.pow(distInBox - halfB, 2) + boxHeight);
                                     }
                                 }
                                 else if (dRel > boxEndD && dRel <= boxEndD + gapDist) { zS = localBase; } 
@@ -853,35 +788,54 @@
                         else if (currentModType === 'turn') {
                             const width = parseFloat(p.width) || 8;
                             if (d >= projDist && dRel <= width) {
-                                const hWall = width * 0.4; 
-                                zS = zStartKicker + (hWall * Math.pow(dRel/width, 2));
+                                const hWall = width * 0.4; zS = zStartKicker + (hWall * Math.pow(dRel/width, 2));
                                 if (zS > localBase) pureModuleArea += (zS - localBase) * deltaX;
                             } else if (baseSnow > 0) { zS = localBase; }
                         }
                         
-                        if(isNaN(zS)) zS = null; 
-                        snowData.push(zS); if(zS !== null && zS > maxZ) maxZ = zS;
+                        if(isNaN(zS)) zS = null; snowData.push(zS); if(zS !== null && zS > maxZ) maxZ = zS;
                         
                         const ground = zS !== null ? zS : zT;
                         if (startDistY !== null && d >= startDistY && dRel <= kickLen && currentModType !== 'turn') approachData.push(ground + 1); else approachData.push(null);
 
-                        if (dRel > kickLen && !hasLanded && !isNaN(v0) && v0 > 0 && currentModType !== 'turn') {
-                            const zKickEnd = zStartKicker + (kickLen * Math.tan(theta));
-                            const t = (dRel - kickLen) / (v0 * Math.cos(theta));
-                            const zTj = zKickEnd + (v0 * Math.sin(theta) * t) - (0.5 * g * t * t);
-                            
+                        const zTj = calcFlightTraj(p, dRel, ground, v0, g, zStartKicker, kickLen, tableLen, landLen, gapDist, boxLen, boxHeight);
+                        
+                        if (zTj !== null && !hasLanded) {
                             if (zTj >= ground) {
                                 trajData.push(zTj + 1); postLandData.push(null);
                                 if(zTj > maxZ) maxZ = zTj; if(zTj - ground > maxAirAmp) maxAirAmp = zTj - ground;
                             } else {
+                                // IMPACT
                                 trajData.push(ground + 1); postLandData.push(ground + 1); hasLanded = true;
-                                impactStats.time = t; impactStats.dist = dRel - kickLen;
-                                const vx = v0 * Math.cos(theta); const vz = v0 * Math.sin(theta) - g * t;
+                                
+                                let exitAngle = theta;
+                                if (currentModType === 'jib' && dRel > kickLen + gapDist + boxLen) {
+                                    exitAngle = (p.subtype === 'rainbow') ? -theta : 0;
+                                    impactStats.dist = dRel - (kickLen + gapDist + boxLen);
+                                    impactStats.time = impactStats.dist / (v0 * Math.cos(exitAngle));
+                                } else {
+                                    impactStats.dist = dRel - kickLen;
+                                    impactStats.time = impactStats.dist / (v0 * Math.cos(theta));
+                                }
+                                
+                                const vx = v0 * Math.cos(exitAngle); const vz = v0 * Math.sin(exitAngle) - g * impactStats.time;
                                 impactStats.vImpact = Math.sqrt(vx*vx + vz*vz) * 3.6;
                                 const angleTrajRad = Math.atan2(vz, vx);
+                                
                                 let angleLandRad = 0;
-                                if (dRel > kickLen + tableLen && dRel <= kickLen + tableLen + landLen) angleLandRad = -landAngle * Math.PI/180;
-                                else { const ptP = turf.destination(amontPt, d-1, bearing, {units:'meters'}); const zP = getAltitudeAt(ptP.geometry.coordinates[0], ptP.geometry.coordinates[1]); angleLandRad = Math.atan2(zT - (zP !== null ? zP : zT), 1); }
+                                const ptP = turf.destination(amontPt, d-1, bearing, {units:'meters'}); 
+                                const zP = getAltitudeAt(ptP.geometry.coordinates[0], ptP.geometry.coordinates[1]);
+                                let groundSlope = Math.atan2(zT - (zP !== null ? zP : zT), 1);
+                                
+                                if (currentModType === 'jump') {
+                                    if (dRel > kickLen + tableLen && dRel <= kickLen + tableLen + landLen) angleLandRad = -landAngle * Math.PI/180;
+                                    else angleLandRad = groundSlope;
+                                } else if (currentModType === 'jib') {
+                                    const boxEndD = kickLen + gapDist + boxLen;
+                                    if (dRel > boxEndD + gapDist && dRel <= boxEndD + gapDist + landLen) angleLandRad = -landAngle * Math.PI/180;
+                                    else if (dRel > kickLen + gapDist && dRel <= boxEndD) angleLandRad = 0; 
+                                    else angleLandRad = groundSlope;
+                                }
                                 
                                 const impactAngle = Math.abs(angleTrajRad - angleLandRad);
                                 const v_perp = (impactStats.vImpact / 3.6) * Math.sin(impactAngle);
@@ -892,12 +846,10 @@
                         else { trajData.push(null); postLandData.push(null); }
                     }
 
-                    let finalTrajColor = p.trajColor;
-                    if (!finalTrajColor || finalTrajColor === '#e74c3c') {
-                        if (impactStats.efh <= 0.8) finalTrajColor = '#2ecc71'; 
-                        else if (impactStats.efh <= 1.5) finalTrajColor = '#f39c12'; 
-                        else finalTrajColor = '#e74c3c'; 
-                    }
+                    // COULEUR AUTOMATIQUE DE LA TRAJECTOIRE
+                    if (impactStats.efh <= 0.8) finalTrajColor = '#2ecc71'; 
+                    else if (impactStats.efh <= 1.5) finalTrajColor = '#f39c12'; 
+                    else finalTrajColor = '#e74c3c'; 
 
                     const moduleVolume = pureModuleArea * (parseFloat(p.width) || 6);
                     setTxt('stat-vol', moduleVolume.toFixed(1) + " m³");
@@ -914,15 +866,15 @@
                     }
                     const gEl = document.getElementById('stat-gforce');
                     if (gEl) {
-                        if (impactStats.gforce > 1) { gEl.innerText = impactStats.gforce.toFixed(1) + " G"; gEl.style.color = impactStats.gforce > 4 ? '#e74c3c' : (impactStats.gforce > 2.5 ? '#f39c12' : '#2ecc71'); } 
+                        if (impactStats.gforce > 1) { gEl.innerText = impactStats.gforce.toFixed(1) + " G"; gEl.style.color = finalTrajColor; } 
                         else { gEl.innerText = "--"; gEl.style.color = '#4daaf1'; }
                     }
 
-                    title = currentModType === 'turn' ? `COUPE VIRAGE: ${p.name}` : `ANALYSE SAUT: ${p.name}`; 
                     currentChartParams = { amontPt, bearing, totalDist, steps, startDistY };
                     drawChart(labels, terrainData, snowData, approachData, trajData, postLandData, title, p.color || '#0e639c', finalTrajColor);
 
                 } else {
+                    // === 2. ANALYSE LIGNE MULTI-MODULES ===
                     let coords = [];
                     if (feat.properties.itemType === 'dameuse' || feat.properties.itemType === 'surface') {
                         coords = JSON.parse(feat.properties.originalLine);
@@ -931,13 +883,15 @@
                         coords = feat.geometry.type === 'Polygon' ? feat.geometry.coordinates[0] : feat.geometry.coordinates;
                         if(feat.geometry.type === 'MultiLineString') coords = coords[0]; 
                     }
-                    
                     if (!coords || coords.length < 2) return;
                     
                     const lineFeat = turf.lineString(coords);
                     const len = turf.length(lineFeat, {units:'meters'});
                     const steps = Math.min(200, Math.max(10, Math.ceil(len / 1))); 
                     let maxZ = -10000, minZ = 10000;
+                    
+                    // On gère les multiples trajectoires s'il y a plusieurs modules survolés
+                    let multiTrajData = []; let multiApproachData = []; let multiPostLandData = [];
                     
                     for(let i=0; i<=steps; i++) {
                         const d = (i/steps)*len;
@@ -948,12 +902,26 @@
                         if(zT === null || isNaN(zT)) zT = 0; 
                         terrainData.push(zT); if(zT > maxZ) maxZ = zT; if(zT < minZ) minZ = zT;
                         
+                        const localBase = zT + ((parseFloat(feat.properties.baseSnow)||0)/100);
                         const zS = getSnowZAtPoint(pt.geometry.coordinates, zT);
-                        snowData.push(zS > zT + 0.1 ? zS : null);
                         
-                        const trajObj = getApproachAndTrajZAtPoint(pt.geometry.coordinates, zT);
-                        approachData.push(trajObj.approach !== null ? trajObj.approach + 1 : null);
-                        trajData.push(trajObj.traj !== null && trajObj.traj > (zS > zT ? zS : zT) ? trajObj.traj + 1 : null);
+                        if (zS > localBase + 0.1) { snowData.push(zS); if(zS > maxZ) maxZ = zS;}
+                        else if (parseFloat(feat.properties.baseSnow) > 0) { snowData.push(localBase); if(localBase > maxZ) maxZ = localBase;}
+                        else { snowData.push(null); }
+                        
+                        // Ligne Profil : On scanne tous les modules pour voir si on génère un vol
+                        const tObj = getApproachAndTrajZAtPoint(pt.geometry.coordinates, zT);
+                        multiApproachData.push(tObj.approach !== null ? tObj.approach + 1 : null);
+                        
+                        if (tObj.traj !== null && tObj.traj > (zS > zT ? zS : zT)) {
+                            multiTrajData.push(tObj.traj + 1); if(tObj.traj > maxZ) maxZ = tObj.traj;
+                            multiPostLandData.push(null);
+                        } else { 
+                            multiTrajData.push(null); 
+                            // Si on est derrière le module, on met un ride-away générique
+                            if (zS > localBase + 0.1 && tObj.traj === null) multiPostLandData.push(null);
+                            else multiPostLandData.push(null); 
+                        }
                     }
                     
                     const deniv = (maxZ !== -10000 && minZ !== 10000) ? (maxZ - minZ) : 0;
@@ -971,7 +939,9 @@
                     }
                     
                     title = `PROFIL LIGNE : ${feat.properties.name}`; currentChartParams = { amontPt: turf.point(coords[0]), bearing: turf.bearing(turf.point(coords[0]), turf.point(coords[1])), totalDist: len, steps: steps, startDistY: null };
-                    drawChart(labels, terrainData, snowData, approachData, trajData, [], title, feat.properties.color || '#f39c12', '#e74c3c');
+                    
+                    // On colore les trajectoires en Orange sur la Ligne pour les distinguer de la ligne elle meme
+                    drawChart(labels, terrainData, snowData, multiApproachData, multiTrajData, multiPostLandData, title, feat.properties.color || '#f39c12', '#f39c12');
                 }
             } catch (err) { console.error("Erreur de profil empêchée: ", err); }
         };
@@ -983,7 +953,7 @@
             terrain = terrain.map(v => isNaN(v) ? null : v); snow = snow.map(v => isNaN(v) ? null : v); approach = approach.map(v => isNaN(v) ? null : v); traj = traj.map(v => isNaN(v) ? null : v); postLand = postLand.map(v => isNaN(v) ? null : v);
 
             let datasets = [{ label: 'Terrain Naturel', data: terrain, borderColor: '#7f8c8d', fill: true, backgroundColor: 'rgba(50,50,50,0.5)', pointRadius: 0, tension: 0.1 }];
-            if(snow.some(v => v !== null)) datasets.push({ label: 'Neige (Forme)', data: snow, borderColor: customColor, borderWidth: 2, pointRadius: 0, tension: 0, fill: true, backgroundColor: `${customColor}40` });
+            if(snow.some(v => v !== null)) datasets.push({ label: 'Neige', data: snow, borderColor: customColor, borderWidth: 2, pointRadius: 0, tension: 0, fill: true, backgroundColor: `${customColor}40` });
             if(approach && approach.some(v => v !== null)) datasets.push({ label: 'Approche (+1m)', data: approach, borderColor: '#f39c12', borderWidth: 2, pointRadius: 0, tension: 0.1 });
             if(traj && traj.some(v => v !== null)) datasets.push({ label: 'Vol (+1m)', data: traj, borderColor: trajColor, borderDash: [4,4], borderWidth: 2, pointRadius: 0, tension: 0.2 });
             if(postLand && postLand.some(v => v !== null)) datasets.push({ label: 'Ride-away', data: postLand, borderColor: '#3498db', borderWidth: 2, pointRadius: 0, tension: 0.1 });
@@ -1026,7 +996,9 @@
                 container: 'map-container', 
                 style: { 
                     'version': 8, 
-                    'sources': { 'esri-sat': { 'type': 'raster', 'tiles': ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], 'tileSize': 256 } }, 
+                    'sources': { 
+                        'esri-sat': { 'type': 'raster', 'tiles': ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], 'tileSize': 256 }
+                    }, 
                     'layers': [{ 'id': 'sat', 'type': 'raster', 'source': 'esri-sat' }] 
                 }, 
                 center: [0.5833, 42.7667], zoom: 14 
@@ -1038,7 +1010,6 @@
                 map.addSource('snowpark-data', { type: 'geojson', data: snowparkFeatures });
                 map.addSource('kmz-data', { type: 'geojson', data: kmzGeoJSON });
                 
-                // Filtres stricts anti-plantage MapLibre
                 map.addLayer({ id: 'kmz-fills', type: 'fill', source: 'kmz-data', filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['get', 'opacity'] } });
                 map.addLayer({ id: 'kmz-lines', type: 'line', source: 'kmz-data', filter: ['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString']]], paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-opacity': ['get', 'opacity'] } });
                 map.addLayer({ id: 'kmz-points', type: 'circle', source: 'kmz-data', filter: ['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]], paint: { 'circle-color': ['get', 'color'], 'circle-radius': ['get', 'width'], 'circle-opacity': ['get', 'opacity'] } });
@@ -1064,7 +1035,7 @@
                 window.renderLayerList();
             });
 
-            // VUE 3D DRAPÉE ISOLÉE : NE CRASHE PLUS LA CARTE AU DEMARRAGE
+            // VUE 3D DRAPÉE ISOLÉE
             document.getElementById('btn-3d-toggle').addEventListener('click', (e) => {
                 is3DActive = !is3DActive;
                 if(is3DActive) {
@@ -1100,15 +1071,14 @@
                     else if (n.type === 'jib') { c = calculatePolygonCoords(e.lngLat, defWidth, defKickLen + n.gapDist + n.boxLen + n.gapDist + defLandLen); }
                     else { c = calculatePolygonCoords(e.lngLat, defWidth, defKickLen + defTableLen + defLandLen); }
                     
-                    // ON ENREGISTRE LE POINT DE CLIC COMME PIVOT (centerLng, centerLat) POUR EVITER LES BUGS DE ROTATION DU VIRAGE !
                     snowparkFeatures.features.push({
                         id, type: 'Feature', 
                         properties: { 
                             id, itemType: 'module', modType: n.type, subtype: n.subtype || '', name: activeModule, lineId: activeLineId, visible: true, 
-                            color: n.color, trajColor: '#e74c3c', rotation: 0, projectionDist: 30, speed: 40, width: defWidth, 
+                            color: n.color, rotation: 0, projectionDist: 30, speed: 40, width: defWidth, 
                             kickLen: defKickLen, tableLen: defTableLen, landLen: defLandLen, kickAngle: defKickAngle, landingAngle: 25, baseSnow: 0, 
                             gapDist: n.gapDist||1, boxLen: n.boxLen||6, boxHeight: n.boxHeight||1, turnRadius: n.turnRadius||15, turnAngle: n.turnAngle||90,
-                            centerLng: e.lngLat.lng, centerLat: e.lngLat.lat, // SAUVEGARDE DU PIVOT EXACT
+                            centerLng: e.lngLat.lng, centerLat: e.lngLat.lat,
                             baseCoords: JSON.stringify(c) 
                         },
                         geometry: { type: 'Polygon', coordinates: c }
@@ -1118,7 +1088,6 @@
                 else if (!map.queryRenderedFeatures(e.point, { layers: ['f', 'l', 'vertices-points'] }).length) { window.deselectFeature(); }
             });
 
-            // DRAG AND DROP SÉCURISÉ
             map.on('mousedown', 'f', (e) => {
                 const id = e.features[0].properties.id; window.selectFeature(id);
                 if (isMoveModeActive && e.features[0].properties.itemType === 'module') {
@@ -1143,7 +1112,6 @@
                     const nbc = originalCoordsForDrag[0].map(c => [c[0] + deltaLng, c[1] + deltaLat]);
                     f.properties.baseCoords = JSON.stringify([nbc]);
                     
-                    // MISE A JOUR DU PIVOT PENDANT LE DEPLACEMENT
                     if (originalCenterForDrag) {
                         f.properties.centerLng = originalCenterForDrag.lng + deltaLng;
                         f.properties.centerLat = originalCenterForDrag.lat + deltaLat;
@@ -1173,4 +1141,3 @@
     </script>
 </body>
 </html>
-
