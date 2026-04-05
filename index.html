@@ -226,6 +226,7 @@
         </div>
     </div>
     <script>
+<script>
         /* ===================================================================
            CHAPITRE 1 : CONFIGURATION, NORMES ET VARIABLES GLOBALES
            =================================================================== */
@@ -254,7 +255,6 @@
         hoverEl.style.width = '12px'; hoverEl.style.height = '12px'; hoverEl.style.backgroundColor = '#fff'; hoverEl.style.border = '3px solid #e74c3c'; hoverEl.style.borderRadius = '50%';
         const hoverMarker = new maplibregl.Marker({element: hoverEl});
 
-        // BOUCLIER ANTI-CRASH POUR L'INTERFACE
         const setTxt = (id, text) => { const el = document.getElementById(id); if(el) el.innerText = text; };
 
         /* ===================================================================
@@ -368,7 +368,7 @@
         }
 
         /* ===================================================================
-           CHAPITRE 4 : GESTION DES FICHIERS (IMPORT / EXPORT)
+           CHAPITRE 4 : GESTIONNAIRES DE FICHIERS (IMPORT KMZ RÉCURSIF)
            =================================================================== */
         window.renderMntList = function() {
             const container = document.getElementById('mnt-list-container'); container.innerHTML = '';
@@ -445,7 +445,7 @@
             const dataToSave = { lines, activeLineId, lineCounter, features: snowparkFeatures };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToSave));
             const dlAnchorElem = document.getElementById('downloadAnchorElem');
-            dlAnchorElem.setAttribute("href", dataStr); dlAnchorElem.setAttribute("download", "Projet_Superbagneres.json"); dlAnchorElem.click();
+            dlAnchorElem.setAttribute("href", dataStr); dlAnchorElem.setAttribute("download", "Projet_CAO.json"); dlAnchorElem.click();
         };
 
         document.getElementById('import-upload').addEventListener('change', (e) => {
@@ -466,7 +466,7 @@
         });
 
         /* ===================================================================
-           CHAPITRE 5 : INTERFACE UTILISATEUR ET ÉDITION
+           CHAPITRE 5 : GESTION UI RUNS ET PROPRIETES
            =================================================================== */
         window.renderLayerList = function() {
             const container = document.getElementById('layer-list-container'); container.innerHTML = '';
@@ -486,7 +486,7 @@
         window.addRun = function() { lineCounter++; lines.push({ id: lineCounter, name: `RUN ${lineCounter}` }); activeLineId = lineCounter; window.renderLayerList(); };
         window.deleteRun = function(id, e) { e.stopPropagation(); if(confirm("Supprimer ?")) { lines = lines.filter(l => l.id !== id); snowparkFeatures.features = snowparkFeatures.features.filter(f => f.properties.lineId !== id); window.deselectFeature(); if(lines.length>0) activeLineId = lines[0].id; window.refreshMapData(); window.renderLayerList(); } };
         window.toggleVisibility = function(id, e) { e.stopPropagation(); const f = snowparkFeatures.features.find(x => x.properties.id === id); if(f) { f.properties.visible = !f.properties.visible; window.refreshMapData(); window.renderLayerList(); }};
-
+        
         window.toggleProperties = function() { const c = document.getElementById('prop-content'); const b = document.getElementById('btn-collapse'); if(c.style.display==='none'){c.style.display='block';b.innerText='[-]';}else{c.style.display='none';b.innerText='[+]';} };
         window.openProfile = function() { isProfileOpen = true; document.getElementById('profile-container').style.display = 'block'; map.resize(); const f = snowparkFeatures.features.find(x => x.properties.id === selectedFeatureId); if(f) window.updateProfileChart(f); };
         window.closeProfile = function() { isProfileOpen = false; document.getElementById('profile-container').style.display = 'none'; map.resize(); };
@@ -558,7 +558,7 @@
                 const newC = calculatePolygonCoords(center, parseFloat(p.width)||6, totLen);
                 f.properties.baseCoords = JSON.stringify(newC);
                 f.geometry.coordinates = turf.transformRotate(turf.polygon(newC), parseFloat(p.rotation)||0).geometry.coordinates;
-            } else if (f.properties.itemType !== 'module' && prop !== 'name' && prop !== 'color' && prop !== 'baseSnow') {
+            } else if (f.properties.itemType !== 'module' && prop !== 'name' && prop !== 'color' && prop !== 'baseSnow' && prop !== 'trajColor') {
                 if(f.properties.itemType === 'dameuse') f.geometry = createDameuseGeom(JSON.parse(f.properties.originalLine));
             }
             
@@ -567,7 +567,7 @@
         };
 
         /* ===================================================================
-           CHAPITRE 6 : CARTE, DÉCORATIONS ET VUE 3D
+           CHAPITRE 6 : CALCULS CARTE ET DÉCORATIONS
            =================================================================== */
         window.refreshVertices = function() {
             verticesFeatures.features = [];
@@ -631,7 +631,7 @@
         };
 
         /* ===================================================================
-           CHAPITRE 7 : ANALYSE PHYSIQUE ET MOTEUR GRAPHIQUE (ZÉRO AU START)
+           CHAPITRE 7 : MOTEUR BALISTIQUE ET DYNAMIQUE DES COULEURS
            =================================================================== */
         window.updateProfileChart = function(feat) {
             if(!feat || !feat.geometry || !feat.geometry.coordinates) return;
@@ -661,7 +661,6 @@
                     let zStartKicker = (getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0) + (baseSnow/100);
                     const hNeeded = (v0 * v0) / (2 * g * 0.9);
                     
-                    // Calcul du Start Dist par rapport à la Lèvre
                     let startDistY = null, startToLipRealDist = 0;
                     for(let d=1; d<150; d+=0.5) {
                         const checkPt = turf.destination(ptHaut, d, bearing - 180, {units: 'meters'});
@@ -676,9 +675,9 @@
                         const d = (i/steps)*totalDist;
                         const pt = turf.destination(amontPt, d, bearing, {units:'meters'});
                         
-                        // LABEL ZERO AU START : On décale l'axe X pour que 0 soit au niveau du Start
+                        // ZÉRO AU START
                         if (startDistY !== null) { labels.push((d - startDistY).toFixed(0) + "m"); } 
-                        else { labels.push((d - projDist).toFixed(0) + "m"); } // Si pas de start, 0 à la lèvre
+                        else { labels.push((d - projDist).toFixed(0) + "m"); }
                         
                         let zT = getAltitudeAt(pt.geometry.coordinates[0], pt.geometry.coordinates[1]);
                         if (zT === null || isNaN(zT)) zT = 0; 
@@ -693,7 +692,6 @@
                             else if (dRel <= kickLen + tableLen) zS = zKickEnd;
                             else zS = zKickEnd - ((dRel - kickLen - tableLen) * Math.tan(landAngle * Math.PI/180));
                             
-                            // CALCUL DU VOLUME PUR (Exclut le terrain naturel)
                             if (zS > localBase) pureModuleArea += (zS - localBase) * deltaX;
                         } else if (baseSnow > 0) { zS = localBase; }
                         
@@ -723,11 +721,19 @@
                                 const impactAngle = Math.abs(angleTrajRad - angleLandRad);
                                 const v_perp = (impactStats.vImpact / 3.6) * Math.sin(impactAngle);
                                 impactStats.efh = (v_perp * v_perp) / (2 * g);
-                                // G-FORCE: 0.4m = amorti des jambes moyen
+                                // G-FORCE: amorti sur 0.4m (flexion des jambes)
                                 impactStats.gforce = 1 + ((v_perp * v_perp) / (2 * g * 0.4));
                             }
                         } else if (hasLanded) { trajData.push(null); postLandData.push(ground + 1); } 
                         else { trajData.push(null); postLandData.push(null); }
+                    }
+
+                    // DYNAMIQUE DES COULEURS DE TRAJECTOIRE (SELON L'IMPACT)
+                    let safetyColor = '#e74c3c'; // Défaut rouge
+                    if (impactStats.efh > 0) {
+                        if (impactStats.efh <= 0.8) safetyColor = '#2ecc71'; // Safe
+                        else if (impactStats.efh <= 1.5) safetyColor = '#f39c12'; // Acceptable
+                        else safetyColor = '#e74c3c'; // Danger
                     }
 
                     const moduleVolume = pureModuleArea * (parseFloat(p.width) || 6);
@@ -750,7 +756,9 @@
                     }
 
                     title = `ANALYSE SAUT: ${p.name}`; currentChartParams = { amontPt, bearing, totalDist, steps, startDistY };
-                    drawChart(labels, terrainData, snowData, approachData, trajData, postLandData, title, p.color || '#0e639c', p.trajColor || '#e74c3c');
+                    
+                    // On force la couleur de trajectoire selon la sécurité, ou on laisse l'user choisir
+                    drawChart(labels, terrainData, snowData, approachData, trajData, postLandData, title, p.color || '#0e639c', safetyColor);
 
                 } else {
                     let coords = [];
@@ -788,7 +796,6 @@
                     
                     const deniv = (maxZ !== -10000 && minZ !== 10000) ? (maxZ - minZ) : 0;
 
-                    // GESTION CUBAGE SURFACE (INDEPENDANT DU TERRAIN)
                     if (feat.properties.itemType === 'surface') {
                         const area = turf.area(feat);
                         const depth = (parseFloat(feat.properties.baseSnow) || 0) / 100;
@@ -976,3 +983,5 @@
             });
         });
     </script>
+    </body>
+</html>
