@@ -541,6 +541,9 @@
                 let labels = [], terrainData = [], snowData = [], trajData = [], approachData = [], postLandData = [];
                 let title = "PROFIL";
                 
+                // Petit outil de sécurité anti-crash pour écrire dans le HTML
+                const setTxt = (id, text) => { const el = document.getElementById(id); if(el) el.innerText = text; };
+                
                 if (feat.properties.itemType === 'module') {
                     const p = feat.properties;
                     const coords = feat.geometry.coordinates[0];
@@ -552,7 +555,6 @@
                     const totalDist = 30 + turf.distance(ptHaut, ptBas, {units:'meters'}) + 20; 
                     const steps = 150;
                     
-                    // VARIABLES BLINDÉES (Fallback sur 0 ou valeurs standard)
                     const speed = parseFloat(p.speed) || 40;
                     const kickAngle = parseFloat(p.kickAngle) || 15;
                     const landAngle = parseFloat(p.landingAngle) || 25;
@@ -561,10 +563,7 @@
                     const landLen = parseFloat(p.landLen) || 8;
                     const baseSnow = parseFloat(p.baseSnow) || 0;
 
-                    const v0 = speed / 3.6; 
-                    const theta = kickAngle * Math.PI / 180; 
-                    const g = 9.81;
-                    
+                    const v0 = speed / 3.6; const theta = kickAngle * Math.PI / 180; const g = 9.81;
                     let zStartKicker = (getAltitudeAt(ptHaut.geometry.coordinates[0], ptHaut.geometry.coordinates[1]) || 0) + (baseSnow/100);
                     const hNeeded = (v0 * v0) / (2 * g * 0.9);
                     
@@ -584,7 +583,7 @@
                         labels.push(d.toFixed(1) + "m");
                         
                         let zT = getAltitudeAt(pt.geometry.coordinates[0], pt.geometry.coordinates[1]);
-                        if (zT === null || isNaN(zT)) zT = 0; // FALLBACK CRITIQUE
+                        if (zT === null || isNaN(zT)) zT = 0; 
                         terrainData.push(zT); if(zT > maxZ) maxZ = zT;
                         
                         let zS = null; const dRel = d - 30; 
@@ -635,14 +634,25 @@
                         } else { trajData.push(null); postLandData.push(null); }
                     }
 
-                    document.getElementById('stat-area').innerText = turf.area(feat).toFixed(1) + " m²";
-                    document.getElementById('stat-start-dist').innerText = startToLipRealDist > 0 ? startToLipRealDist.toFixed(1) + " m" : "N/A";
-                    document.getElementById('stat-amplitude').innerText = maxAirAmp > 0 ? maxAirAmp.toFixed(1) + " m" : "--";
-                    document.getElementById('stat-airtime').innerText = impactStats.time > 0 ? impactStats.time.toFixed(2) + " s" : "--";
-                    document.getElementById('stat-dist').innerText = impactStats.dist > 0 ? impactStats.dist.toFixed(1) + " m" : "--";
-                    document.getElementById('stat-vimpact').innerText = impactStats.vImpact > 0 ? impactStats.vImpact.toFixed(1) + " km/h" : "--";
+                    // ECRITURE SÉCURISÉE DES RÉSULTATS DANS LE PANNEAU DROIT
+                    setTxt('stat-area', turf.area(feat).toFixed(1) + " m²");
+                    setTxt('stat-start-dist', startToLipRealDist > 0 ? startToLipRealDist.toFixed(1) + " m" : "N/A");
+                    setTxt('stat-amplitude', maxAirAmp > 0 ? maxAirAmp.toFixed(1) + " m" : "--");
+                    setTxt('stat-airtime', impactStats.time > 0 ? impactStats.time.toFixed(2) + " s" : "--");
+                    setTxt('stat-dist', impactStats.dist > 0 ? impactStats.dist.toFixed(1) + " m" : "--");
+                    setTxt('stat-vimpact', impactStats.vImpact > 0 ? impactStats.vImpact.toFixed(1) + " km/h" : "--");
+                    setTxt('stat-angle-impact', impactStats.angle > 0 ? impactStats.angle.toFixed(1) + "°" : "--");
+
                     const efhEl = document.getElementById('stat-efh');
-                    if (impactStats.efh > 0) { efhEl.innerText = impactStats.efh.toFixed(2) + " m"; efhEl.style.color = impactStats.efh > 1.5 ? '#e74c3c' : (impactStats.efh > 0.8 ? '#f39c12' : '#2ecc71'); } else { efhEl.innerText = "--"; efhEl.style.color = '#4daaf1'; }
+                    if (efhEl) {
+                        if (impactStats.efh > 0) { 
+                            efhEl.innerText = impactStats.efh.toFixed(2) + " m"; 
+                            efhEl.style.color = impactStats.efh > 1.5 ? '#e74c3c' : (impactStats.efh > 0.8 ? '#f39c12' : '#2ecc71'); 
+                        } else { 
+                            efhEl.innerText = "--"; 
+                            efhEl.style.color = '#4daaf1'; 
+                        }
+                    }
 
                     title = `ANALYSE SAUT: ${p.name}`; currentChartParams = { amontPt, bearing, totalDist, steps };
 
@@ -668,28 +678,25 @@
                         labels.push(d.toFixed(0) + "m");
                         
                         let zT = getAltitudeAt(pt.geometry.coordinates[0], pt.geometry.coordinates[1]);
-                        if(zT === null || isNaN(zT)) zT = 0; // FALLBACK CRITIQUE
+                        if(zT === null || isNaN(zT)) zT = 0; 
                         
                         terrainData.push(zT);
                         if(zT > maxZ) maxZ = zT; if(zT < minZ) minZ = zT;
                         
-                        // Verification simple
                         snowData.push(null); approachData.push(null); trajData.push(null); postLandData.push(null);
                     }
                     
                     const deniv = (maxZ !== -10000 && minZ !== 10000) ? (maxZ - minZ) : 0;
-                    document.getElementById('measure-label-1').innerText = "LONGUEUR"; document.getElementById('measure-val-1').innerText = len.toFixed(1) + " m";
-                    document.getElementById('measure-label-2').innerText = "DÉNIVELÉ"; document.getElementById('measure-val-2').innerText = deniv.toFixed(1) + " m";
-                    document.getElementById('measure-label-3').innerText = "PENTE MOY."; document.getElementById('measure-val-3').innerText = len > 0 ? ((deniv/len)*100).toFixed(1) + " %" : "0 %";
+                    setTxt('measure-label-1', "LONGUEUR"); setTxt('measure-val-1', len.toFixed(1) + " m");
+                    setTxt('measure-label-2', "DÉNIVELÉ"); setTxt('measure-val-2', deniv.toFixed(1) + " m");
+                    setTxt('measure-label-3', "PENTE MOY."); setTxt('measure-val-3', len > 0 ? ((deniv/len)*100).toFixed(1) + " %" : "0 %");
                     
                     title = `PROFIL LIGNE : ${feat.properties.name}`; currentChartParams = { amontPt: turf.point(coords[0]), bearing: turf.bearing(turf.point(coords[0]), turf.point(coords[1])), totalDist: len, steps: steps };
                 }
 
                 drawChart(labels, terrainData, snowData, approachData, trajData, postLandData, title);
             } catch (err) {
-                console.error("Erreur de profil: ", err);
-                alert("Impossible de tracer le profil. Vérifiez que la forme est bien sur le MNT.");
-                window.closeProfile();
+                console.error("Erreur de profil empêchée par le système de sécurité : ", err);
             }
         };
 
