@@ -411,12 +411,24 @@
             activeModule = null; activeDrawTool = null; drawCoords = []; drawGeoJSON.features = [];
             if(map && map.getSource('live-draw')) map.getSource('live-draw').setData(drawGeoJSON);
             document.querySelectorAll('.module-btn, .tool-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('instruction-box').style.display = 'none'; if(map) map.getCanvas().style.cursor = '';
+            document.getElementById('instruction-box').style.display = 'none'; 
+            if(map) map.getCanvas().style.cursor = '';
             
-            if (isModule) { activeModule = toolName; map.getCanvas().style.cursor = 'crosshair'; document.querySelector(`.module-btn[data-name="${toolName}"]`).classList.add('active'); } 
-            else if (toolName) { activeDrawTool = toolName; map.getCanvas().style.cursor = 'crosshair'; document.querySelector(`.tool-btn[data-tool="${toolName}"]`).classList.add('active'); document.getElementById('instruction-box').style.display = 'flex'; }
+            if (isModule) { 
+                activeModule = toolName; 
+                map.getCanvas().style.cursor = 'crosshair'; 
+                const btn = document.querySelector(`.module-btn[data-name="${toolName}"]`);
+                if(btn) btn.classList.add('active'); 
+            } 
+            else if (toolName) { 
+                activeDrawTool = toolName; 
+                map.getCanvas().style.cursor = 'crosshair'; 
+                // CORRECTION : Cherche l'ID exact du bouton outil
+                const btn = document.getElementById(`tool-${toolName}`);
+                if(btn) btn.classList.add('active'); 
+                document.getElementById('instruction-box').style.display = 'flex'; 
+            }
         };
-
         window.selectFeature = function(id) {
             if(selectedFeatureId === id) return; 
 
