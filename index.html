@@ -267,18 +267,18 @@
     </div>
     <script>
        <script>
+       <script>
         /* ===================================================================
            CHAPITRE 1 : CONFIGURATION, NORMES ET VARIABLES GLOBALES
            =================================================================== */
         proj4.defs("EPSG:2154", "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
 
-        // Dictionnaire enrichi pour gérer Kickers, Jibs et Virages
         const moduleNorms = {
-            'Kicker S': { type: 'jump', width: 6, kickLen: 3, kickAngle: 15, tableLen: 4, landLen: 8, color: '#0e639c' },
-            'Kicker M': { type: 'jump', width: 8, kickLen: 4, kickAngle: 25, tableLen: 8, landLen: 12, color: '#f39c12' },
-            'Kicker L': { type: 'jump', width: 12, kickLen: 6, kickAngle: 32, tableLen: 14, landLen: 18, color: '#c74c3c' },
-            'Box Plate': { type: 'jib', subtype: 'flat', width: 2, kickLen: 2, kickAngle: 5, gapDist: 1, boxLen: 6, boxHeight: 0.5, landLen: 6, color: '#8e44ad' },
-            'Box Rainbow': { type: 'jib', subtype: 'rainbow', width: 2, kickLen: 2, kickAngle: 15, gapDist: 1, boxLen: 6, boxHeight: 1.5, landLen: 6, color: '#9b59b6' },
+            'Kicker S': { type: 'jump', width: 6, kickLen: 3, defaultKickAngle: 15, defaultTable: 4, defaultLandLen: 8, color: '#0e639c' },
+            'Kicker M': { type: 'jump', width: 8, kickLen: 4, defaultKickAngle: 25, defaultTable: 8, defaultLandLen: 12, color: '#f39c12' },
+            'Kicker L': { type: 'jump', width: 12, kickLen: 6, defaultKickAngle: 32, defaultTable: 14, defaultLandLen: 18, color: '#c74c3c' },
+            'Box Plate': { type: 'jib', subtype: 'flat', width: 2, kickLen: 2, defaultKickAngle: 5, gapDist: 1, boxLen: 6, boxHeight: 0.5, defaultLandLen: 6, color: '#8e44ad' },
+            'Box Rainbow': { type: 'jib', subtype: 'rainbow', width: 2, kickLen: 2, defaultKickAngle: 15, gapDist: 1, boxLen: 6, boxHeight: 1.5, defaultLandLen: 6, color: '#9b59b6' },
             'Virage Relevé': { type: 'turn', width: 8, turnRadius: 15, turnAngle: 90, color: '#e67e22' }
         };
 
@@ -302,16 +302,14 @@
         const setTxt = (id, text) => { const el = document.getElementById(id); if(el) el.innerText = text; };
 
         /* ===================================================================
-           CHAPITRE 2 : GÉOMÉTRIE VECTORIELLE AVANCÉE
+           CHAPITRE 2 : GÉOMÉTRIE SPATIALE (TURF.JS)
            =================================================================== */
         function getBaseCenter(coords) { const pts = coords[0]; return { lng: (pts[0][0] + pts[2][0])/2, lat: (pts[0][1] + pts[2][1])/2 }; }
-        
         function calculatePolygonCoords(lngLat, widthM, lengthM) {
             const R = 6378137; const lat = lngLat.lat; const lng = lngLat.lng;
             const dLat = (lengthM / 2) / R; const dLng = (widthM / 2) / (R * Math.cos(Math.PI * lat / 180));
             return [[[lng - dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI], [lng + dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI], [lng + dLng * 180 / Math.PI, lat + dLat * 180 / Math.PI], [lng - dLng * 180 / Math.PI, lat + dLat * 180 / Math.PI], [lng - dLng * 180 / Math.PI, lat - dLat * 180 / Math.PI]]];
         }
-
         function calculateTurnCoords(lngLat, radiusM, widthM, angleDeg) {
             const centerPt = turf.point([lngLat.lng, lngLat.lat]);
             const startAngle = -angleDeg/2; const endAngle = angleDeg/2;
@@ -325,7 +323,6 @@
             const ring = [...outerCoords, ...innerCoords, outerCoords[0]];
             return [ring];
         }
-
         function createFlatBuffer(coords, widthM) {
             if(coords.length < 2) return null;
             const line = turf.lineString(coords);
@@ -333,7 +330,6 @@
             const right = turf.lineOffset(line, -widthM/2, {units: 'meters'}).geometry.coordinates;
             return turf.polygon([[...left, ...right.reverse(), left[0]]]).geometry;
         }
-
         function createDameuseGeom(coords) {
             let lineGeom = turf.lineString(coords);
             if (coords.length > 2) lineGeom = turf.bezierSpline(lineGeom, {resolution: 10000, sharpness: 0.5});
@@ -342,7 +338,7 @@
         }
 
         /* ===================================================================
-           CHAPITRE 3 : MOTEUR TOPOGRAPHIQUE (MNT)
+           CHAPITRE 3 : TOPOGRAPHIE MULTI-MNT ET CROISEMENTS
            =================================================================== */
         function getAltitudeAt(lng, lat) {
             const pt = proj4("EPSG:4326", "EPSG:2154", [lng, lat]);
@@ -355,9 +351,15 @@
                     const x0 = Math.floor(xF), y0 = Math.floor(yF);
                     if (x0 < 0 || x0 >= layer.width - 1 || y0 < 0 || y0 >= layer.height - 1) continue;
                     const tx = xF - x0, ty = yF - y0;
-                    const z00 = layer.data[y0 * layer.width + x0]; const z10 = layer.data[y0 * layer.width + x0 + 1];
-                    const z01 = layer.data[(y0 + 1) * layer.width + x0]; const z11 = layer.data[(y0 + 1) * layer.width + x0 + 1];
-                    if (z00 < -10000 || z10 < -10000 || z01 < -10000 || z11 < -10000 || isNaN(z00) || isNaN(z10)) continue;
+                    
+                    const z00 = layer.data[y0 * layer.width + x0]; 
+                    const z10 = layer.data[y0 * layer.width + x0 + 1];
+                    const z01 = layer.data[(y0 + 1) * layer.width + x0]; 
+                    const z11 = layer.data[(y0 + 1) * layer.width + x0 + 1];
+                    
+                    if (isNaN(z00) || isNaN(z10) || isNaN(z01) || isNaN(z11)) continue;
+                    if (z00 < -10000 || z10 < -10000 || z01 < -10000 || z11 < -10000) continue;
+                    
                     return (1-tx)*(1-ty)*z00 + tx*(1-ty)*z10 + (1-tx)*ty*z01 + tx*ty*z11;
                 }
             }
@@ -488,7 +490,7 @@
         });
 
         /* ===================================================================
-           CHAPITRE 5 : INTERFACE UTILISATEUR ET ÉDITION
+           CHAPITRE 5 : GESTION DE L'INTERFACE UI (LISTES / PROPRIÉTÉS)
            =================================================================== */
         window.renderLayerList = function() {
             const container = document.getElementById('layer-list-container'); container.innerHTML = '';
@@ -503,7 +505,6 @@
                 container.insertAdjacentHTML('beforeend', html + `</div>`);
             });
         };
-        
         window.setActiveLine = function(id) { activeLineId = id; window.renderLayerList(); };
         window.addRun = function() { lineCounter++; lines.push({ id: lineCounter, name: `RUN ${lineCounter}` }); activeLineId = lineCounter; window.renderLayerList(); };
         window.deleteRun = function(id, e) { e.stopPropagation(); if(confirm("Supprimer ?")) { lines = lines.filter(l => l.id !== id); snowparkFeatures.features = snowparkFeatures.features.filter(f => f.properties.lineId !== id); window.deselectFeature(); if(lines.length>0) activeLineId = lines[0].id; window.refreshMapData(); window.renderLayerList(); } };
@@ -580,23 +581,21 @@
             if(prop === 'baseSnow' && (f.properties.itemType === 'surface' || f.properties.itemType === 'profile')) setTxt('surfaceSnow-display', val);
             else if(document.getElementById(prop+'-display')) setTxt(prop+'-display', val);
 
-            if (f.properties.itemType === 'module') {
-                if (['rotation', 'width', 'tableLen', 'landLen', 'kickLen', 'gapDist', 'boxLen', 'turnRadius', 'turnAngle'].includes(prop)) {
-                    const center = getBaseCenter(JSON.parse(f.properties.baseCoords));
-                    const p = f.properties;
-                    let newC;
-                    if (p.modType === 'jump') {
-                        const totLen = (parseFloat(p.kickLen)||3) + (parseFloat(p.tableLen)||4) + (parseFloat(p.landLen)||8);
-                        newC = calculatePolygonCoords(center, parseFloat(p.width)||6, totLen);
-                    } else if (p.modType === 'jib') {
-                        const totLen = (parseFloat(p.kickLen)||2) + ((parseFloat(p.gapDist)||1)*2) + (parseFloat(p.boxLen)||6) + (parseFloat(p.landLen)||6);
-                        newC = calculatePolygonCoords(center, parseFloat(p.width)||2, totLen);
-                    } else if (p.modType === 'turn') {
-                        newC = calculateTurnCoords({lng: center.lng, lat: center.lat}, parseFloat(p.turnRadius)||15, parseFloat(p.width)||8, parseFloat(p.turnAngle)||90);
-                    }
-                    f.properties.baseCoords = JSON.stringify(newC);
-                    f.geometry.coordinates = turf.transformRotate(turf.polygon(newC), parseFloat(p.rotation)||0).geometry.coordinates;
+            if(['rotation', 'width', 'tableLen', 'landLen', 'kickLen', 'gapDist', 'boxLen', 'turnRadius', 'turnAngle'].includes(prop) && f.properties.itemType === 'module') {
+                const center = getBaseCenter(JSON.parse(f.properties.baseCoords));
+                const p = f.properties;
+                let newC;
+                if (p.modType === 'jump') {
+                    const totLen = (parseFloat(p.kickLen)||3) + (parseFloat(p.tableLen)||4) + (parseFloat(p.landLen)||8);
+                    newC = calculatePolygonCoords(center, parseFloat(p.width)||6, totLen);
+                } else if (p.modType === 'jib') {
+                    const totLen = (parseFloat(p.kickLen)||2) + ((parseFloat(p.gapDist)||1)*2) + (parseFloat(p.boxLen)||6) + (parseFloat(p.landLen)||6);
+                    newC = calculatePolygonCoords(center, parseFloat(p.width)||2, totLen);
+                } else if (p.modType === 'turn') {
+                    newC = calculateTurnCoords({lng: center.lng, lat: center.lat}, parseFloat(p.turnRadius)||15, parseFloat(p.width)||8, parseFloat(p.turnAngle)||90);
                 }
+                f.properties.baseCoords = JSON.stringify(newC);
+                f.geometry.coordinates = turf.transformRotate(turf.polygon(newC), parseFloat(p.rotation)||0).geometry.coordinates;
             } else if (f.properties.itemType !== 'module' && prop !== 'name' && prop !== 'color' && prop !== 'baseSnow' && prop !== 'trajColor') {
                 if(f.properties.itemType === 'dameuse') f.geometry = createDameuseGeom(JSON.parse(f.properties.originalLine));
             }
@@ -606,7 +605,7 @@
         };
 
         /* ===================================================================
-           CHAPITRE 6 : CALCULS CARTE ET DÉCORATIONS (VRAIE ECHELLE)
+           CHAPITRE 6 : CARTE, DÉCORATIONS ET VERTICES
            =================================================================== */
         window.refreshVertices = function() {
             verticesFeatures.features = [];
@@ -679,7 +678,7 @@
         };
 
         /* ===================================================================
-           CHAPITRE 7 : MOTEUR BALISTIQUE INTÉGRAL (CHART.JS)
+           CHAPITRE 7 : MOTEUR BALISTIQUE ET GRAPHIQUE ANTI-CRASH
            =================================================================== */
         window.updateProfileChart = function(feat) {
             if(!feat || !feat.geometry || !feat.geometry.coordinates) return;
@@ -801,21 +800,9 @@
                                 const vx = v0 * Math.cos(theta); const vz = v0 * Math.sin(theta) - g * t;
                                 impactStats.vImpact = Math.sqrt(vx*vx + vz*vz) * 3.6;
                                 const angleTrajRad = Math.atan2(vz, vx);
-                                
                                 let angleLandRad = 0;
-                                const ptP = turf.destination(amontPt, d-1, bearing, {units:'meters'}); 
-                                const zP = getAltitudeAt(ptP.geometry.coordinates[0], ptP.geometry.coordinates[1]);
-                                let groundSlope = Math.atan2(zT - (zP !== null ? zP : zT), 1);
-                                
-                                if (p.modType === 'jump') {
-                                    if (dRel > kickLen + tableLen && dRel <= kickLen + tableLen + landLen) angleLandRad = -landAngle * Math.PI/180;
-                                    else angleLandRad = groundSlope;
-                                } else if (p.modType === 'jib') {
-                                    const boxEndD = kickLen + gapDist + boxLen;
-                                    if (dRel > boxEndD + gapDist && dRel <= boxEndD + gapDist + landLen) angleLandRad = -landAngle * Math.PI/180;
-                                    else if (dRel > kickLen + gapDist && dRel <= boxEndD) angleLandRad = 0; 
-                                    else angleLandRad = groundSlope;
-                                }
+                                if (dRel > kickLen + tableLen && dRel <= kickLen + tableLen + landLen) angleLandRad = -landAngle * Math.PI/180;
+                                else { const ptP = turf.destination(amontPt, d-1, bearing, {units:'meters'}); const zP = getAltitudeAt(ptP.geometry.coordinates[0], ptP.geometry.coordinates[1]); angleLandRad = Math.atan2(zT - (zP !== null ? zP : zT), 1); }
                                 
                                 const impactAngle = Math.abs(angleTrajRad - angleLandRad);
                                 const v_perp = (impactStats.vImpact / 3.6) * Math.sin(impactAngle);
@@ -865,14 +852,13 @@
                         coords = feat.geometry.type === 'Polygon' ? feat.geometry.coordinates[0] : feat.geometry.coordinates;
                         if(feat.geometry.type === 'MultiLineString') coords = coords[0]; 
                     }
+                    
                     if (!coords || coords.length < 2) return;
                     
                     const lineFeat = turf.lineString(coords);
                     const len = turf.length(lineFeat, {units:'meters'});
                     const steps = Math.min(200, Math.max(10, Math.ceil(len / 1))); 
                     let maxZ = -10000, minZ = 10000;
-                    
-                    let allTrajData = []; let currentTrajIndex = 0;
                     
                     for(let i=0; i<=steps; i++) {
                         const d = (i/steps)*len;
@@ -883,20 +869,12 @@
                         if(zT === null || isNaN(zT)) zT = 0; 
                         terrainData.push(zT); if(zT > maxZ) maxZ = zT; if(zT < minZ) minZ = zT;
                         
-                        const localBase = zT + ((parseFloat(feat.properties.baseSnow)||0)/100);
-                        
                         const zS = getSnowZAtPoint(pt.geometry.coordinates, zT);
-                        if (zS > localBase + 0.1) { snowData.push(zS); if(zS > maxZ) maxZ = zS;}
-                        else if (parseFloat(feat.properties.baseSnow) > 0) { snowData.push(localBase); if(localBase > maxZ) maxZ = localBase;}
-                        else { snowData.push(null); }
+                        snowData.push(zS > zT + 0.1 ? zS : null);
                         
                         const trajObj = getApproachAndTrajZAtPoint(pt.geometry.coordinates, zT);
                         approachData.push(trajObj.approach !== null ? trajObj.approach + 1 : null);
-                        
-                        if (trajObj.traj !== null && trajObj.traj > (zS > zT ? zS : zT)) {
-                            trajData.push(trajObj.traj + 1);
-                            if(trajObj.traj > maxZ) maxZ = trajObj.traj;
-                        } else { trajData.push(null); }
+                        trajData.push(trajObj.traj !== null && trajObj.traj > (zS > zT ? zS : zT) ? trajObj.traj + 1 : null);
                     }
                     
                     const deniv = (maxZ !== -10000 && minZ !== 10000) ? (maxZ - minZ) : 0;
@@ -926,7 +904,7 @@
             terrain = terrain.map(v => isNaN(v) ? null : v); snow = snow.map(v => isNaN(v) ? null : v); approach = approach.map(v => isNaN(v) ? null : v); traj = traj.map(v => isNaN(v) ? null : v); postLand = postLand.map(v => isNaN(v) ? null : v);
 
             let datasets = [{ label: 'Terrain Naturel', data: terrain, borderColor: '#7f8c8d', fill: true, backgroundColor: 'rgba(50,50,50,0.5)', pointRadius: 0, tension: 0.1 }];
-            if(snow.some(v => v !== null)) datasets.push({ label: 'Neige', data: snow, borderColor: customColor, borderWidth: 2, pointRadius: 0, tension: 0, fill: true, backgroundColor: `${customColor}40` });
+            if(snow.some(v => v !== null)) datasets.push({ label: 'Neige (Forme)', data: snow, borderColor: customColor, borderWidth: 2, pointRadius: 0, tension: 0, fill: true, backgroundColor: `${customColor}40` });
             if(approach && approach.some(v => v !== null)) datasets.push({ label: 'Approche (+1m)', data: approach, borderColor: '#f39c12', borderWidth: 2, pointRadius: 0, tension: 0.1 });
             if(traj && traj.some(v => v !== null)) datasets.push({ label: 'Vol (+1m)', data: traj, borderColor: trajColor, borderDash: [4,4], borderWidth: 2, pointRadius: 0, tension: 0.2 });
             if(postLand && postLand.some(v => v !== null)) datasets.push({ label: 'Ride-away', data: postLand, borderColor: '#3498db', borderWidth: 2, pointRadius: 0, tension: 0.1 });
@@ -962,7 +940,7 @@
         }
 
         /* ===================================================================
-           CHAPITRE 8 : INITIALISATION MAPLIBRE
+           CHAPITRE 8 : INITIALISATION GLOBALE MAPLIBRE ET VUE 3D
            =================================================================== */
         document.addEventListener('DOMContentLoaded', () => {
             map = new maplibregl.Map({ 
@@ -983,6 +961,7 @@
                 map.addSource('snowpark-data', { type: 'geojson', data: snowparkFeatures });
                 map.addSource('kmz-data', { type: 'geojson', data: kmzGeoJSON });
                 
+                // Filtres stricts anti-plantage MapLibre
                 map.addLayer({ id: 'kmz-fills', type: 'fill', source: 'kmz-data', filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['get', 'opacity'] } });
                 map.addLayer({ id: 'kmz-lines', type: 'line', source: 'kmz-data', filter: ['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString']]], paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-opacity': ['get', 'opacity'] } });
                 map.addLayer({ id: 'kmz-points', type: 'circle', source: 'kmz-data', filter: ['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]], paint: { 'circle-color': ['get', 'color'], 'circle-radius': ['get', 'width'], 'circle-opacity': ['get', 'opacity'] } });
@@ -1005,7 +984,7 @@
                 window.renderLayerList();
             });
 
-            // VUE 3D DRAPÉE
+            // VUE 3D DRAPÉE ISOLÉE : NE CRASHE PLUS LA CARTE AU DEMARRAGE
             document.getElementById('btn-3d-toggle').addEventListener('click', (e) => {
                 is3DActive = !is3DActive;
                 if(is3DActive) {
@@ -1097,5 +1076,5 @@
             });
         });
     </script>
-    <body>
-<html>        
+</body>
+</html>
