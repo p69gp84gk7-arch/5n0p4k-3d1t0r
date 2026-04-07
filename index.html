@@ -221,9 +221,9 @@
                         </div>
 
                         <hr>
-                        <label>Vitesse Pratiquant Estimée <span class="slider-val"><span id="speed-display">40</span> km/h</span></label>
+                        <label>Vitesse Rider Cible <span class="slider-val"><span id="speed-display">40</span> km/h</span></label>
                         <input type="range" id="speed-slider" min="5" max="100" value="40" oninput="window.updateFeatureProp('speed', this.value)">
-                        <label>Ligne de Projection Coupe 2D <span class="slider-val"><span id="projectionDist-display">30</span> m</span></label>
+                        <label>Plan de Coupe (Longueur Affichage) <span class="slider-val"><span id="projectionDist-display">30</span> m</span></label>
                         <input type="range" id="projectionDist-slider" min="10" max="150" value="30" step="1" oninput="window.updateFeatureProp('projectionDist', this.value)">
                         
                         <div class="stats-box">
@@ -312,7 +312,7 @@
         const setTxt = (id, text) => { const el = document.getElementById(id); if(el) el.innerText = text; };
 
         /* ===================================================================
-           CHAPITRE 2 : GÉOMÉTRIE STRICTE (AUCUN DÉSAXAGE)
+           CHAPITRE 2 : GÉOMÉTRIE VECTORIELLE ET TOPOGRAPHIE
            =================================================================== */
         window.getBaseCenter = function(coords) { 
             if (!coords || !coords[0] || coords[0].length < 4) return { lng: 0, lat: 0 };
@@ -402,8 +402,28 @@
             }
         };
 
+        function calculate3DVolume(feature, depthMeters) {
+            if (!feature || !feature.geometry) return 0;
+            const area2D = turf.area(feature);
+            if (area2D === 0 || depthMeters === 0) return 0;
+            let coords = [];
+            if(feature.geometry.type === 'Polygon') coords = feature.geometry.coordinates[0];
+            else if(feature.geometry.type === 'LineString') coords = feature.geometry.coordinates;
+            else return area2D * depthMeters; 
+            if(coords.length < 3) return area2D * depthMeters;
+            let zMax = -10000, zMin = 10000;
+            coords.forEach(c => {
+                const z = getAltitudeAt(c[0], c[1]);
+                if(z !== null) { if(z > zMax) zMax = z; if(z < zMin) zMin = z; }
+            });
+            if(zMax === -10000) return area2D * depthMeters; 
+            const maxDist = turf.distance(turf.point(coords[0]), turf.point(coords[Math.floor(coords.length/2)]), {units:'meters'});
+            const slopeRad = Math.atan((zMax - zMin) / (maxDist > 0 ? maxDist : 1));
+            return (area2D / Math.cos(slopeRad)) * depthMeters;
+        }
+
         /* ===================================================================
-           CHAPITRE 3 : GESTION DES FICHIERS ET PROJETS
+           CHAPITRE 3 : IMPORT / EXPORT (MNT, KMZ, JSON)
            =================================================================== */
         window.renderMntList = function() {
             const container = document.getElementById('mnt-list-container'); container.innerHTML = '';
@@ -504,7 +524,7 @@
         });
 
         /* ===================================================================
-           CHAPITRE 5 : GESTION UI RUNS ET PROPRIETES
+           CHAPITRE 4 : GESTION UI RUNS ET PROPRIETES
            =================================================================== */
         window.renderLayerList = function() {
             const container = document.getElementById('layer-list-container'); container.innerHTML = '';
@@ -670,7 +690,7 @@
             window.refreshMapData(); if(isProfileOpen) window.updateProfileChart(f);
         };
         /* ===================================================================
-           CHAPITRE 6 : PHYSIQUE ET MOTEUR BALISTIQUE GLOBAL (SANS REBOND)
+           CHAPITRE 6 : MOTEUR PHYSIQUE CENTRALISÉ (BALISTIQUE SANS REBOND)
            =================================================================== */
         
         window.calcModuleZ = function(p, dRel, localTerrain, zStartKicker, groundSlope) {
@@ -758,29 +778,30 @@
                 const boxPitch = (parseFloat(p.boxAngle) || 0) * Math.PI / 180;
                 const boxStartD = kickLen + gapIn; const boxEndD = boxStartD + boxLen;
                 
-                // Vol 1 : Kick -> Box
+                // Vol 1 : Kick -> Box 
                 if (dRel > kickLen && dRel <= boxStartD) { 
                     const t = (dRel - kickLen) / (v0 * Math.cos(theta));
                     return zLip + (v0 * Math.sin(theta) * t) - (0.5 * g * t * t);
                 } 
-                // Vol 2 : Slide collé à la box (S'il est sur la box)
+                // Slide sur Box (zS gère la hauteur, on la retourne directement pour le tracking de collision)
                 else if (dRel > boxStartD && dRel <= boxEndD) {
-                    return localSnowZ !== null ? localSnowZ : null; // Glisse (+1m ajouté dans le draw)
+                    return localSnowZ !== null ? localSnowZ : null; // Glisse (Le +1m sera ajouté dans le draw)
                 }
-                // Vol 3 : Sortie Box -> Recep (Sans rebond, l'équation s'aligne sur la tangente de sortie)
+                // Vol 2 : Sortie Box -> Recep
                 else if (dRel > boxEndD) { 
-                    let exitAngle = boxPitch;
+                    let exitAngle = boxPitch + groundSlope;
                     if (p.subtype === 'rainbow') {
                         const halfB = boxLen / 2; const a_rain = -(boxH) / (halfB * halfB);
                         exitAngle = Math.atan(2 * a_rain * halfB) + groundSlope;
                     }
-                    exitAngle += (5 * Math.PI / 180); // Petit "pop" de sortie
+                    exitAngle += (5 * Math.PI / 180); // Pop impulsion
                     
                     const localGroundAtBoxEnd = zStartKicker + boxEndD * Math.tan(groundSlope);
-                    const zExit = (p.subtype === 'rainbow') ? localGroundAtBoxEnd : (localGroundAtBoxEnd + boxH + boxLen * Math.tan(boxPitch));
+                    let zExit = localGroundAtBoxEnd;
+                    if (p.subtype === 'flat') zExit += boxH + boxLen * Math.tan(boxPitch);
                     
-                    const t = (dRel - boxEndD) / (v0 * Math.cos(exitAngle));
-                    return zExit + (v0 * Math.sin(exitAngle) * t) - (0.5 * g * t * t); 
+                    const t2 = (dRel - boxEndD) / (v0 * Math.cos(exitAngle));
+                    return zExit + (v0 * Math.sin(exitAngle) * t2) - (0.5 * g * t2 * t2);
                 }
             }
             return null;
@@ -817,11 +838,9 @@
                     return; 
                 }
                 
-                // LIGNE DE PROJECTION 2D CENTRÉE 
-                const centerPt = turf.point([p.centerLng, p.centerLat]);
+                // LIGNE DE PROJECTION 2D CENTRÉE SUR LE MODULE
                 const projD = p.projectionDist || 30;
-                
-                // On projette sur l'axe central
+                const centerPt = turf.point([p.centerLng, p.centerLat]);
                 const amontPt = turf.destination(centerPt, projD, orient.bearing - 180, {units: 'meters'});
                 const avalPt = turf.destination(centerPt, projD, orient.bearing, {units: 'meters'});
                 decorationsFeatures.features.push({ type: 'Feature', properties: { decotype: 'axis' }, geometry: { type: 'LineString', coordinates: [amontPt.geometry.coordinates, avalPt.geometry.coordinates] }});
@@ -829,7 +848,7 @@
                 // Tracés de découpe des zones
                 if (currentModType === 'jump' || currentModType === 'gap_jump') {
                     const kL = parseFloat(p.kickLen) || 3; const tL = parseFloat(p.tableLen) || 4;
-                    // Décalage depuis le centre pour trouver l'entrée exacte
+                    // Décalage pour partir de l'entrée du module
                     const distCenterToEntry = turf.distance(centerPt, orient.ptEntry, {units:'meters'});
                     [[kL, 'zone'], [kL+tL, 'zone']].forEach(z => {
                         const ptZ = turf.destination(orient.ptEntry, z[0], orient.bearing, {units: 'meters'});
@@ -847,6 +866,7 @@
                     });
                 }
 
+                // Point de départ
                 const v0 = (parseFloat(p.speed) || 40) / 3.6; const hNeed = (v0*v0)/(2*9.81*0.9);
                 let zK = orient.zEntry + ((parseFloat(p.baseSnow)||0)/100);
                 for(let d=1; d<150; d++) {
@@ -983,13 +1003,15 @@
                                 zTjLocal += 1; // +1m center of mass
                                 
                                 if (currentModType === 'jib' && dRel > kickLen + gapDist && dRel <= kickLen + gapDist + boxLen) {
-                                    // Slide on box (no gap collision inside box)
+                                    // Sur la box (Slide)
                                     trajData.push(zS + 1); postLandData.push(null);
                                 }
-                                else if (zTjLocal >= ground + 1 && (zS === null || zTjLocal >= zS + 0.8)) { 
+                                else if (zTjLocal >= ground + 1 && (zS === null || zTjLocal >= zS + 0.9)) { 
+                                    // Vol libre
                                     trajData.push(zTjLocal); postLandData.push(null);
                                     if(zTjLocal > maxZ) maxZ = zTjLocal; if(zTjLocal - ground - 1 > maxAirAmp) maxAirAmp = zTjLocal - ground - 1;
                                 } else {
+                                    // Atterrissage (Recep ou sol)
                                     trajData.push(ground + 1); postLandData.push(ground + 1); hasLanded = true;
                                     
                                     let exitAngle = theta;
@@ -1023,7 +1045,9 @@
                                     impactStats.efh = (v_perp * v_perp) / (2 * g);
                                     impactStats.gforce = 1 + ((v_perp * v_perp) / (2 * g * 0.4));
                                 }
-                            } else { trajData.push(null); postLandData.push(null); }
+                            } else { 
+                                trajData.push(null); postLandData.push(null); 
+                            }
                         } else if (hasLanded) { trajData.push(null); postLandData.push(ground + 1); } 
                         else { trajData.push(null); postLandData.push(null); }
                     }
@@ -1055,7 +1079,7 @@
                     window.drawChart(labels, terrainData, snowData, approachData, trajData, postLandData, title, p.color || '#0e639c', finalTrajColor);
 
                 } else {
-                    // === B. LIGNE DE PROFIL MULTI-TRAJECTOIRES ===
+                    // === B. LIGNE DE PROFIL MULTI-TRAJECTOIRES ET SURFACE ===
                     if (feat.properties.itemType !== 'profile') {
                         document.getElementById('profile-container').style.display = 'none'; map.resize();
                         return; 
@@ -1070,14 +1094,16 @@
                     let allTrajData = []; let allApproachData = [];
                     let globalTrajColor = '#f39c12'; let totalModVol = 0; let crossedMods = 0;
                     
-                    snowparkFeatures.features.filter(f => f.properties.itemType === 'module' && f.properties.visible).forEach(mod => {
-                        if (turf.booleanIntersects(lineFeat, mod)) {
-                            crossedMods++;
-                            const area2D = turf.area(mod);
-                            const hKick = (parseFloat(mod.properties.kickLen)||3) * Math.tan((parseFloat(mod.properties.kickAngle)||15)*Math.PI/180);
-                            totalModVol += area2D * (hKick / 2); 
-                        }
-                    });
+                    if (feat.properties.itemType === 'profile') {
+                        snowparkFeatures.features.filter(f => f.properties.itemType === 'module' && f.properties.visible).forEach(mod => {
+                            if (turf.booleanIntersects(lineFeat, mod)) {
+                                crossedMods++;
+                                const area2D = turf.area(mod);
+                                const hKick = (parseFloat(mod.properties.kickLen)||3) * Math.tan((parseFloat(mod.properties.kickAngle)||15)*Math.PI/180);
+                                totalModVol += area2D * (hKick / 2); 
+                            }
+                        });
+                    }
                     
                     for(let i=0; i<=steps; i++) {
                         const d = (i/steps)*len;
@@ -1143,7 +1169,7 @@
                                 let zTjLocal = window.calcTrajZ(p, pDY, vMps, 9.81, theta, zSK, orient.groundSlope, zS);
                                 
                                 if (zTjLocal !== null) { 
-                                    zTjLocal += 1;
+                                    zTjLocal += 1; // +1m center of mass
                                     if (currentModType === 'jib' && pDY > kickLen && pDY <= kickLen + (parseFloat(p.gapDist)||1) + (parseFloat(p.boxLen)||6)) {
                                         localTraj = zS + 1; // Slide on box
                                     } else if (zTjLocal > zT) {
@@ -1173,11 +1199,13 @@
                         } else { allTrajData.push(null); }
                     }
                     
+                    const deniv = (maxZ !== -10000 && minZ !== 10000) ? (maxZ - minZ) : 0;
+
                     setTxt('measure-label-1', "MODULES CROISÉS"); setTxt('measure-val-1', crossedMods);
                     setTxt('measure-label-2', "VOL. NEIGE MODULES"); setTxt('measure-val-2', totalModVol.toFixed(1) + " m³");
                     setTxt('measure-label-3', "LONGUEUR LIGNE"); setTxt('measure-val-3', len.toFixed(1) + " m");
                     
-                    title = `PROFIL LIGNE : ${feat.properties.name}`; currentChartParams = { amontPt: turf.point(coords[0]), bearing: turf.bearing(turf.point(coords[0]), turf.point(coords[1])), totalDist: len, steps: steps, startDistY: null };
+                    title = `PROFIL LIGNE : ${feat.properties.name}`; currentChartParams = { lineFeat, totalDist: len, steps };
                     window.drawChart(labels, terrainData, snowData, allApproachData, allTrajData, [], title, 'rgba(255,255,255,0)', globalTrajColor);
                 }
             } catch (err) { console.error("Erreur de profil: ", err); }
@@ -1190,7 +1218,7 @@
             terrain = terrain.map(v => isNaN(v) ? null : v); snow = snow.map(v => isNaN(v) ? null : v); approach = approach.map(v => isNaN(v) ? null : v); traj = traj.map(v => isNaN(v) ? null : v); postLand = postLand.map(v => isNaN(v) ? null : v);
 
             let snowBorder = customColor === 'rgba(255,255,255,0)' ? 'rgba(255,255,255,0.8)' : customColor;
-            let snowBg = customColor === 'rgba(255,255,255,0)' ? 'rgba(255,255,255,0.1)' : `${customColor}40`;
+            let snowBg = customColor === 'rgba(255,255,255,0)' ? 'rgba(255,255,255,0.15)' : `${customColor}40`;
 
             let datasets = [{ label: 'Terrain Naturel', data: terrain, borderColor: '#7f8c8d', fill: true, backgroundColor: 'rgba(50,50,50,0.5)', pointRadius: 0, tension: 0.1 }];
             if(snow.some(v => v !== null)) datasets.push({ label: 'Neige', data: snow, borderColor: snowBorder, borderWidth: 2, pointRadius: 0, tension: 0, fill: true, backgroundColor: snowBg });
@@ -1208,8 +1236,13 @@
                     onHover: (e, active) => {
                         if (active.length > 0 && currentChartParams) {
                             const d = (active[0].index / currentChartParams.steps) * currentChartParams.totalDist;
-                            const distFromStart = currentChartParams.startDistY !== null ? d - currentChartParams.startDistY : d;
-                            const pt = turf.destination(currentChartParams.amontPt, distFromStart + (currentChartParams.startDistY !== null ? currentChartParams.startDistY : 0), currentChartParams.bearing, {units:'meters'});
+                            let pt;
+                            if (currentChartParams.lineFeat) {
+                                pt = turf.along(currentChartParams.lineFeat, d/1000, {units:'kilometers'});
+                            } else {
+                                const distFromStart = currentChartParams.startDistY !== null ? d - currentChartParams.startDistY : d;
+                                pt = turf.destination(currentChartParams.amontPt, distFromStart + (currentChartParams.startDistY !== null ? currentChartParams.startDistY : 0), currentChartParams.bearing, {units:'meters'});
+                            }
                             hoverMarker.setLngLat(pt.geometry.coordinates).addTo(map);
                         }
                     }
