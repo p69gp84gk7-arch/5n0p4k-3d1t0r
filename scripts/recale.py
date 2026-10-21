@@ -16,6 +16,8 @@ Usage : python3 scripts/recale.py 1958-10-25 [fin_du_nom_de_photo ...]
 """
 import json
 import sys
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from multiprocessing import get_context
 
 import cv2
@@ -283,15 +285,17 @@ def lisse(photo, geo):
     return photo[garde], g2[garde]
 
 
-def controle(sortie, ortho2022):
-    """Écart restant entre la photo recalée et l'ortho 2022 (mètres au sol)."""
+def controle(sortie, ortho2022, res=RES_FINE):
+    """Écart restant entre la photo recalée et l'ortho 2022 (mètres au sol), mesuré à la
+    résolution res (celle des photos : inutile, et trop gourmand, d'aller plus fin)."""
     out = gdal.Open(str(sortie))
     gt = out.GetGeoTransform()
-    img = out.GetRasterBand(1).ReadAsArray()
-    alpha = out.GetRasterBand(2).ReadAsArray() > 0
+    w0, h0 = int(out.RasterXSize * gt[1] / res), int(out.RasterYSize * -gt[5] / res)
+    img = out.GetRasterBand(1).ReadAsArray(buf_xsize=w0, buf_ysize=h0, resample_alg=gdal.GRIORA_Average)
+    alpha = out.GetRasterBand(2).ReadAsArray(buf_xsize=w0, buf_ysize=h0) > 0
     ox0, oy1 = gt[0], gt[3]
     ox1, oy0 = ox0 + out.RasterXSize * gt[1], oy1 + out.RasterYSize * gt[5]
-    ref, ref_valide, org = ortho2022.lire(ox0, oy0, ox1, oy1, RES_FINE)
+    ref, ref_valide, org = ortho2022.lire(ox0, oy0, ox1, oy1, res)
     h = min(ref.shape[0], img.shape[0])
     w = min(ref.shape[1], img.shape[1])
     valide = alpha[:h, :w] & ref_valide[:h, :w]
@@ -299,7 +303,7 @@ def controle(sortie, ortho2022):
     if len(pts) < 10:
         return {"carres_controle": int(len(pts)), "zones_controlees": 0}
     garde = filtre_voisins(pts, dec, rayon=400, tol=6.0)   # écarte les vrais changements du paysage
-    pts, ecart = pts[garde], np.linalg.norm(dec[garde], axis=1) * RES_FINE * COS_LAT
+    pts, ecart = pts[garde], np.linalg.norm(dec[garde], axis=1) * res * COS_LAT
     if len(ecart) < 10:
         return {"carres_controle": int(len(ecart)), "zones_controlees": 0}
     # répartition : dans combien des 9 zones de la photo trouve-t-on des points de contrôle ?
@@ -319,6 +323,9 @@ def recale(date, photo, orthos, sortie):
     scan.mpp = max(emp[2] - emp[0], emp[3] - emp[1]) / max(scan.W, scan.H)
     W, H = scan.W, scan.H
     rapport = {"photo": photo["id"], "finesse_m": round(float(scan.mpp), 3)}
+    # photos à petite échelle (pixels > 0,6 m) : on calcule à leur finesse réelle,
+    # pas plus fin (sinon 6 à 9 fois plus de mémoire pour rien)
+    echelle = max(1.0, scan.mpp / RES_FINE)
 
     # 1. départ : emprise IGN
     gcp_photo, gcp_geo = depart_emprise(photo, scan)
@@ -336,9 +343,10 @@ def recale(date, photo, orthos, sortie):
     emprise = (gcp_geo[:, 0].min() - 200, gcp_geo[:, 1].min() - 200,
                gcp_geo[:, 0].max() + 200, gcp_geo[:, 1].max() + 200)
 
-    # 3. passes fines, de 2,4 m à 0,6 m
+    # 3. passes fines, de 2,4 m à 0,6 m (ou à la finesse des photos si elle est moindre)
     rapport["passes"] = []
     for res, taille, recherche, tol, refs in PASSES:
+        res = round(res * echelle, 2)
         for nom in [r for r in refs if r in orthos]:
             p2, g2 = passe_fine(scan, gcp_photo, gcp_geo, orthos[nom], emprise, res, taille, recherche, tol)
             if len(p2) >= 40:
@@ -370,7 +378,7 @@ def recale(date, photo, orthos, sortie):
               creationOptions=["TILED=YES", "COMPRESS=DEFLATE", "PREDICTOR=2"])
 
     # 4. contrôle
-    rapport.update(controle(sortie, orthos["2022"]))
+    rapport.update(controle(sortie, orthos["2022"], RES_FINE * echelle))
     rapport["statut"] = statut(rapport)
     return rapport
 
@@ -409,11 +417,29 @@ def main():
         choix = [p for p in choix if any(p["id"].endswith(s) for s in sys.argv[2:])]
     else:                   # sinon on ne refait pas celles déjà traitées
         choix = [p for p in choix if not (dossier / (p["id"] + ".json")).exists()]
-    # processus de travail démarrés « à neuf » (spawn) : un fork après que GDAL / OpenCV
-    # ont lancé leurs fils d'exécution peut bloquer indéfiniment
-    with get_context("spawn").Pool(PROCESSUS, maxtasksperchild=4) as pool:
-        for r in pool.imap_unordered(traite, [(date, p) for p in choix]):
-            print(json.dumps(r, ensure_ascii=False), flush=True)
+    # Plusieurs photos à la fois. Si un processus est tué net (manque de mémoire),
+    # les photos non terminées sont retentées une par une ; une photo qui fait encore
+    # tomber son processus est notée en échec, au lieu de tout bloquer.
+    restantes = list(choix)
+    for travailleurs in (PROCESSUS, 1):
+        if not restantes:
+            break
+        if travailleurs == 1:
+            print(f"{len(restantes)} photo(s) retentée(s) une par une", flush=True)
+        lots = [restantes] if travailleurs > 1 else [[p] for p in restantes]
+        for lot in lots:
+            try:
+                with ProcessPoolExecutor(travailleurs, mp_context=get_context("spawn")) as ex:
+                    for r in ex.map(traite, [(date, p) for p in lot]):
+                        print(json.dumps(r, ensure_ascii=False), flush=True)
+            except BrokenProcessPool:
+                if travailleurs == 1:
+                    p = lot[0]
+                    r = {"photo": p["id"], "statut": "échec", "centre": p["centre"],
+                         "raison": "le calcul s'est arrêté net (mémoire insuffisante ?)"}
+                    (dossier / (p["id"] + ".json")).write_text(json.dumps(r, indent=1, ensure_ascii=False))
+                    print(json.dumps(r, ensure_ascii=False), flush=True)
+        restantes = [p for p in restantes if not (dossier / (p["id"] + ".json")).exists()]
     # rapport de la date = réunion des rapports des photos, avec les seuils actuels
     rapports = {}
     for f in sorted(dossier.glob("IGNF_*.json")):
