@@ -2,7 +2,7 @@
 
 Une carte pour voir la station de Superbagnères et la ville de Luchon (Pyrénées)
 changer au fil des années : faites glisser le curseur des années, ou comparez
-une année ancienne à l'image de 2025 avec le rideau.
+deux années de votre choix avec le rideau (2025 par défaut).
 
 **Le site :** https://p69gp84gk7-arch.github.io/5n0p4k-3d1t0r/
 
