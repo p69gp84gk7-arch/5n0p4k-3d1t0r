@@ -51,7 +51,8 @@ peut tout faire à votre place : demandez-lui « ajoute l'année 1965 »).
    - assemble les photos en une seule image (mosaïque),
    - fabrique l'image de contrôle `controle/1965-09-23.jpg`,
    - découpe les tuiles dans `tiles/1965-09-23/` et ajoute la date à la liste
-     `tiles/annees.json` que lit le site.
+     `annees.json` que lit le site (le site n'affiche une date que si son
+     dossier de tuiles est publié).
 
 4. **Vérifier l'image de contrôle** `controle/<date>.jpg` :
    - dans le **damier**, les routes, crêtes et bords de forêt doivent se
@@ -65,7 +66,7 @@ peut tout faire à votre place : demandez-lui « ajoute l'année 1965 »).
    dossier `tiles/`. Le site complet doit rester **sous 1 Go**.
 
 6. **Publier** : créer une branche, y mettre les nouveaux fichiers
-   (`tiles/<date>/`, `tiles/annees.json`, `controle/<date>.jpg`), ouvrir une
+   (`tiles/<date>/`, `controle/<date>.jpg`, et `annees.json` s'il a changé), ouvrir une
    pull request, regarder l'image de contrôle, puis fusionner. Le site se met à
    jour tout seul quelques minutes après.
 
@@ -101,7 +102,8 @@ Pour chaque photo :
 | Dossier / fichier   | Rôle |
 |---------------------|------|
 | `index.html`        | le site (carte Leaflet, curseur des années, comparaison) |
-| `tiles/`            | les tuiles des années recalées + `annees.json` |
+| `annees.json`       | la liste des dates recalées (prévues ou publiées) |
+| `tiles/`            | les tuiles des années recalées (un dossier par date) |
 | `controle/`         | une image de contrôle par date recalée |
 | `scripts/`          | les scripts de traitement (Python) |
 | `requirements.txt`  | les bibliothèques Python nécessaires |

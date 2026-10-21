@@ -1,5 +1,6 @@
-"""Découpe la mosaïque d'une date en tuiles web (zooms 13 à 18, WebP) dans tiles/<date>/
-et ajoute la date à tiles/annees.json (la liste lue par l'appli).
+"""Découpe la mosaïque d'une date en tuiles web (zooms 13 à 18, WebP) dans tiles/<date>/,
+écrit tiles/<date>/info.json et ajoute la date à annees.json (la liste lue par l'appli,
+qui n'affiche que les dates dont le dossier de tuiles existe).
 
 Usage : python3 scripts/tuiles.py 1958-10-25
 """
@@ -10,7 +11,7 @@ import sys
 
 from osgeo import gdal
 
-from commun import RECALES, TUILES
+from commun import DEPOT, RECALES, TUILES
 
 gdal.UseExceptions()
 
@@ -23,15 +24,18 @@ def taille(dossier):
     return sum(f.stat().st_size for f in dossier.rglob("*") if f.is_file())
 
 
-def ajoute_a_la_liste(date):
-    fichier = TUILES / "annees.json"
-    annees = json.loads(fichier.read_text()) if fichier.exists() else []
-    annees = [a for a in annees if a["date"] != date]
+def info(date):
     a, m, j = date.split("-")
-    annees.append({"date": date, "annee": a,
-                   "description": f"Photos IGN du {int(j)} {MOIS[int(m) - 1]} {a}"})
-    annees.sort(key=lambda x: x["date"])
-    fichier.write_text(json.dumps(annees, indent=1, ensure_ascii=False) + "\n")
+    return {"date": date, "annee": a, "description": f"Photos IGN du {int(j)} {MOIS[int(m) - 1]} {a}"}
+
+
+def ajoute_a_la_liste(date):
+    fichier = DEPOT / "annees.json"
+    annees = json.loads(fichier.read_text()) if fichier.exists() else []
+    if not any(a["date"] == date for a in annees):
+        annees.append(info(date))
+        annees.sort(key=lambda x: x["date"])
+        fichier.write_text(json.dumps(annees, indent=1, ensure_ascii=False) + "\n")
 
 
 def main():
@@ -50,6 +54,7 @@ def main():
     # fichiers annexes inutiles pour le site
     for f in sortie.glob("*.xml"):
         f.unlink()
+    (sortie / "info.json").write_text(json.dumps(info(date), ensure_ascii=False) + "\n")
     ajoute_a_la_liste(date)
     print(f"{date} : {taille(sortie) / 1e6:.1f} Mo de tuiles")
     print(f"Total du dossier tiles/ : {taille(TUILES) / 1e6:.1f} Mo")
