@@ -55,7 +55,8 @@ RES_GROSSIER = 4.0
 SEUIL_GROSSIER = 8.0          # écart médian maximal (m)
 DECALAGE_MAX = 20.0           # un secteur décalé de plus de 20 m est retiré de la mosaïque
 MARGE_SECTEUR = 200.0         # ... avec 200 m autour
-PORTEE_REPERE = 400.0         # au-delà, un secteur n'a pas de repère comparable : non vérifié, retiré
+PORTEE_REPERE = 160.0         # au-delà, un secteur n'a pas de repère vérifié tout près : non vérifié, retiré
+SCORE_SUR = 0.5              # ressemblance assez forte pour croire un décalage même isolé
 PART_GARDEE_MIN = 0.20        # une photo dont il reste moins de 20 % est écartée
 
 
@@ -212,8 +213,10 @@ def carte_inverse(ref_pts, photo_pts, forme, pas=16, smoothing=1.0):
     return (mx[decal:decal + h, decal:decal + w].copy(), my[decal:decal + h, decal:decal + w].copy())
 
 
-def correlation_carres(img, ref, valide, pas=40, taille=64, recherche=20, seuil=0.35):
+def correlation_carres(img, ref, valide, pas=40, taille=64, recherche=20, seuil=0.35, valide_ref=None):
     """Compare des carrés de img à ref autour de la même position.
+    Si valide_ref est donné, seul le carré de img doit être dans valide (et la zone
+    de recherche dans valide_ref) : on peut alors contrôler jusqu'au bord de la photo.
     Renvoie (positions dans img, décalages vers ref, score)."""
     h, w = img.shape
     t2 = taille // 2
@@ -222,7 +225,11 @@ def correlation_carres(img, ref, valide, pas=40, taille=64, recherche=20, seuil=
     b = clahe(ref).astype(np.float32)
     for y in range(t2 + recherche, h - t2 - recherche, pas):
         for x in range(t2 + recherche, w - t2 - recherche, pas):
-            if not valide[y - t2 - recherche:y + t2 + recherche, x - t2 - recherche:x + t2 + recherche].all():
+            if valide_ref is None:
+                if not valide[y - t2 - recherche:y + t2 + recherche, x - t2 - recherche:x + t2 + recherche].all():
+                    continue
+            elif not (valide[y - t2:y + t2, x - t2:x + t2].all()
+                      and valide_ref[y - t2 - recherche:y + t2 + recherche, x - t2 - recherche:x + t2 + recherche].all()):
                 continue
             modele = a[y - t2:y + t2, x - t2:x + t2]
             if modele.std() < 8:
@@ -340,21 +347,27 @@ def controle_grossier(out, ortho2022, chemin_secteurs):
     alpha = out.GetRasterBand(out.RasterCount).ReadAsArray(buf_xsize=w, buf_ysize=h) > 0
     ref, ref_valide, _ = ortho2022.lire(gt[0], gt[3] - h * res, gt[0] + w * res, gt[3], res)
     hh, ww = min(h, ref.shape[0]), min(w, ref.shape[1])
-    pts, dec, _ = correlation_carres(img[:hh, :ww], ref[:hh, :ww], alpha[:hh, :ww] & ref_valide[:hh, :ww],
-                                     pas=24, taille=64, recherche=80, seuil=0.3)
-    garde = filtre_voisins(pts, dec, rayon=150, tol=3.0)
+    # le carré de la photo doit être entier, mais la recherche peut sortir de la photo
+    # (sinon les 400 m du bord, là où les photos se déforment le plus, ne sont jamais contrôlés)
+    pts, dec, score = correlation_carres(img[:hh, :ww], ref[:hh, :ww], alpha[:hh, :ww], pas=24, taille=64,
+                                         recherche=80, seuil=0.3, valide_ref=ref_valide[:hh, :ww])
+    garde = filtre_voisins(pts, dec, rayon=220, tol=3.0)
     if garde.sum() < 10:
         return {"grossier_carres": int(garde.sum())}
-    pts = pts[garde]
-    ecart = np.linalg.norm(dec[garde], axis=1) * res * COS_LAT
-    decale = ecart > DECALAGE_MAX
-    # carte des secteurs
+    ecart = np.linalg.norm(dec, axis=1) * res * COS_LAT
+    bon = garde & (ecart <= DECALAGE_MAX)
+    # un décalage compte s'il est confirmé par les voisins ou si la ressemblance est forte :
+    # un carré décalé ne doit pas disparaître comme « fausse ressemblance »
+    mauvais = (ecart > DECALAGE_MAX) & (garde | (score >= SCORE_SUR))
+    # carte des secteurs : bien placé seulement tout près d'un carré vérifié bon
     ys, xs = np.mgrid[0:h, 0:w]
     grille = np.column_stack([xs.ravel(), ys.ravel()]).astype(np.float32)
-    d_proche, i_proche = cKDTree(pts).query(grille)
-    secteurs = np.where(d_proche * res > PORTEE_REPERE, 2, np.where(decale[i_proche], 0, 1))
-    if decale.any():
-        d_mauvais, _ = cKDTree(pts[decale]).query(grille)
+    secteurs = np.full(h * w, 2, np.uint8)
+    if bon.any():
+        d_bon, _ = cKDTree(pts[bon]).query(grille)
+        secteurs[d_bon * res <= PORTEE_REPERE] = 1
+    if mauvais.any():
+        d_mauvais, _ = cKDTree(pts[mauvais]).query(grille)
         secteurs[d_mauvais * res < MARGE_SECTEUR] = 0
     secteurs = secteurs.reshape(h, w).astype(np.uint8)
     ds = gdal.GetDriverByName("GTiff").Create(str(chemin_secteurs), w, h, 1, gdal.GDT_Byte, ["COMPRESS=DEFLATE"])
@@ -363,9 +376,9 @@ def controle_grossier(out, ortho2022, chemin_secteurs):
     ds.GetRasterBand(1).WriteArray(secteurs)
     ds = None
     part_gardee = float((secteurs[alpha] == 1).mean()) if alpha.any() else 0.0
-    return {"grossier_carres": int(len(pts)),
-            "grossier_m": round(float(np.median(ecart)), 1),
-            "grossier_part_decalee": round(float(decale.mean()), 2),
+    return {"grossier_carres": int(garde.sum()),
+            "grossier_m": round(float(np.median(ecart[garde])), 1),
+            "grossier_part_decalee": round(float(mauvais.sum() / max(1, bon.sum() + mauvais.sum())), 2),
             "part_gardee": round(part_gardee, 2)}
 
 
