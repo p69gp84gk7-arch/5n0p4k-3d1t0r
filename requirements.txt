@@ -1,0 +1,7 @@
+# GDAL s'installe à part (paquet système : gdal-bin + python3-gdal)
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+scipy
+shapely
+pillow
+requests

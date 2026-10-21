@@ -1,0 +1,10 @@
+# Photos IGN brutes : publiées dans la Release « originaux », jamais dans git
+*.tif
+*.tiff
+*.TIF
+remontée le temps superbagnères/
+
+# Dossier de travail (fichiers lourds intermédiaires)
+travail/
+__pycache__/
+*.aux.xml
