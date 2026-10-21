@@ -170,7 +170,7 @@ def main():
         else:
             s = f"{num}  {r['statut']} : {r.get('raison', 'contrôle impossible')}"
         lignes.append((s, VERT if r.get("statut") == "ok" else ROUGE))
-    col = 3
+    col = 2
     hl = 28
     par_col = (len(lignes) + col - 1) // col
     for i, (s, c) in enumerate(lignes):
