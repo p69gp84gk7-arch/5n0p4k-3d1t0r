@@ -49,6 +49,7 @@ peut tout faire à votre place : demandez-lui « ajoute l'année 1965 »).
      envoyé sur GitHub),
    - recale chaque photo sur l'ortho 2022,
    - assemble les photos en une seule image (mosaïque),
+   - revérifie la mosaïque finie et efface les secteurs encore décalés,
    - fabrique l'image de contrôle `controle/1965-09-23.jpg`,
    - découpe les tuiles dans `tiles/1965-09-23/` et ajoute la date à la liste
      `annees.json` que lit le site (le site n'affiche une date que si son
@@ -96,6 +97,15 @@ Pour chaque photo :
    médian est inférieur à 4 m, si 90 % des points sont à moins de 10 m, et si
    ces points sont bien répartis sur la photo. Sinon, elle est signalée et
    n'est pas publiée.
+6. **Contrôle secteur par secteur** : la photo est découpée en carrés de 250 m,
+   comparés à l'ortho 2022 jusqu'au bord de la photo. Seuls les secteurs à
+   moins de 160 m d'un carré confirmé bien placé (écart < 20 m) vont dans la
+   mosaïque ; les autres restent vides.
+
+Puis, pour la date entière, une **vérification finale** compare la mosaïque
+terminée à l'ortho 2022 : un secteur décalé de plus de 60 m (confirmé par ses
+voisins) est effacé. C'est un filet de sécurité indépendant du contrôle de
+chaque photo.
 
 ## Contenu du dépôt
 
