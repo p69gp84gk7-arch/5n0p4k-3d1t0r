@@ -124,10 +124,7 @@ body{background:var(--bg);color:var(--ink);font-family:Barlow,"Segoe UI",system-
     <div id="map" aria-label="Carte de Superbagnères"></div>
     <div class="curtain" id="curtain"><button class="grip" id="grip" aria-label="Déplacer le rideau de comparaison">⇆</button></div>
     <span class="tag left" id="tagLeft"></span>
-    <span class="tag right"><select id="ref" aria-label="Image de référence à droite">
-      <option value="2025s">2025 · satellite</option>
-      <option value="2025a">2025 · avion (plus net)</option>
-    </select></span>
+    <span class="tag right"><select id="ref" aria-label="Année affichée à droite du rideau"></select></span>
     <div class="title">
       <h1>Superbagnères, remonter le temps</h1>
       <p>Faites glisser le curseur pour remonter des années 50 jusqu’à 2025. Zoomez pour voir le détail : les images se chargent au fur et à mesure.</p>
@@ -142,15 +139,16 @@ body{background:var(--bg);color:var(--ink);font-family:Barlow,"Segoe UI",system-
   <div class="bar">
     <div class="year" id="year" aria-live="polite">2025<small>Satellite</small></div>
     <div class="timeline">
-      <input type="range" id="slider" min="0" max="10" step="0.01" value="10" aria-label="Année affichée">
+      <input type="range" id="slider" min="0" max="10" step="1" value="10" aria-label="Année affichée">
       <div class="ticks" id="ticks"></div>
     </div>
     <div class="side">
       <div class="seg" role="group" aria-label="Mode d’affichage">
         <button id="mScroll" aria-pressed="true">Défiler</button>
-        <button id="mCompare" aria-pressed="false">Comparer à 2025</button>
+        <button id="mCompare" aria-pressed="false">Comparer</button>
       </div>
       <button class="play" id="play">▶ Lecture</button>
+      <label class="check"><input type="checkbox" id="fondu"> Fondu entre les années</label>
       <label class="check"><input type="checkbox" id="plan"> Superposer la carte IGN</label>
     </div>
   </div>
@@ -204,10 +202,9 @@ const opts = (l, pane) => ({pane, maxNativeZoom:l.max, maxZoom:20, tileSize:256,
 const url = l => l.tuiles ? `${l.tuiles}/{z}/{x}/{y}.webp` : WMTS(l.id, l.f, l.st);
 const parCle = k => LAYERS.find(l => l.k===k);
 let past = [];
-const refLayers = {
-  "2025s": L.tileLayer(url(parCle("2025s")), opts(parCle("2025s"),'base')),
-  "2025a": L.tileLayer(url(parCle("2025a")), opts(parCle("2025a"),'base'))
-};
+const refLayers = {};   // couches affichées à droite du rideau, créées à la demande
+const nom = l => l.k==="2025a" ? "2025 · avion" : l.k==="2025s" ? "2025 · satellite"
+  : l.tuiles ? `${l.y} · photos recalées` : `${l.y} · ${l.d.toLowerCase()}`;
 const plan = L.tileLayer(WMTS("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2","image/png"),
   {pane:'plan', maxNativeZoom:19, maxZoom:20, opacity:.6});
 
@@ -215,8 +212,8 @@ const plan = L.tileLayer(WMTS("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2","image/png"),
 let compare=false;
 function buildTicks(){
   ticks.innerHTML='';
-  const max = compare ? LAST-1 : LAST;
-  LAYERS.slice(0,max+1).forEach((l,i)=>{
+  const max = LAST;
+  LAYERS.forEach((l,i)=>{
     const b=document.createElement('button');
     b.textContent = l.k==="2025a" ? "2025 avion" : l.k==="2025s" ? "satellite" : l.y;
     if(i%2===1 && i!==max) b.classList.add('minor');
@@ -226,15 +223,28 @@ function buildTicks(){
   });
 }
 
+/* fondu entre les années : au choix (case à cocher), retenu par le navigateur */
+let fondu=false;
+try{ fondu = localStorage.getItem('fondu')==='1'; }catch(e){}
+$('fondu').checked = fondu;
+function setFondu(f){
+  fondu=f; stopPlay();
+  try{ localStorage.setItem('fondu', f?'1':'0'); }catch(e){}
+  slider.step = f ? '0.01' : '1';
+  if(!f) slider.value = Math.round(+slider.value);
+  render();
+}
+$('fondu').onchange=e=>setFondu(e.target.checked);
+
 function render(){
-  const v=+slider.value, i=Math.floor(v), f=v-i;
+  // sans fondu : une seule année visible ; avec fondu : l'année suivante apparaît
+  // progressivement. Les voisines restent chargées pour un passage immédiat.
+  const v=+slider.value, i=fondu ? Math.floor(v) : Math.round(v), f=fondu ? v-i : 0;
   past.forEach((layer,j)=>{
-    // on garde sur la carte l'année affichée, la suivante et les voisines (préchargement)
     const keep = j>=i-1 && j<=i+2;
-    const op = j===i ? 1 : (j===i+1 ? f : 0);
     if(keep && !map.hasLayer(layer)) layer.addTo(map);
     if(!keep && map.hasLayer(layer)) map.removeLayer(layer);
-    if(keep) layer.setOpacity(op);
+    if(keep) layer.setOpacity(j===i ? 1 : (j===i+1 ? f : 0));
   });
   const n=Math.round(v), Ly=LAYERS[n];
   yearEl.firstChild.nodeValue = Ly.y;
@@ -247,11 +257,23 @@ slider.addEventListener('input', ()=>{ stopPlay(); render(); });
 /* ---------- comparer ---------- */
 let cx=.5;
 function setRef(){
-  Object.entries(refLayers).forEach(([k,l])=>{
-    const on = compare && $('ref').value===k;
+  const k = $('ref').value;
+  if(compare && k && !refLayers[k]){
+    const l = parCle(k);
+    refLayers[k] = L.tileLayer(url(l), opts(l,'base'));
+  }
+  Object.entries(refLayers).forEach(([cle,l])=>{
+    const on = compare && cle===k;
     if(on && !map.hasLayer(l)) l.addTo(map);
     if(!on && map.hasLayer(l)) map.removeLayer(l);
   });
+}
+function buildRef(){
+  // toutes les années au choix à droite du rideau ; 2025 satellite par défaut
+  const sel = $('ref'), avant = sel.value || "2025s";
+  sel.innerHTML = '';
+  LAYERS.forEach(l => sel.add(new Option(nom(l), l.k)));
+  sel.value = parCle(avant) ? avant : "2025s";
 }
 function clip(){
   const pane = map.getPane('past');
@@ -267,10 +289,8 @@ map.on('move zoom resize', clip);
 function setMode(c){
   compare=c; app.classList.toggle('compare',c);
   $('mScroll').setAttribute('aria-pressed',!c); $('mCompare').setAttribute('aria-pressed',c);
-  const max = c ? LAST-1 : LAST;
-  slider.max = max;
-  if(c && +slider.value>=max) slider.value = 0;
-  if(+slider.value>max) slider.value = max;
+  // à gauche du rideau : l'année du curseur (on part de la plus ancienne)
+  if(c && +slider.value===LAST) slider.value = 0;
   buildTicks(); setRef(); render(); clip();
 }
 $('mScroll').onclick=()=>setMode(false);
@@ -310,13 +330,27 @@ function showScale(){
 }
 map.on('zoomend', showScale); slider.addEventListener('input', showScale);
 
-/* ---------- lecture auto ---------- */
-let raf=null,last=0;
-function stopPlay(){ if(raf){cancelAnimationFrame(raf);raf=null;$('play').textContent='▶ Lecture';} }
+/* ---------- lecture auto ----------
+   sans fondu : une année toutes les 2 secondes ; avec fondu : glissement progressif
+   (pause sur chaque année, puis fondu vers la suivante) */
+let minuterie=null, raf=null, last=0;
+function stopPlay(){
+  if(minuterie){clearInterval(minuterie);minuterie=null;}
+  if(raf){cancelAnimationFrame(raf);raf=null;}
+  $('play').textContent='▶ Lecture';
+}
 $('play').onclick=()=>{
-  if(raf){stopPlay();return;}
-  if(+slider.value>=+slider.max) slider.value=0;
-  $('play').textContent='❚❚ Pause'; last=performance.now();
+  if(minuterie||raf){stopPlay();return;}
+  if(+slider.value>=+slider.max) { slider.value=0; render(); }
+  $('play').textContent='❚❚ Pause';
+  if(!fondu){
+    minuterie=setInterval(()=>{
+      slider.value=Math.min(+slider.max, Math.round(+slider.value)+1); render(); showScale();
+      if(+slider.value>=+slider.max) stopPlay();
+    }, 2000);
+    return;
+  }
+  last=performance.now();
   const step=t=>{
     const dt=(t-last)/1000; last=t;
     const v=+slider.value, frac=v-Math.floor(v);
@@ -357,8 +391,8 @@ async function demarrer(){
   }catch(e){ /* pas de liste : on garde les seules couches IGN */ }
   N = LAYERS.length; LAST = N-1;
   past = LAYERS.map((l,j) => L.tileLayer(url(l), opts(l,'past')).setZIndex(j));
-  slider.max = LAST; slider.value = LAST;
-  buildTicks(); render(); clip(); showScale();
+  slider.max = LAST; slider.step = fondu ? '0.01' : '1'; slider.value = LAST;
+  buildRef(); buildTicks(); render(); clip(); showScale();
 }
 demarrer();
 
