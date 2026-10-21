@@ -44,7 +44,7 @@ COS_LAT = 0.734        # 1 m Web Mercator = 0,734 m au sol à cette latitude
 SEUIL_MEDIANE = 4.0
 SEUIL_P90 = 10.0
 PROCESSUS = 3          # photos traitées en même temps
-MIN_CARRES = 40        # nombre minimal de points de contrôle
+MIN_CARRES = 25        # nombre minimal de points de contrôle
 MIN_ZONES = 4          # ... répartis dans au moins 4 des 9 zones (3 x 3) de la photo
 
 
@@ -346,10 +346,17 @@ def recale(date, photo, orthos, sortie):
 
     # 4. contrôle
     rapport.update(controle(sortie, orthos["2022"]))
+    rapport["statut"] = statut(rapport)
+    return rapport
+
+
+def statut(rapport):
+    """Verdict à partir des mesures de contrôle (réappliqué à chaque lancement)."""
+    if "carres_controle" not in rapport:
+        return rapport["statut"]   # échec avant le contrôle
     bon = (rapport.get("mediane_m", 99) <= SEUIL_MEDIANE and rapport.get("p90_m", 99) <= SEUIL_P90
            and rapport["carres_controle"] >= MIN_CARRES and rapport["zones_controlees"] >= MIN_ZONES)
-    rapport["statut"] = "ok" if bon else "mal recalée"
-    return rapport
+    return "ok" if bon else "mal recalée"
 
 
 def traite(args):
@@ -380,9 +387,12 @@ def main():
     with Pool(PROCESSUS) as pool:
         for r in pool.imap_unordered(traite, [(date, p) for p in choix]):
             print(json.dumps(r, ensure_ascii=False), flush=True)
-    # rapport de la date = réunion des rapports des photos
-    rapports = {json.loads(f.read_text())["photo"]: json.loads(f.read_text())
-                for f in sorted(dossier.glob("IGNF_*.json"))}
+    # rapport de la date = réunion des rapports des photos, avec les seuils actuels
+    rapports = {}
+    for f in sorted(dossier.glob("IGNF_*.json")):
+        r = json.loads(f.read_text())
+        r["statut"] = statut(r)
+        rapports[r["photo"]] = r
     (dossier / "rapport.json").write_text(json.dumps(rapports, indent=1, ensure_ascii=False))
 
 

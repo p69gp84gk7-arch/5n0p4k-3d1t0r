@@ -1,6 +1,7 @@
 """Image de contrôle d'une date : avant (photos brutes) / après (mosaïque recalée).
 
-Produit controle/<date>.jpg avec :
+Produit controle/<date>.csv (la liste des photos IGN originales utilisées, avec
+leur verdict et leur lien de téléchargement direct à l'IGN) et controle/<date>.jpg avec :
 - les photos brutes retenues (avant),
 - la mosaïque recalée, l'ortho 2022 et un damier des deux (après) : si les
   routes et les crêtes se prolongent d'une case à l'autre, le recalage est bon,
@@ -10,6 +11,7 @@ Produit controle/<date>.jpg avec :
 
 Usage : python3 scripts/controle.py 1958-10-25
 """
+import csv
 import json
 import sys
 
@@ -17,7 +19,7 @@ import numpy as np
 from osgeo import gdal
 from PIL import Image, ImageDraw, ImageFont
 
-from commun import BRUTS, CONTROLE, RECALES, REFERENCE, zone_merc
+from commun import BRUTS, CONTROLE, GEOPF, RECALES, REFERENCE, zone_merc
 
 gdal.UseExceptions()
 
@@ -174,6 +176,15 @@ def main():
     y += par_col * hl + 40
 
     CONTROLE.mkdir(parents=True, exist_ok=True)
+    missions = {p["id"]: p["mission"] for p in choix}
+    with open(CONTROLE / f"{date}.csv", "w", newline="", encoding="utf-8") as fc:
+        w = csv.writer(fc)
+        w.writerow(["photo", "verdict", "ecart_median_m", "ecart_90pc_m", "points_controle",
+                    "zones_controlees", "telechargement_ign"])
+        for r in sorted(rapports.values(), key=lambda q: q["photo"]):
+            w.writerow([r["photo"], r["statut"], r.get("mediane_m", ""), r.get("p90_m", ""),
+                        r.get("carres_controle", ""), r.get("zones_controlees", ""),
+                        f"{GEOPF}/telechargement/download/pva/{missions.get(r['photo'], '')}/{r['photo']}.tif"])
     sortie = CONTROLE / f"{date}.jpg"
     img.crop((0, 0, L, y)).save(sortie, quality=85)
     print("OK :", sortie)

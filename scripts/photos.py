@@ -149,8 +149,13 @@ def main():
         return
     choix, couvert = choisir(dates[date])
     print(f"{date} : {len(choix)} photos retenues sur {len(dates[date])}, zone couverte à {couvert:.0%}")
+    # on garde les photos déjà choisies lors d'un lancement précédent (compléments)
+    fichier = BRUTS / date / "choix.json"
+    if fichier.exists():
+        ids = {p["id"] for p in choix}
+        choix += [p for p in json.loads(fichier.read_text()) if p["id"] not in ids]
     telecharge_photos(date, choix)
-    (BRUTS / date / "choix.json").write_text(json.dumps(choix, indent=1))
+    fichier.write_text(json.dumps(choix, indent=1))
 
 
 if __name__ == "__main__":

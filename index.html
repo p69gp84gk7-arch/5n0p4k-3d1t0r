@@ -173,8 +173,9 @@ const LAYERS = [
   {k:"2025a",   y:"2025",    d:"Photo d’avion", id:"ORTHOIMAGERY.ORTHOPHOTOS.ORTHO-EXPRESS.2025", f:"image/jpeg", max:19},
   {k:"2025s",   y:"2025",    d:"Satellite",     id:"ORTHOIMAGERY.ORTHO-SAT.SPOT.2025",   f:"image/jpeg", max:17}
 ];
-/* Années recalées à partir des photos IGN brutes : liste tenue à jour par les
-   scripts (tiles/annees.json), insérée dans la frise par ordre chronologique. */
+/* Années recalées à partir des photos IGN brutes : annees.json liste les dates
+   prévues ; seules celles dont le dossier tiles/<date>/ est publié sont ajoutées
+   à la frise, par ordre chronologique. */
 const ZONE_TUILES = [[42.745, 0.515], [42.810, 0.615]];
 const debut = l => parseInt(l.y, 10);
 let N = LAYERS.length, LAST = N-1;
@@ -337,9 +338,12 @@ document.addEventListener('keydown',e=>{
 
 async function demarrer(){
   try{
-    const r = await fetch('tiles/annees.json', {cache:'no-cache'});
+    const r = await fetch('annees.json', {cache:'no-cache'});
     if(r.ok){
-      const annees = await r.json();
+      const prevues = await r.json();
+      const publiees = await Promise.all(prevues.map(a =>
+        fetch(`tiles/${a.date}/info.json`, {method:'HEAD', cache:'no-cache'}).then(x => x.ok, () => false)));
+      const annees = prevues.filter((a, i) => publiees[i]);
       // les références 2025 restent en fin de frise ; les autres couches sont triées par année
       const refs = LAYERS.filter(l => l.k.startsWith('2025'));
       const autres = LAYERS.filter(l => !l.k.startsWith('2025'));
