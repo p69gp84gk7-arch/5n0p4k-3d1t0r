@@ -56,7 +56,6 @@ SEUIL_GROSSIER = 8.0          # écart médian maximal (m)
 DECALAGE_MAX = 20.0           # un secteur décalé de plus de 20 m est retiré de la mosaïque
 MARGE_SECTEUR = 200.0         # ... avec 200 m autour
 PORTEE_REPERE = 160.0         # au-delà, un secteur n'a pas de repère vérifié tout près : non vérifié, retiré
-SCORE_SUR = 0.5              # ressemblance assez forte pour croire un décalage même isolé
 PART_GARDEE_MIN = 0.20        # une photo dont il reste moins de 20 % est écartée
 
 
@@ -349,16 +348,16 @@ def controle_grossier(out, ortho2022, chemin_secteurs):
     hh, ww = min(h, ref.shape[0]), min(w, ref.shape[1])
     # le carré de la photo doit être entier, mais la recherche peut sortir de la photo
     # (sinon les 400 m du bord, là où les photos se déforment le plus, ne sont jamais contrôlés)
-    pts, dec, score = correlation_carres(img[:hh, :ww], ref[:hh, :ww], alpha[:hh, :ww], pas=24, taille=64,
+    pts, dec, _ = correlation_carres(img[:hh, :ww], ref[:hh, :ww], alpha[:hh, :ww], pas=24, taille=64,
                                          recherche=80, seuil=0.3, valide_ref=ref_valide[:hh, :ww])
     garde = filtre_voisins(pts, dec, rayon=220, tol=3.0)
     if garde.sum() < 10:
         return {"grossier_carres": int(garde.sum())}
     ecart = np.linalg.norm(dec, axis=1) * res * COS_LAT
     bon = garde & (ecart <= DECALAGE_MAX)
-    # un décalage compte s'il est confirmé par les voisins ou si la ressemblance est forte :
-    # un carré décalé ne doit pas disparaître comme « fausse ressemblance »
-    mauvais = (ecart > DECALAGE_MAX) & (garde | (score >= SCORE_SUR))
+    # un décalage compte s'il est confirmé par les carrés voisins (une partie de photo
+    # mal placée l'est d'un seul tenant) ; un carré isolé est une fausse ressemblance
+    mauvais = (ecart > DECALAGE_MAX) & garde
     # carte des secteurs : bien placé seulement tout près d'un carré vérifié bon
     ys, xs = np.mgrid[0:h, 0:w]
     grille = np.column_stack([xs.ravel(), ys.ravel()]).astype(np.float32)
