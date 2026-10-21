@@ -318,7 +318,7 @@ def recale(date, photo, orthos, sortie):
     scan = Scan(BRUTS / date / (photo["id"] + ".tif"), mpp=1.0)
     scan.mpp = max(emp[2] - emp[0], emp[3] - emp[1]) / max(scan.W, scan.H)
     W, H = scan.W, scan.H
-    rapport = {"photo": photo["id"]}
+    rapport = {"photo": photo["id"], "finesse_m": round(float(scan.mpp), 3)}
 
     # 1. départ : emprise IGN
     gcp_photo, gcp_geo = depart_emprise(photo, scan)

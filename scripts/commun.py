@@ -15,7 +15,7 @@ WMS_ORTHO = GEOPF + "/wms-r"
 COUCHE_ORTHO = "ORTHOIMAGERY.ORTHOPHOTOS2022"
 
 # Dossiers : le dépôt, et un dossier de travail hors dépôt (fichiers lourds)
-DEPOT = Path(__file__).resolve().parent.parent
+DEPOT = Path(os.environ.get("SB_DEPOT", Path(__file__).resolve().parent.parent))
 TRAVAIL = Path(os.environ.get("SB_TRAVAIL", DEPOT / "travail"))
 BRUTS = TRAVAIL / "bruts"          # TIFF IGN téléchargés
 REFERENCE = TRAVAIL / "reference"  # ortho 2022 de référence

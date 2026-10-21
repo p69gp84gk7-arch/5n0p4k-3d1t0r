@@ -344,10 +344,13 @@ async function demarrer(){
       const publiees = await Promise.all(prevues.map(a =>
         fetch(`tiles/${a.date}/info.json`, {method:'HEAD', cache:'no-cache'}).then(x => x.ok, () => false)));
       const annees = prevues.filter((a, i) => publiees[i]);
+      // zoom maximal publié pour chaque date (17 ou 18, selon la finesse des photos)
+      await Promise.all(annees.map(a => fetch(`tiles/${a.date}/info.json`, {cache:'no-cache'})
+        .then(x => x.json()).then(i => { a.max = i.max || 18; }, () => { a.max = 18; })));
       // les références 2025 restent en fin de frise ; les autres couches sont triées par année
       const refs = LAYERS.filter(l => l.k.startsWith('2025'));
       const autres = LAYERS.filter(l => !l.k.startsWith('2025'));
-      annees.forEach(a => autres.push({k:a.date, y:a.annee, d:a.description, tuiles:`tiles/${a.date}`, max:18}));
+      annees.forEach(a => autres.push({k:a.date, y:a.annee, d:a.description, tuiles:`tiles/${a.date}`, max:a.max}));
       autres.sort((a,b) => debut(a)-debut(b));
       LAYERS.splice(0, LAYERS.length, ...autres, ...refs);
     }
