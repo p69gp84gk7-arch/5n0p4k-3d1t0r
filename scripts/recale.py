@@ -53,7 +53,10 @@ MIN_ZONES = 4          # ... répartis dans au moins 4 des 9 zones (3 x 3) de la
 # photo partie au mauvais endroit, que le contrôle fin (recherche ~20 m) ne voit pas
 RES_GROSSIER = 4.0
 SEUIL_GROSSIER = 8.0          # écart médian maximal (m)
-SEUIL_PART_DECALEE = 0.15     # part maximale des carrés décalés de plus de 20 m
+DECALAGE_MAX = 20.0           # un secteur décalé de plus de 20 m est retiré de la mosaïque
+MARGE_SECTEUR = 200.0         # ... avec 200 m autour
+PORTEE_REPERE = 800.0         # au-delà, un secteur n'a pas de repère comparable (non vérifié)
+PART_GARDEE_MIN = 0.30        # une photo dont il reste moins de 30 % est écartée
 
 
 def historique_pour(date):
@@ -321,12 +324,15 @@ def controle(sortie, ortho2022, res=RES_FINE):
             "p90_m": round(float(np.percentile(ecart, 90)), 2),
             "carres_controle": int(len(ecart)),
             "zones_controlees": int(zones),
-            **controle_grossier(out, ortho2022)}
+            **controle_grossier(out, ortho2022, sortie.with_name(sortie.stem + "_secteurs.tif"))}
 
 
-def controle_grossier(out, ortho2022):
+def controle_grossier(out, ortho2022, chemin_secteurs):
     """Écart à grande échelle avec l'ortho 2022 : grands carrés (250 m), recherche
-    jusqu'à 200 m. Détecte une photo (ou une partie) placée au mauvais endroit."""
+    jusqu'à 200 m. Détecte une photo (ou une partie) placée au mauvais endroit.
+
+    Écrit aussi la carte des secteurs de la photo (4 m par pixel) : 0 = décalé (retiré
+    de la mosaïque), 1 = vérifié bien placé, 2 = sans repère comparable (gardé)."""
     res = RES_GROSSIER
     gt = out.GetGeoTransform()
     w, h = int(out.RasterXSize * gt[1] / res), int(out.RasterYSize * -gt[5] / res)
@@ -339,10 +345,28 @@ def controle_grossier(out, ortho2022):
     garde = filtre_voisins(pts, dec, rayon=150, tol=3.0)
     if garde.sum() < 10:
         return {"grossier_carres": int(garde.sum())}
+    pts = pts[garde]
     ecart = np.linalg.norm(dec[garde], axis=1) * res * COS_LAT
-    return {"grossier_carres": int(garde.sum()),
+    decale = ecart > DECALAGE_MAX
+    # carte des secteurs
+    ys, xs = np.mgrid[0:h, 0:w]
+    grille = np.column_stack([xs.ravel(), ys.ravel()]).astype(np.float32)
+    d_proche, i_proche = cKDTree(pts).query(grille)
+    secteurs = np.where(d_proche * res > PORTEE_REPERE, 2, np.where(decale[i_proche], 0, 1))
+    if decale.any():
+        d_mauvais, _ = cKDTree(pts[decale]).query(grille)
+        secteurs[d_mauvais * res < MARGE_SECTEUR] = 0
+    secteurs = secteurs.reshape(h, w).astype(np.uint8)
+    ds = gdal.GetDriverByName("GTiff").Create(str(chemin_secteurs), w, h, 1, gdal.GDT_Byte, ["COMPRESS=DEFLATE"])
+    ds.SetGeoTransform((gt[0], res, 0, gt[3], 0, -res))
+    ds.SetProjection("EPSG:3857")
+    ds.GetRasterBand(1).WriteArray(secteurs)
+    ds = None
+    part_gardee = float((secteurs[alpha] > 0).mean()) if alpha.any() else 0.0
+    return {"grossier_carres": int(len(pts)),
             "grossier_m": round(float(np.median(ecart)), 1),
-            "grossier_part_decalee": round(float((ecart > 20).mean()), 2)}
+            "grossier_part_decalee": round(float(decale.mean()), 2),
+            "part_gardee": round(part_gardee, 2)}
 
 
 def recale(date, photo, orthos, sortie):
@@ -418,7 +442,7 @@ def statut(rapport):
     bon = (rapport.get("mediane_m", 99) <= SEUIL_MEDIANE and rapport.get("p90_m", 99) <= SEUIL_P90
            and rapport["carres_controle"] >= MIN_CARRES and rapport["zones_controlees"] >= MIN_ZONES
            and rapport.get("grossier_m", 0) <= SEUIL_GROSSIER
-           and rapport.get("grossier_part_decalee", 0) <= SEUIL_PART_DECALEE)
+           and rapport.get("part_gardee", 1) >= PART_GARDEE_MIN)
     return "ok" if bon else "mal recalée"
 
 

@@ -6,7 +6,8 @@ qu'elle est la moins déformée). Les raccords sont fondus :
 - la luminosité et le contraste généraux sur une bande large (FONDU_LUMIERE),
   pour éviter les différences de teinte entre deux clichés voisins,
 - et chaque photo s'estompe aussi près de ses propres bords (FONDU_BORD).
-Seules les photos marquées « ok » par recale.py sont utilisées.
+Seules les photos marquées « ok » par recale.py sont utilisées, et sans leurs
+secteurs décalés (carte <photo>_secteurs.tif écrite par le contrôle grossier).
 
 Usage : python3 scripts/mosaique.py 1958-10-25
 """
@@ -37,11 +38,20 @@ class Photo:
         self.x0, self.y1 = gt[0], gt[3]
         self.w, self.h = self.ds.RasterXSize, self.ds.RasterYSize
         self.centre = centre
+        # secteurs décalés à retirer (0 = décalé)
+        self.secteurs = None
+        chemin_secteurs = chemin.with_name(chemin.stem + "_secteurs.tif")
+        if chemin_secteurs.exists():
+            s = gdal.Open(str(chemin_secteurs))
+            self.secteurs, self.s_gt = s.GetRasterBand(1).ReadAsArray(), s.GetGeoTransform()
         # luminosité générale (moyenne locale, sans tenir compte des zones vides)
         img = self.ds.GetRasterBand(1).ReadAsArray(buf_xsize=self.w // REDUC, buf_ysize=self.h // REDUC,
                                                    resample_alg=gdal.GRIORA_Average).astype(np.float32)
         a = (self.ds.GetRasterBand(2).ReadAsArray(buf_xsize=self.w // REDUC, buf_ysize=self.h // REDUC,
                                                   resample_alg=gdal.GRIORA_NearestNeighbour) > 0).astype(np.float32)
+        gx = self.x0 + (np.arange(a.shape[1]) + 0.5) * RES * REDUC
+        gy = self.y1 - (np.arange(a.shape[0]) + 0.5) * RES * REDUC
+        a *= self.garde(gx, gy)
         den = np.maximum(cv2.GaussianBlur(a, (0, 0), SIGMA_LUMIERE), 1e-3)
         self.lumiere = (cv2.GaussianBlur(img * a, (0, 0), SIGMA_LUMIERE) / den).astype(np.float32)
         ecart2 = cv2.GaussianBlur(((img - self.lumiere) ** 2) * a, (0, 0), SIGMA_LUMIERE) / den
@@ -49,6 +59,15 @@ class Photo:
         # distance au bord de la partie utile (mètres)
         self.bord = (cv2.distanceTransform((a > 0).astype(np.uint8), cv2.DIST_L2, 5)
                      * REDUC * RES).astype(np.float32)
+
+    def garde(self, xs, ys):
+        """Masque des secteurs à garder, pour une grille (xs, ys) en mètres."""
+        if self.secteurs is None:
+            return np.ones((len(ys), len(xs)), bool)
+        g = self.s_gt
+        ix = np.clip(((xs - g[0]) / g[1]).astype(int), 0, self.secteurs.shape[1] - 1)
+        iy = np.clip(((ys - g[3]) / g[5]).astype(int), 0, self.secteurs.shape[0] - 1)
+        return self.secteurs[iy[:, None], ix[None, :]] > 0
 
     def fenetre(self, bx0, by1, bw, bh):
         """Lit le morceau de la photo qui tombe dans le bloc (ou None)."""
@@ -64,6 +83,8 @@ class Photo:
         sl = (slice(y0 - oy, y1 - oy), slice(x0 - ox, x1 - ox))
         img[sl] = self.ds.GetRasterBand(1).ReadAsArray(x0, y0, x1 - x0, y1 - y0)
         alpha[sl] = self.ds.GetRasterBand(2).ReadAsArray(x0, y0, x1 - x0, y1 - y0) > 0
+        alpha[sl] &= self.garde(self.x0 + (np.arange(x0, x1) + 0.5) * RES,
+                                self.y1 - (np.arange(y0, y1) + 0.5) * RES)
         # luminosité, contraste et distance au bord, agrandis à la taille du morceau
         gx = (np.arange(x0, x1) + 0.5) / REDUC - 0.5
         gy = (np.arange(y0, y1) + 0.5) / REDUC - 0.5
