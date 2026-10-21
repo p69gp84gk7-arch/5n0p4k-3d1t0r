@@ -36,7 +36,8 @@ RES_FINE = 0.6         # m Web Mercator / pixel (zoom 18)
 RES_GLOBALE = 4.0      # résolution de la correction globale
 RETRAIT_EMPRISE = 0.03 # les sommets de l'emprise IGN tombent un peu à l'intérieur du scan
 # passes fines : (résolution m, taille des carrés px, recherche px, tolérance px, références)
-PASSES = [(2.4, 64, 20, 4.0, ("histo", "2022")),
+PASSES = [(6.0, 48, 30, 3.0, ("histo", "2022")),   # rattrape des décalages locaux jusqu'à ~180 m
+          (2.4, 64, 20, 4.0, ("histo", "2022")),
           (1.2, 64, 12, 3.0, ("histo", "2022")),
           (0.6, 64, 8, 2.0, ("2022",))]
 DEBORD = 600           # marge autour de l'emprise annoncée par l'IGN (m)
@@ -48,6 +49,11 @@ SEUIL_P90 = 10.0
 PROCESSUS = 3          # photos traitées en même temps
 MIN_CARRES = 25        # nombre minimal de points de contrôle
 MIN_ZONES = 4          # ... répartis dans au moins 4 des 9 zones (3 x 3) de la photo
+# Contrôle grossier (grands carrés de 250 m, recherche jusqu'à 200 m) : détecte une
+# photo partie au mauvais endroit, que le contrôle fin (recherche ~20 m) ne voit pas
+RES_GROSSIER = 4.0
+SEUIL_GROSSIER = 8.0          # écart médian maximal (m)
+SEUIL_PART_DECALEE = 0.15     # part maximale des carrés décalés de plus de 20 m
 
 
 def historique_pour(date):
@@ -314,7 +320,29 @@ def controle(sortie, ortho2022, res=RES_FINE):
     return {"mediane_m": round(float(np.median(ecart)), 2),
             "p90_m": round(float(np.percentile(ecart, 90)), 2),
             "carres_controle": int(len(ecart)),
-            "zones_controlees": int(zones)}
+            "zones_controlees": int(zones),
+            **controle_grossier(out, ortho2022)}
+
+
+def controle_grossier(out, ortho2022):
+    """Écart à grande échelle avec l'ortho 2022 : grands carrés (250 m), recherche
+    jusqu'à 200 m. Détecte une photo (ou une partie) placée au mauvais endroit."""
+    res = RES_GROSSIER
+    gt = out.GetGeoTransform()
+    w, h = int(out.RasterXSize * gt[1] / res), int(out.RasterYSize * -gt[5] / res)
+    img = out.GetRasterBand(1).ReadAsArray(buf_xsize=w, buf_ysize=h, resample_alg=gdal.GRIORA_Average)
+    alpha = out.GetRasterBand(out.RasterCount).ReadAsArray(buf_xsize=w, buf_ysize=h) > 0
+    ref, ref_valide, _ = ortho2022.lire(gt[0], gt[3] - h * res, gt[0] + w * res, gt[3], res)
+    hh, ww = min(h, ref.shape[0]), min(w, ref.shape[1])
+    pts, dec, _ = correlation_carres(img[:hh, :ww], ref[:hh, :ww], alpha[:hh, :ww] & ref_valide[:hh, :ww],
+                                     pas=24, taille=64, recherche=50, seuil=0.3)
+    garde = filtre_voisins(pts, dec, rayon=150, tol=3.0)
+    if garde.sum() < 10:
+        return {"grossier_carres": int(garde.sum())}
+    ecart = np.linalg.norm(dec[garde], axis=1) * res * COS_LAT
+    return {"grossier_carres": int(garde.sum()),
+            "grossier_m": round(float(np.median(ecart)), 1),
+            "grossier_part_decalee": round(float((ecart > 20).mean()), 2)}
 
 
 def recale(date, photo, orthos, sortie):
@@ -388,7 +416,9 @@ def statut(rapport):
     if "carres_controle" not in rapport:
         return rapport["statut"]   # échec avant le contrôle
     bon = (rapport.get("mediane_m", 99) <= SEUIL_MEDIANE and rapport.get("p90_m", 99) <= SEUIL_P90
-           and rapport["carres_controle"] >= MIN_CARRES and rapport["zones_controlees"] >= MIN_ZONES)
+           and rapport["carres_controle"] >= MIN_CARRES and rapport["zones_controlees"] >= MIN_ZONES
+           and rapport.get("grossier_m", 0) <= SEUIL_GROSSIER
+           and rapport.get("grossier_part_decalee", 0) <= SEUIL_PART_DECALEE)
     return "ok" if bon else "mal recalée"
 
 
