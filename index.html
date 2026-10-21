@@ -148,6 +148,7 @@ body{background:var(--bg);color:var(--ink);font-family:Barlow,"Segoe UI",system-
         <button id="mCompare" aria-pressed="false">Comparer</button>
       </div>
       <button class="play" id="play">▶ Lecture</button>
+      <label class="check"><input type="checkbox" id="fondu"> Fondu entre les années</label>
       <label class="check"><input type="checkbox" id="plan"> Superposer la carte IGN</label>
     </div>
   </div>
@@ -222,17 +223,30 @@ function buildTicks(){
   });
 }
 
+/* fondu entre les années : au choix (case à cocher), retenu par le navigateur */
+let fondu=false;
+try{ fondu = localStorage.getItem('fondu')==='1'; }catch(e){}
+$('fondu').checked = fondu;
+function setFondu(f){
+  fondu=f; stopPlay();
+  try{ localStorage.setItem('fondu', f?'1':'0'); }catch(e){}
+  slider.step = f ? '0.01' : '1';
+  if(!f) slider.value = Math.round(+slider.value);
+  render();
+}
+$('fondu').onchange=e=>setFondu(e.target.checked);
+
 function render(){
-  // une seule année visible à la fois, sans fondu ; les voisines restent chargées
-  // (invisibles) pour que le passage d'une année à l'autre soit immédiat
-  const i=Math.round(+slider.value);
+  // sans fondu : une seule année visible ; avec fondu : l'année suivante apparaît
+  // progressivement. Les voisines restent chargées pour un passage immédiat.
+  const v=+slider.value, i=fondu ? Math.floor(v) : Math.round(v), f=fondu ? v-i : 0;
   past.forEach((layer,j)=>{
-    const keep = j>=i-1 && j<=i+1;
+    const keep = j>=i-1 && j<=i+2;
     if(keep && !map.hasLayer(layer)) layer.addTo(map);
     if(!keep && map.hasLayer(layer)) map.removeLayer(layer);
-    if(keep) layer.setOpacity(j===i ? 1 : 0);
+    if(keep) layer.setOpacity(j===i ? 1 : (j===i+1 ? f : 0));
   });
-  const n=i, Ly=LAYERS[n];
+  const n=Math.round(v), Ly=LAYERS[n];
   yearEl.firstChild.nodeValue = Ly.y;
   yearEl.querySelector('small').textContent = Ly.d;
   $('tagLeft').textContent = Ly.y + (Ly.k==="2025a" ? " · avion" : "");
@@ -316,17 +330,37 @@ function showScale(){
 }
 map.on('zoomend', showScale); slider.addEventListener('input', showScale);
 
-/* ---------- lecture auto : une année toutes les 2 secondes, sans fondu ---------- */
-let minuterie=null;
-function stopPlay(){ if(minuterie){clearInterval(minuterie);minuterie=null;$('play').textContent='▶ Lecture';} }
+/* ---------- lecture auto ----------
+   sans fondu : une année toutes les 2 secondes ; avec fondu : glissement progressif
+   (pause sur chaque année, puis fondu vers la suivante) */
+let minuterie=null, raf=null, last=0;
+function stopPlay(){
+  if(minuterie){clearInterval(minuterie);minuterie=null;}
+  if(raf){cancelAnimationFrame(raf);raf=null;}
+  $('play').textContent='▶ Lecture';
+}
 $('play').onclick=()=>{
-  if(minuterie){stopPlay();return;}
+  if(minuterie||raf){stopPlay();return;}
   if(+slider.value>=+slider.max) { slider.value=0; render(); }
   $('play').textContent='❚❚ Pause';
-  minuterie=setInterval(()=>{
-    slider.value=Math.min(+slider.max, +slider.value+1); render(); showScale();
-    if(+slider.value>=+slider.max) stopPlay();
-  }, 2000);
+  if(!fondu){
+    minuterie=setInterval(()=>{
+      slider.value=Math.min(+slider.max, Math.round(+slider.value)+1); render(); showScale();
+      if(+slider.value>=+slider.max) stopPlay();
+    }, 2000);
+    return;
+  }
+  last=performance.now();
+  const step=t=>{
+    const dt=(t-last)/1000; last=t;
+    const v=+slider.value, frac=v-Math.floor(v);
+    const speed = frac<0.02||frac>0.98 ? 0.35 : 0.9;
+    const nv=Math.min(+slider.max, v+dt*speed);
+    slider.value=nv; render();
+    if(nv>=+slider.max){stopPlay();return;}
+    raf=requestAnimationFrame(step);
+  };
+  raf=requestAnimationFrame(step);
 };
 
 /* flèches du clavier = années */
@@ -357,7 +391,7 @@ async function demarrer(){
   }catch(e){ /* pas de liste : on garde les seules couches IGN */ }
   N = LAYERS.length; LAST = N-1;
   past = LAYERS.map((l,j) => L.tileLayer(url(l), opts(l,'past')).setZIndex(j));
-  slider.max = LAST; slider.value = LAST;
+  slider.max = LAST; slider.step = fondu ? '0.01' : '1'; slider.value = LAST;
   buildRef(); buildTicks(); render(); clip(); showScale();
 }
 demarrer();
