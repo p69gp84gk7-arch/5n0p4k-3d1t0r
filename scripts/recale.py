@@ -36,7 +36,8 @@ RES_FINE = 0.6         # m Web Mercator / pixel (zoom 18)
 RES_GLOBALE = 4.0      # résolution de la correction globale
 RETRAIT_EMPRISE = 0.03 # les sommets de l'emprise IGN tombent un peu à l'intérieur du scan
 # passes fines : (résolution m, taille des carrés px, recherche px, tolérance px, références)
-PASSES = [(2.4, 64, 20, 4.0, ("histo", "2022")),
+PASSES = [(6.0, 48, 30, 3.0, ("histo", "2022")),   # rattrape des décalages locaux jusqu'à ~180 m
+          (2.4, 64, 20, 4.0, ("histo", "2022")),
           (1.2, 64, 12, 3.0, ("histo", "2022")),
           (0.6, 64, 8, 2.0, ("2022",))]
 DEBORD = 600           # marge autour de l'emprise annoncée par l'IGN (m)
@@ -48,6 +49,14 @@ SEUIL_P90 = 10.0
 PROCESSUS = 3          # photos traitées en même temps
 MIN_CARRES = 25        # nombre minimal de points de contrôle
 MIN_ZONES = 4          # ... répartis dans au moins 4 des 9 zones (3 x 3) de la photo
+# Contrôle grossier (grands carrés de 250 m, recherche jusqu'à 200 m) : détecte une
+# photo partie au mauvais endroit, que le contrôle fin (recherche ~20 m) ne voit pas
+RES_GROSSIER = 4.0
+SEUIL_GROSSIER = 8.0          # écart médian maximal (m)
+DECALAGE_MAX = 20.0           # un secteur décalé de plus de 20 m est retiré de la mosaïque
+MARGE_SECTEUR = 200.0         # ... avec 200 m autour
+PORTEE_REPERE = 800.0         # au-delà, un secteur n'a pas de repère comparable (non vérifié)
+PART_GARDEE_MIN = 0.30        # une photo dont il reste moins de 30 % est écartée
 
 
 def historique_pour(date):
@@ -314,7 +323,50 @@ def controle(sortie, ortho2022, res=RES_FINE):
     return {"mediane_m": round(float(np.median(ecart)), 2),
             "p90_m": round(float(np.percentile(ecart, 90)), 2),
             "carres_controle": int(len(ecart)),
-            "zones_controlees": int(zones)}
+            "zones_controlees": int(zones),
+            **controle_grossier(out, ortho2022, sortie.with_name(sortie.stem + "_secteurs.tif"))}
+
+
+def controle_grossier(out, ortho2022, chemin_secteurs):
+    """Écart à grande échelle avec l'ortho 2022 : grands carrés (250 m), recherche
+    jusqu'à 200 m. Détecte une photo (ou une partie) placée au mauvais endroit.
+
+    Écrit aussi la carte des secteurs de la photo (4 m par pixel) : 0 = décalé (retiré
+    de la mosaïque), 1 = vérifié bien placé, 2 = sans repère comparable (gardé)."""
+    res = RES_GROSSIER
+    gt = out.GetGeoTransform()
+    w, h = int(out.RasterXSize * gt[1] / res), int(out.RasterYSize * -gt[5] / res)
+    img = out.GetRasterBand(1).ReadAsArray(buf_xsize=w, buf_ysize=h, resample_alg=gdal.GRIORA_Average)
+    alpha = out.GetRasterBand(out.RasterCount).ReadAsArray(buf_xsize=w, buf_ysize=h) > 0
+    ref, ref_valide, _ = ortho2022.lire(gt[0], gt[3] - h * res, gt[0] + w * res, gt[3], res)
+    hh, ww = min(h, ref.shape[0]), min(w, ref.shape[1])
+    pts, dec, _ = correlation_carres(img[:hh, :ww], ref[:hh, :ww], alpha[:hh, :ww] & ref_valide[:hh, :ww],
+                                     pas=24, taille=64, recherche=50, seuil=0.3)
+    garde = filtre_voisins(pts, dec, rayon=150, tol=3.0)
+    if garde.sum() < 10:
+        return {"grossier_carres": int(garde.sum())}
+    pts = pts[garde]
+    ecart = np.linalg.norm(dec[garde], axis=1) * res * COS_LAT
+    decale = ecart > DECALAGE_MAX
+    # carte des secteurs
+    ys, xs = np.mgrid[0:h, 0:w]
+    grille = np.column_stack([xs.ravel(), ys.ravel()]).astype(np.float32)
+    d_proche, i_proche = cKDTree(pts).query(grille)
+    secteurs = np.where(d_proche * res > PORTEE_REPERE, 2, np.where(decale[i_proche], 0, 1))
+    if decale.any():
+        d_mauvais, _ = cKDTree(pts[decale]).query(grille)
+        secteurs[d_mauvais * res < MARGE_SECTEUR] = 0
+    secteurs = secteurs.reshape(h, w).astype(np.uint8)
+    ds = gdal.GetDriverByName("GTiff").Create(str(chemin_secteurs), w, h, 1, gdal.GDT_Byte, ["COMPRESS=DEFLATE"])
+    ds.SetGeoTransform((gt[0], res, 0, gt[3], 0, -res))
+    ds.SetProjection("EPSG:3857")
+    ds.GetRasterBand(1).WriteArray(secteurs)
+    ds = None
+    part_gardee = float((secteurs[alpha] > 0).mean()) if alpha.any() else 0.0
+    return {"grossier_carres": int(len(pts)),
+            "grossier_m": round(float(np.median(ecart)), 1),
+            "grossier_part_decalee": round(float(decale.mean()), 2),
+            "part_gardee": round(part_gardee, 2)}
 
 
 def recale(date, photo, orthos, sortie):
@@ -388,7 +440,9 @@ def statut(rapport):
     if "carres_controle" not in rapport:
         return rapport["statut"]   # échec avant le contrôle
     bon = (rapport.get("mediane_m", 99) <= SEUIL_MEDIANE and rapport.get("p90_m", 99) <= SEUIL_P90
-           and rapport["carres_controle"] >= MIN_CARRES and rapport["zones_controlees"] >= MIN_ZONES)
+           and rapport["carres_controle"] >= MIN_CARRES and rapport["zones_controlees"] >= MIN_ZONES
+           and rapport.get("grossier_m", 0) <= SEUIL_GROSSIER
+           and rapport.get("part_gardee", 1) >= PART_GARDEE_MIN)
     return "ok" if bon else "mal recalée"
 
 

@@ -103,7 +103,13 @@ def complete(date, toutes):
         if r.get("statut") == "ok":
             ds = gdal.Warp("", str(RECALES / date / (r["photo"] + ".tif")), format="MEM",
                            outputBounds=(x0, y0, x1, y1), width=w, height=h, resampleAlg="near")
-            couvert |= ds.GetRasterBand(2).ReadAsArray() > 0
+            utile = ds.GetRasterBand(2).ReadAsArray() > 0
+            secteurs = RECALES / date / (r["photo"] + "_secteurs.tif")
+            if secteurs.exists():   # sans les secteurs décalés
+                s = gdal.Warp("", str(secteurs), format="MEM", outputBounds=(x0, y0, x1, y1),
+                              width=w, height=h, resampleAlg="near", dstNodata=0)
+                utile &= s.GetRasterBand(1).ReadAsArray() > 0
+            couvert |= utile
     choix = json.loads((BRUTS / date / "choix.json").read_text())
     essayees = {p["id"] for p in choix}
     candidats = [p for p in toutes if p["id"] not in essayees]
