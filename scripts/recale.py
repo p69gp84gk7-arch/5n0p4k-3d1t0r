@@ -16,7 +16,7 @@ Usage : python3 scripts/recale.py 1958-10-25 [fin_du_nom_de_photo ...]
 """
 import json
 import sys
-from multiprocessing import Pool
+from multiprocessing import get_context
 
 import cv2
 import numpy as np
@@ -409,7 +409,9 @@ def main():
         choix = [p for p in choix if any(p["id"].endswith(s) for s in sys.argv[2:])]
     else:                   # sinon on ne refait pas celles déjà traitées
         choix = [p for p in choix if not (dossier / (p["id"] + ".json")).exists()]
-    with Pool(PROCESSUS) as pool:
+    # processus de travail démarrés « à neuf » (spawn) : un fork après que GDAL / OpenCV
+    # ont lancé leurs fils d'exécution peut bloquer indéfiniment
+    with get_context("spawn").Pool(PROCESSUS, maxtasksperchild=4) as pool:
         for r in pool.imap_unordered(traite, [(date, p) for p in choix]):
             print(json.dumps(r, ensure_ascii=False), flush=True)
     # rapport de la date = réunion des rapports des photos, avec les seuils actuels
