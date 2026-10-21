@@ -55,8 +55,8 @@ RES_GROSSIER = 4.0
 SEUIL_GROSSIER = 8.0          # écart médian maximal (m)
 DECALAGE_MAX = 20.0           # un secteur décalé de plus de 20 m est retiré de la mosaïque
 MARGE_SECTEUR = 200.0         # ... avec 200 m autour
-PORTEE_REPERE = 800.0         # au-delà, un secteur n'a pas de repère comparable (non vérifié)
-PART_GARDEE_MIN = 0.30        # une photo dont il reste moins de 30 % est écartée
+PORTEE_REPERE = 400.0         # au-delà, un secteur n'a pas de repère comparable : non vérifié, retiré
+PART_GARDEE_MIN = 0.20        # une photo dont il reste moins de 20 % est écartée
 
 
 def historique_pour(date):
@@ -329,10 +329,10 @@ def controle(sortie, ortho2022, res=RES_FINE):
 
 def controle_grossier(out, ortho2022, chemin_secteurs):
     """Écart à grande échelle avec l'ortho 2022 : grands carrés (250 m), recherche
-    jusqu'à 200 m. Détecte une photo (ou une partie) placée au mauvais endroit.
+    jusqu'à 320 m. Détecte une photo (ou une partie) placée au mauvais endroit.
 
-    Écrit aussi la carte des secteurs de la photo (4 m par pixel) : 0 = décalé (retiré
-    de la mosaïque), 1 = vérifié bien placé, 2 = sans repère comparable (gardé)."""
+    Écrit aussi la carte des secteurs de la photo (4 m par pixel) : 1 = vérifié bien
+    placé (seul utilisé dans la mosaïque), 0 = décalé, 2 = sans repère comparable."""
     res = RES_GROSSIER
     gt = out.GetGeoTransform()
     w, h = int(out.RasterXSize * gt[1] / res), int(out.RasterYSize * -gt[5] / res)
@@ -341,7 +341,7 @@ def controle_grossier(out, ortho2022, chemin_secteurs):
     ref, ref_valide, _ = ortho2022.lire(gt[0], gt[3] - h * res, gt[0] + w * res, gt[3], res)
     hh, ww = min(h, ref.shape[0]), min(w, ref.shape[1])
     pts, dec, _ = correlation_carres(img[:hh, :ww], ref[:hh, :ww], alpha[:hh, :ww] & ref_valide[:hh, :ww],
-                                     pas=24, taille=64, recherche=50, seuil=0.3)
+                                     pas=24, taille=64, recherche=80, seuil=0.3)
     garde = filtre_voisins(pts, dec, rayon=150, tol=3.0)
     if garde.sum() < 10:
         return {"grossier_carres": int(garde.sum())}
@@ -362,7 +362,7 @@ def controle_grossier(out, ortho2022, chemin_secteurs):
     ds.SetProjection("EPSG:3857")
     ds.GetRasterBand(1).WriteArray(secteurs)
     ds = None
-    part_gardee = float((secteurs[alpha] > 0).mean()) if alpha.any() else 0.0
+    part_gardee = float((secteurs[alpha] == 1).mean()) if alpha.any() else 0.0
     return {"grossier_carres": int(len(pts)),
             "grossier_m": round(float(np.median(ecart)), 1),
             "grossier_part_decalee": round(float(decale.mean()), 2),

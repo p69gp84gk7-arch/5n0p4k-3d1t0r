@@ -6,8 +6,9 @@ qu'elle est la moins déformée). Les raccords sont fondus :
 - la luminosité et le contraste généraux sur une bande large (FONDU_LUMIERE),
   pour éviter les différences de teinte entre deux clichés voisins,
 - et chaque photo s'estompe aussi près de ses propres bords (FONDU_BORD).
-Seules les photos marquées « ok » par recale.py sont utilisées, et sans leurs
-secteurs décalés (carte <photo>_secteurs.tif écrite par le contrôle grossier).
+Seules les photos marquées « ok » par recale.py sont utilisées, et seulement dans
+leurs secteurs vérifiés bien placés (carte <photo>_secteurs.tif écrite par le
+contrôle grossier).
 
 Usage : python3 scripts/mosaique.py 1958-10-25
 """
@@ -67,7 +68,7 @@ class Photo:
         g = self.s_gt
         ix = np.clip(((xs - g[0]) / g[1]).astype(int), 0, self.secteurs.shape[1] - 1)
         iy = np.clip(((ys - g[3]) / g[5]).astype(int), 0, self.secteurs.shape[0] - 1)
-        return self.secteurs[iy[:, None], ix[None, :]] > 0
+        return self.secteurs[iy[:, None], ix[None, :]] == 1   # seuls les secteurs vérifiés
 
     def fenetre(self, bx0, by1, bw, bh):
         """Lit le morceau de la photo qui tombe dans le bloc (ou None)."""
