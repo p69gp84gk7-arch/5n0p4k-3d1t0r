@@ -114,14 +114,39 @@ def masque_cadre(forme, marge=MARGE_CADRE):
 
 
 def depart_emprise(photo, scan):
-    """Les 8 sommets de l'emprise IGN (NE, E, SE, S, SO, O, NO, N) <-> coins et
-    milieux des côtés du scan (le nord est en haut des scans)."""
+    """Les 8 sommets de l'emprise IGN (4 coins + milieux des côtés, dans un ordre
+    qui varie d'une mission à l'autre) <-> coins et milieux des côtés du scan.
+
+    Les coins sont reconnus par leur position (NO, NE, SE, SO). Avec une orientation
+    IGN d'environ 180°, le nord est en haut du scan (coin haut-gauche = NO) ; chaque
+    quart de tour de plus décale d'un coin (267° : haut-gauche = SO)."""
     anneau = np.array(shape(photo["emprise"]).exterior.coords)[:-1]
     if len(anneau) != 8:
         return None, None
+    centre = anneau.mean(axis=0)
+    dist = np.linalg.norm(anneau - centre, axis=1)
+    parite = 0 if dist[0::2].mean() > dist[1::2].mean() else 1   # les coins sont les plus loin
+    coins = {}
+    for i in range(parite, 8, 2):
+        dx, dy = anneau[i] - centre
+        coins[("N" if dy > 0 else "S") + ("O" if dx < 0 else "E")] = i
+    if len(coins) != 4:
+        return None, None
+    geo = [coins["NO"], coins["NE"], coins["SE"], coins["SO"]]
+
+    def milieu(i, j):   # le sommet entre deux coins voisins sur l'anneau
+        return (i + 1) % 8 if (i + 2) % 8 == j else (j + 1) % 8
+
+    q = int(round(((photo.get("orientation") or 180) - 180) / 90)) % 4
     a, b, m = RETRAIT_EMPRISE, 1 - RETRAIT_EMPRISE, 0.5
-    src = np.float64([[b, a], [b, m], [b, b], [m, b], [a, b], [a, m], [a, a], [m, a]]) * [scan.W, scan.H]
-    return src, anneau
+    scan_coins = [(a, a), (b, a), (b, b), (a, b)]          # haut-gauche, haut-droit, bas-droit, bas-gauche
+    scan_milieux = [(m, a), (b, m), (m, b), (a, m)]        # haut, droite, bas, gauche
+    src, dst = [], []
+    for k in range(4):
+        g1, g2 = geo[(k - q) % 4], geo[(k + 1 - q) % 4]
+        src += [scan_coins[k], scan_milieux[k]]
+        dst += [anneau[g1], anneau[milieu(g1, g2)]]
+    return np.float64(src) * [scan.W, scan.H], np.float64(dst)
 
 
 def correction_globale(scan, gcp_photo, gcp_geo, orthos):
@@ -291,7 +316,7 @@ def controle(sortie, ortho2022):
 def recale(date, photo, orthos, sortie):
     emp = shape(photo["emprise"]).bounds
     scan = Scan(BRUTS / date / (photo["id"] + ".tif"), mpp=1.0)
-    scan.mpp = (emp[2] - emp[0]) / scan.W
+    scan.mpp = max(emp[2] - emp[0], emp[3] - emp[1]) / max(scan.W, scan.H)
     W, H = scan.W, scan.H
     rapport = {"photo": photo["id"]}
 
