@@ -418,21 +418,25 @@ function affine(pts){   // (u, v) -> (x, y) : x = a u + b v + c
   return (u, v) => [sol[0][0]*u + sol[0][1]*v + sol[0][2], sol[1][0]*u + sol[1][1]*v + sol[1][2]];
 }
 function ecarts(){
-  // écart de chaque point avec ce que disent les autres (le point lui-même mis de côté)
-  if(points.length < 5) return points.map(() => null);
+  // écart de chaque point avec ce que disent ses 5 plus proches voisins (lui-même mis de côté).
+  // Des voisins seulement : sur une photo de montagne prise de haut, le relief déplace les
+  // choses de centaines de mètres d'un bout à l'autre, mais peu entre points voisins.
+  if(points.length < 6) return points.map(() => null);
   return points.map((p, i) => {
-    const f = affine(points.filter((_, j) => j !== i));
+    const voisins = points.map((q, j) => [Math.hypot(q.u - p.u, q.v - p.v), j]).filter(([, j]) => j !== i)
+      .sort((a, b) => a[0] - b[0]).slice(0, 5).map(([, j]) => points[j]);
+    const f = affine(voisins);
     if(!f) return null;
     const [x, y] = f(p.u, p.v);
     return Math.hypot(x - p.x, y - p.y) * COS_LAT;
   });
 }
 function qualite(e, med){
-  if(e == null) return ['', 'à vérifier après 5 points'];
-  // le relief déplace les choses de quelques dizaines de mètres : c'est normal
-  if(e > Math.max(150, 4 * med)) return ['mauvais', `très différent des autres (${Math.round(e)} m) : sûrement une erreur de clic`];
-  if(e > Math.max(70, 2.5 * med)) return ['moyen', `un peu différent (${Math.round(e)} m) : vérifiez`];
-  return ['ok', `bon (${Math.round(e)} m, normal en montagne)`];
+  if(e == null) return ['', 'vérifié à partir de 6 points'];
+  // le relief déplace les choses de quelques dizaines à centaines de mètres : c'est normal
+  if(e > Math.max(250, 4 * med)) return ['mauvais', `très différent de ses voisins (${Math.round(e)} m) : sûrement une erreur de clic`];
+  if(e > Math.max(150, 2.5 * med)) return ['moyen', `un peu différent de ses voisins (${Math.round(e)} m) : vérifiez`];
+  return ['ok', 'bon (les écarts dus au relief sont normaux)'];
 }
 function repartition(){
   // part de la photo couverte par les points (enveloppe des points) : il faut qu'ils soient bien répartis
@@ -507,23 +511,82 @@ function selection(i, centre){
   if(centre){ const p = points[i]; mPhoto.panTo(latlngPhoto(p.u, p.v)); mCarte.panTo(llCarte(p.x, p.y)); }
 }
 
-/* ---------- la photo posée sur la carte (aperçu, transformation affine) ---------- */
+/* ---------- la photo posée sur la carte (aperçu) ----------
+   La photo est découpée en triangles dont les sommets sont les points placés : chaque
+   triangle est posé exactement sur ses trois points. Hors des points, les coins et les
+   milieux des bords suivent une transformation affine de l'ensemble. */
+let imgSource = null;
 function retireCalque(){ if(imgCalque){ imgCalque.remove(); imgCalque = null; } }
+function delaunay(P){   // triangulation (Bowyer-Watson), P = [[x, y], ...]
+  const n = P.length, M = 1e7;
+  const pts = P.concat([[-M, -M], [M, -M], [0, M]]);
+  let tri = [[n, n + 1, n + 2]];
+  const cercle = t => {
+    const [a, b, c] = t.map(k => pts[k]);
+    const d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
+    if(Math.abs(d) < 1e-12) return [0, 0, Infinity];
+    const a2 = a[0]**2 + a[1]**2, b2 = b[0]**2 + b[1]**2, c2 = c[0]**2 + c[1]**2;
+    const x = (a2 * (b[1] - c[1]) + b2 * (c[1] - a[1]) + c2 * (a[1] - b[1])) / d;
+    const y = (a2 * (c[0] - b[0]) + b2 * (a[0] - c[0]) + c2 * (b[0] - a[0])) / d;
+    return [x, y, (a[0] - x)**2 + (a[1] - y)**2];
+  };
+  for(let i = 0; i < n; i++){
+    const p = pts[i], mauvais = [], garde = [];
+    tri.forEach(t => { const [x, y, r] = cercle(t); ((p[0] - x)**2 + (p[1] - y)**2 < r ? mauvais : garde).push(t); });
+    const bords = new Map();
+    mauvais.forEach(t => [[t[0], t[1]], [t[1], t[2]], [t[2], t[0]]].forEach(([a, b]) => {
+      const k = a < b ? a + ',' + b : b + ',' + a; bords.set(k, bords.has(k) ? null : [a, b]);
+    }));
+    tri = garde;
+    bords.forEach(e => { if(e) tri.push([e[0], e[1], i]); });
+  }
+  return tri.filter(t => t.every(k => k < n));
+}
 function poseCalque(){
   if(!mCarte || !$('voir').checked || points.length < 3){ retireCalque(); return; }
   const f = affine(points); if(!f){ retireCalque(); return; }
+  if(!imgSource || imgSource.dataset.url !== imgUrl){
+    imgSource = new Image(); imgSource.dataset.url = imgUrl;
+    imgSource.onload = poseCalque; imgSource.src = imgUrl; return;
+  }
+  if(!imgSource.complete) return;
+  const taille = mCarte.getSize();
   if(!imgCalque){
-    imgCalque = document.createElement('img');
-    imgCalque.src = imgUrl;
-    Object.assign(imgCalque.style, {position: 'absolute', left: 0, top: 0, transformOrigin: '0 0', pointerEvents: 'none', maxWidth: 'none'});
+    imgCalque = document.createElement('canvas');
+    Object.assign(imgCalque.style, {position: 'absolute', pointerEvents: 'none'});
     mCarte.getPanes().overlayPane.appendChild(imgCalque);
   }
+  imgCalque.width = taille.x; imgCalque.height = taille.y;
+  const coin = mCarte.containerPointToLayerPoint([0, 0]);
+  imgCalque.style.left = coin.x + 'px'; imgCalque.style.top = coin.y + 'px';
   imgCalque.style.opacity = $('opacite').value;
-  const pt = (u, v) => { const [x, y] = f(u, v); return mCarte.latLngToLayerPoint(llCarte(x, y)); };
-  const o = pt(0, 0), a = pt(1, 0), b = pt(0, 1);
-  const W = dims.w, H = dims.h;
-  imgCalque.style.width = W + 'px'; imgCalque.style.height = H + 'px';
-  imgCalque.style.transform = `matrix(${(a.x - o.x) / W},${(a.y - o.y) / W},${(b.x - o.x) / H},${(b.y - o.y) / H},${o.x},${o.y})`;
+  // sommets : les points placés, plus les coins et milieux des bords de la photo (transformation affine)
+  const S = points.map(p => ({u: p.u, v: p.v, x: p.x, y: p.y}));
+  [[0,0],[.5,0],[1,0],[1,.5],[1,1],[.5,1],[0,1],[0,.5]].forEach(([u, v]) => {
+    if(!S.some(q => Math.hypot(q.u - u, q.v - v) < .05)){ const [x, y] = f(u, v); S.push({u, v, x, y}); }
+  });
+  const W = imgSource.naturalWidth, H = imgSource.naturalHeight;
+  const ecran = S.map(s => mCarte.latLngToContainerPoint(llCarte(s.x, s.y)));
+  const g = imgCalque.getContext('2d');
+  g.clearRect(0, 0, taille.x, taille.y);
+  delaunay(S.map(s => [s.u * W, s.v * H])).forEach(([a, b, c]) => {
+    const [s0, s1, s2] = [S[a], S[b], S[c]].map(s => [s.u * W, s.v * H]);
+    const [d0, d1, d2] = [ecran[a], ecran[b], ecran[c]];
+    // transformation affine du triangle de la photo vers le triangle de l'écran
+    const den = (s1[0] - s0[0]) * (s2[1] - s0[1]) - (s2[0] - s0[0]) * (s1[1] - s0[1]);
+    if(Math.abs(den) < 1e-6) return;
+    const m11 = ((d1.x - d0.x) * (s2[1] - s0[1]) - (d2.x - d0.x) * (s1[1] - s0[1])) / den;
+    const m12 = ((d2.x - d0.x) * (s1[0] - s0[0]) - (d1.x - d0.x) * (s2[0] - s0[0])) / den;
+    const m21 = ((d1.y - d0.y) * (s2[1] - s0[1]) - (d2.y - d0.y) * (s1[1] - s0[1])) / den;
+    const m22 = ((d2.y - d0.y) * (s1[0] - s0[0]) - (d1.y - d0.y) * (s2[0] - s0[0])) / den;
+    const dx = d0.x - m11 * s0[0] - m12 * s0[1], dy = d0.y - m21 * s0[0] - m22 * s0[1];
+    g.save();
+    g.beginPath(); g.moveTo(d0.x, d0.y); g.lineTo(d1.x, d1.y); g.lineTo(d2.x, d2.y); g.closePath();
+    g.clip();
+    g.setTransform(m11, m21, m12, m22, dx, dy);
+    g.drawImage(imgSource, 0, 0);
+    g.restore();
+  });
 }
 $('voir').onchange = poseCalque;
 $('opacite').oninput = () => imgCalque && (imgCalque.style.opacity = $('opacite').value);
