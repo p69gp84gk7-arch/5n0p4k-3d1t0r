@@ -191,6 +191,7 @@ const map = L.map('map', {
 map.attributionControl.setPrefix(false).addAttribution('Images © IGN – Géoplateforme');
 L.control.scale({imperial:false, position:'bottomleft'}).addTo(map);
 
+map.createPane('fond'); map.getPane('fond').style.zIndex = 150;
 map.createPane('base'); map.getPane('base').style.zIndex = 200;
 map.createPane('past'); map.getPane('past').style.zIndex = 300;
 map.createPane('plan'); map.getPane('plan').style.zIndex = 450;
@@ -207,6 +208,10 @@ const nom = l => l.k==="2025a" ? "2025 · avion" : l.k==="2025s" ? "2025 · sate
   : l.tuiles ? `${l.y} · photos recalées` : `${l.y} · ${l.d.toLowerCase()}`;
 const plan = L.tileLayer(WMTS("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2","image/png"),
   {pane:'plan', maxNativeZoom:19, maxZoom:20, opacity:.6});
+/* fond de carte topographique IGN (relief, courbes de niveau, chemins) : visible
+   là où une année recalée n'a pas de photo vérifiée */
+L.tileLayer(WMTS("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2","image/png"),
+  {pane:'fond', maxNativeZoom:19, maxZoom:20, keepBuffer:3, crossOrigin:true}).addTo(map);
 
 /* ---------- frise ---------- */
 let compare=false;
