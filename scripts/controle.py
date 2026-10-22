@@ -104,9 +104,10 @@ def main():
     verif = dossier / "verification.json"
     if verif.exists():
         v = json.loads(verif.read_text())
-        d.text((40, y), f"Vérification finale de la mosaïque : {v['decales']} secteurs encore décalés de plus "
-                        f"de 60 m sur {v['mesurables']} mesurés, effacés ({v['part_retiree']:.0%} de la surface)",
-               font=p, fill=GRIS)
+        txt = (f"effacés ({v['part_retiree']:.0%} de la surface)" if v.get("efface", True)
+               else "signalés en rouge sur la mosaïque, non effacés")
+        d.text((40, y), f"Vérification finale de la mosaïque : {v['decales']} secteurs semblent décalés de plus "
+                        f"de 60 m sur {v['mesurables']} mesurés, {txt}", font=p, fill=GRIS)
     y += 40
 
     # --- AVANT : photos brutes ---
@@ -142,6 +143,15 @@ def main():
         px = 40 + (rx - x0) / (x1 - x0) * w3
         py = y + (y1 - ry) / (y1 - y0) * m.height
         d.ellipse([px - 7, py - 7, px + 7, py + 7], outline=ROUGE, width=3)
+    # secteurs qui semblent décalés (signalés, non effacés) : petits carrés rouges
+    if verif.exists():
+        for c in json.loads(verif.read_text()).get("liste", []):
+            if json.loads(verif.read_text()).get("efface", True):
+                break
+            cx = 40 + (c["x"] - x0) / (x1 - x0) * w3
+            cy = y + (y1 - c["y"]) / (y1 - y0) * m.height
+            e = 125 / (x1 - x0) * w3
+            d.rectangle([cx - e, cy - e, cx + e, cy + e], outline=ROUGE, width=1)
     y += m.height + 20
 
     # --- Gros plans sur les repères ---

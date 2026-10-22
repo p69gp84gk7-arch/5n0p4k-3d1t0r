@@ -1,15 +1,18 @@
 """Assemble les photos recalées d'une même date en une seule image (mosaïque).
 
+Les photos acceptées sont gardées entières (rien n'est découpé), nord en haut.
 En chaque point, on prend la photo dont le centre est le plus proche (c'est là
-qu'elle est la moins déformée). Les raccords sont fondus :
+qu'elle est la moins déformée), sauf :
+- sur le plateau de Superbagnères, où la photo dont le centre est le plus proche
+  de la station passe devant partout (une seule photo, pas de raccord dans la station) ;
+- une photo placée à la main passe toujours devant les autres.
+Les raccords sont fondus :
 - les détails sur une bande étroite (FONDU_DETAIL),
 - la luminosité et le contraste généraux sur une bande large (FONDU_LUMIERE),
   pour éviter les différences de teinte entre deux clichés voisins,
 - et chaque photo s'estompe aussi près de ses propres bords (FONDU_BORD).
-Seules les photos marquées « ok » par recale.py sont utilisées, et seulement dans
-leurs secteurs vérifiés bien placés (carte <photo>_secteurs.tif écrite par le
-contrôle grossier). Si les photos sont en couleur, la mosaïque l'est aussi (chaque
-couleur est fondue séparément).
+Seules les photos marquées « ok » par recale.py sont utilisées. Si les photos sont
+en couleur, la mosaïque l'est aussi (chaque couleur est fondue séparément).
 
 Usage : python3 scripts/mosaique.py 1958-10-25
 """
@@ -19,21 +22,20 @@ import sys
 import cv2
 import numpy as np
 from osgeo import gdal
-from scipy.spatial import cKDTree
 
 from commun import RECALES, bande_alpha, nb_couleurs, points_manuels, zone_merc
 
 gdal.UseExceptions()
 
 RES = 0.6
-COS_LAT = 0.734          # 1 m Web Mercator = 0,734 m au sol à cette latitude
 BLOC = 2048
 FONDU_DETAIL = 40.0     # mètres Web Mercator
 FONDU_LUMIERE = 600.0
 FONDU_BORD = 120.0      # une photo s'estompe sur 120 m près de ses bords
 REDUC = 8               # résolution de calcul de la luminosité générale (8 x 0,6 m)
 SIGMA_LUMIERE = 30      # en pixels réduits (≈ 150 m)
-RAYON_MANUEL = 1500.0   # autour des points placés à la main, la photo passe devant et n'est pas effacée
+PLATEAU = (59500, 5275000, 65500, 5278200)   # plateau de Superbagnères et station (m Web Mercator)
+STATION = (62700, 5276700)                   # centre de la station
 
 
 class Photo:
@@ -46,21 +48,7 @@ class Photo:
         self.x0, self.y1 = gt[0], gt[3]
         self.w, self.h = self.ds.RasterXSize, self.ds.RasterYSize
         self.centre = centre
-        self.manuel = bool(manuels)      # placée à la main : prioritaire près de ses points
-        # secteurs décalés à retirer (0 = décalé)
-        self.secteurs = None
-        chemin_secteurs = chemin.with_name(chemin.stem + "_secteurs.tif")
-        if chemin_secteurs.exists():
-            s = gdal.Open(str(chemin_secteurs))
-            self.secteurs, self.s_gt = s.GetRasterBand(1).ReadAsArray(), s.GetGeoTransform()
-        # près des points placés à la main (grille réduite) : gardé et prioritaire
-        self.proche = None
-        if manuels:
-            gx0 = self.x0 + (np.arange(self.w // REDUC) + 0.5) * RES * REDUC
-            gy0 = self.y1 - (np.arange(self.h // REDUC) + 0.5) * RES * REDUC
-            mx, my = np.meshgrid(gx0, gy0)
-            dist = cKDTree([[p["x"], p["y"]] for p in manuels]).query(np.column_stack([mx.ravel(), my.ravel()]))[0]
-            self.proche = (dist.reshape(mx.shape) * COS_LAT <= RAYON_MANUEL)
+        self.manuel = bool(manuels)      # placée à la main : passe devant les autres
         # luminosité générale (moyenne locale, sans tenir compte des zones vides), par couleur
         a = (self.alpha.ReadAsArray(buf_xsize=self.w // REDUC, buf_ysize=self.h // REDUC,
                                     resample_alg=gdal.GRIORA_NearestNeighbour) > 0).astype(np.float32)
@@ -80,23 +68,10 @@ class Photo:
         self.bord = (cv2.distanceTransform((a > 0).astype(np.uint8), cv2.DIST_L2, 5)
                      * REDUC * RES).astype(np.float32)
 
-    def pres_des_points(self, xs, ys):
-        """Masque : à moins de RAYON_MANUEL d'un point placé à la main."""
-        if self.proche is None:
-            return np.zeros((len(ys), len(xs)), bool)
-        ix = np.clip(((xs - self.x0) / (RES * REDUC)).astype(int), 0, self.proche.shape[1] - 1)
-        iy = np.clip(((self.y1 - ys) / (RES * REDUC)).astype(int), 0, self.proche.shape[0] - 1)
-        return self.proche[iy[:, None], ix[None, :]]
-
     def garde(self, xs, ys):
-        """Masque des secteurs à garder, pour une grille (xs, ys) en mètres : secteurs
-        vérifiés, et tout ce qui est près des points placés à la main."""
-        if self.secteurs is None:
-            return np.ones((len(ys), len(xs)), bool)
-        g = self.s_gt
-        ix = np.clip(((xs - g[0]) / g[1]).astype(int), 0, self.secteurs.shape[1] - 1)
-        iy = np.clip(((ys - g[3]) / g[5]).astype(int), 0, self.secteurs.shape[0] - 1)
-        return (self.secteurs[iy[:, None], ix[None, :]] == 1) | self.pres_des_points(xs, ys)
+        """Masque des parties à garder : tout (les photos acceptées sont gardées entières ;
+        les morceaux qui semblent décalés sont seulement signalés dans l'image de contrôle)."""
+        return np.ones((len(ys), len(xs)), bool)
 
     def fenetre(self, bx0, by1, bw, bh):
         """Lit le morceau de la photo qui tombe dans le bloc (ou None)."""
@@ -164,9 +139,13 @@ def main():
                 if f is None or not f[1].any():
                     continue
                 d = np.hypot(xs[None, :] - p.centre[0], ys[:, None] - p.centre[1]).astype(np.float32)
+                # sur le plateau : la photo la mieux centrée sur la station passe devant partout
+                plateau = ((xs[None, :] >= PLATEAU[0]) & (xs[None, :] <= PLATEAU[2])
+                           & (ys[:, None] >= PLATEAU[1]) & (ys[:, None] <= PLATEAU[3]))
+                d = np.where(plateau, np.hypot(p.centre[0] - STATION[0], p.centre[1] - STATION[1]), d)
                 d += 3 * np.clip(FONDU_BORD - f[4], 0, None)   # près de son bord, une photo cède la place
-                if p.manuel:   # près de ses points, une photo placée à la main passe devant
-                    d -= 1e6 * p.pres_des_points(xs, ys)
+                if p.manuel:
+                    d -= 1e6                                       # une photo placée à la main passe devant
                 d[~f[1]] = np.inf
                 morceaux.append((f, d))
             if not morceaux:

@@ -8,8 +8,9 @@ ressemblance (bandes de rochers, lisières qui se répètent).
 Ce filet de sécurité vise les grosses erreurs (un secteur parti à 100 m ou plus) ;
 entre 20 et 60 m, la mesure est trompée par les changements du paysage (lisières de
 forêt qui ont avancé) et c'est le contrôle de chaque photo qui fait foi.
-Les carrés décalés (avec une marge) sont effacés de la mosaïque : ils ne seront pas
-publiés. Le bilan est écrit dans recales/<date>/verification.json.
+Les carrés décalés sont seulement signalés (bilan dans recales/<date>/verification.json,
+repris par l'image de contrôle) : les photos sont publiées entières. Mettre EFFACE à
+True pour les effacer de la mosaïque.
 
 Sur l'ortho historique de l'IGN (bien placée), ce test efface à tort moins de 1 %
 de la surface : c'est le prix à payer pour ne pas laisser passer de grosse erreur.
@@ -36,6 +37,7 @@ DECALAGE_MAX = 60.0  # au-delà, le carré est décalé (voir plus haut)
 SCORE_MIN = 0.3      # ressemblance minimale pour mesurer un écart
 SCORE_SUR = 0.5      # ressemblance forte : un seul voisin confirmé suffit
 MARGE = 60.0         # marge effacée autour d'un carré décalé (m)
+EFFACE = False       # photos publiées entières : les carrés décalés sont seulement signalés
 
 
 def lire(fichier, bornes, gris=True):
@@ -141,21 +143,22 @@ def main():
     res, alpha = mesure(mos, REFERENCE / "ortho2022.tif")
     mauvais = [k for k in decales(res) if not couvert_a_la_main(date, res[k, 0], res[k, 1])]
     mesurables = int((res[:, 4] >= SCORE_MIN).sum()) if len(res) else 0
-    efface(mos, [tuple(res[k, :2]) for k in mauvais])
+    if EFFACE:
+        efface(mos, [tuple(res[k, :2]) for k in mauvais])
     ds = gdal.Open(str(mos))
     w = 1000
     h = int(w * ds.RasterYSize / ds.RasterXSize)
     apres = bande_alpha(ds).ReadAsArray(buf_xsize=w, buf_ysize=h) > 0
     avant = cv2.resize(alpha.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
     ds = None
-    bilan = {"carres": int(len(res)), "mesurables": mesurables, "decales": len(mauvais),
+    bilan = {"carres": int(len(res)), "mesurables": mesurables, "decales": len(mauvais), "efface": EFFACE,
              "part_retiree": round(max(0.0, float(1 - apres.sum() / max(1, avant.sum()))), 3),
              "liste": [{"x": round(float(res[k, 0])), "y": round(float(res[k, 1])),
                         "ecart_m": round(float(np.hypot(res[k, 2], res[k, 3]))),
                         "score": round(float(res[k, 4]), 2)} for k in mauvais]}
     (RECALES / date / "verification.json").write_text(json.dumps(bilan, indent=1))
-    print(f"{date} : {len(res)} carrés, {mesurables} mesurables, {len(mauvais)} décalés effacés "
-          f"({bilan['part_retiree']:.0%} de la mosaïque retirée)")
+    print(f"{date} : {len(res)} carrés, {mesurables} mesurables, {len(mauvais)} semblent décalés"
+          + (f", effacés ({bilan['part_retiree']:.0%} de la mosaïque retirée)" if EFFACE else " (signalés, non effacés)"))
 
 
 if __name__ == "__main__":
