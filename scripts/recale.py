@@ -59,6 +59,7 @@ PORTEE_REPERE = 250.0         # au-delà, un secteur n'a pas de repère vérifi�
 PORTEE_INTERIEUR = 800.0      # ... sauf au cœur de la photo (pistes, prés, forêts sans repère net) :
 BORD_SUR = 800.0              # à plus de 800 m du bord, un secteur sans repère mais entouré de
                               # secteurs vérifiés à moins de 800 m est gardé
+ACCORD_MANUEL = 60.0          # m : un point automatique plus loin que ça des points manuels est faux
 PART_GARDEE_MIN = 0.10        # une photo dont il reste moins de 10 % est écartée
 PART_DECALEE_MAX = 0.30       # ... ou dont plus de 30 % des carrés contrôlés sont décalés
 
@@ -405,6 +406,7 @@ def recale(date, photo, orthos, sortie):
         gcp_photo = np.array([[p["u"] * W, p["v"] * H] for p in manuels], np.float64)
         gcp_geo = np.array([[p["x"], p["y"]] for p in manuels], np.float64)
         man_photo, man_geo = gcp_photo.copy(), gcp_geo.copy()
+        modele_manuel = RBFInterpolator(man_photo, man_geo, kernel="thin_plate_spline", smoothing=len(man_photo) * 0.5)
         rapport["manuel"] = len(manuels)
     else:
         # 1. départ : emprise IGN
@@ -438,6 +440,10 @@ def recale(date, photo, orthos, sortie):
             p2, g2 = passe_fine(scan, gcp_photo, gcp_geo, orthos[nom], emprise, res, taille, recherche, tol)
             if len(p2) >= 40:
                 break
+        if manuels and len(p2):
+            # on écarte ce qui contredit les points placés à la main (fausses ressemblances)
+            accord = np.linalg.norm(modele_manuel(p2) - g2, axis=1) * COS_LAT < ACCORD_MANUEL
+            p2, g2 = p2[accord], g2[accord]
         rapport["passes"].append({"res": res, "reference": nom, "points": int(len(p2))})
         if len(p2) < 15:
             continue   # passe sans résultat : on garde le placement précédent
