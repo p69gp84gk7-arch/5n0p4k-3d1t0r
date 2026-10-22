@@ -29,6 +29,8 @@ REPERES = {
     "Grand Hôtel": (64265, 5276827),
     "Ligne de crête": (59865, 5275327),
     "Allées d'Étigny (Luchon)": (66008, 5279686),
+    "Casino (Luchon)": (66387, 5279888),
+    "Thermes (Luchon)": (66105, 5279285),
 }
 LARGEUR_REPERE = 360   # mètres montrés autour de chaque repère
 
@@ -89,7 +91,7 @@ def main():
 
     L = 2400
     T, t, p = police(40, True), police(26, True), police(20)
-    img = Image.new("RGB", (L, 4000), FOND)
+    img = Image.new("RGB", (L, 6000), FOND)
     d = ImageDraw.Draw(img)
     y = 30
     ok = [r for r in rapports.values() if r.get("statut") == "ok"]
@@ -164,7 +166,7 @@ def main():
             dd.line([c, c - 14, c, c + 14], fill=ROUGE, width=2)
             img.paste(im, (bx + j * (v + 8), by))
         d.text((bx, by + v + 6), nom, font=p, fill=TEXTE)
-    y += 2 * (v + 44) + 10
+    y += (len(REPERES) + 1) // 2 * (v + 44) + 10
 
     # --- Bilan photo par photo ---
     d.text((40, y), "Bilan par photo (écart restant avec l'ortho 2022, mesuré sur les éléments stables)",
