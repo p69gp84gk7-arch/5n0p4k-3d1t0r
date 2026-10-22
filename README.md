@@ -107,6 +107,26 @@ terminée à l'ortho 2022 : un secteur décalé de plus de 60 m (confirmé par s
 voisins) est effacé. C'est un filet de sécurité indépendant du contrôle de
 chaque photo.
 
+## Placer une photo à la main
+
+Quand le placement automatique d'une année est raté ou incomplet (par exemple la
+station en 1993, où parkings et bâtiments ont trop changé), on peut placer une
+photo soi-même avec la page **Placer une photo à la main** (lien en haut du site,
+ou `placer.html`) :
+
+1. choisir la date et la photo (les aperçus viennent de l'IGN) ;
+2. cliquer un endroit précis sur la photo, puis le même endroit sur la carte
+   d'aujourd'hui, une dizaine de fois, bien réparti ;
+3. vérifier avec « Voir la photo posée sur la carte » ;
+4. « Terminer et copier les points », puis coller le texte dans la conversation
+   avec Claude.
+
+La page ne modifie rien par elle-même. Les points reçus sont enregistrés dans
+`placer/points/<date>/<photo>.json` ; au recalage suivant de cette date, la photo
+part de ces points (au lieu de l'emprise IGN), passe devant les autres dans la
+mosaïque, et ses secteurs sans repère vérifiable sont gardés. Les aperçus sont
+refaits avec `python3 scripts/apercus.py`.
+
 ## Contenu du dépôt
 
 | Dossier / fichier   | Rôle |
@@ -115,6 +135,8 @@ chaque photo.
 | `annees.json`       | la liste des dates recalées (prévues ou publiées) |
 | `tiles/`            | les tuiles des années recalées (un dossier par date) |
 | `controle/`         | une image de contrôle par date recalée |
+| `placer.html`       | la page pour placer une photo à la main |
+| `placer/`           | aperçus des photos IGN, liste des photos, points placés à la main |
 | `scripts/`          | les scripts de traitement (Python) |
 | `requirements.txt`  | les bibliothèques Python nécessaires |
 

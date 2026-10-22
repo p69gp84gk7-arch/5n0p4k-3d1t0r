@@ -175,7 +175,10 @@ def main():
     lignes = []
     for r in sorted(rapports.values(), key=lambda q: q["photo"]):
         num = r["photo"][-4:]
-        if "mediane_m" in r:
+        if r.get("manuel"):
+            s = (f"{num}  placée à la main ({r['manuel']} points)"
+                 + (f" · écart médian {r['mediane_m']:.1f} m" if "mediane_m" in r else "") + f" · {r['statut']}")
+        elif "mediane_m" in r:
             s = (f"{num}  écart médian {r['mediane_m']:.1f} m · 90 % < {r['p90_m']:.1f} m · "
                  f"{r['carres_controle']} pts / {r['zones_controlees']} zones"
                  + (f" · {r['part_gardee']:.0%} gardé" if "part_gardee" in r else "")

@@ -27,7 +27,7 @@ from scipy.interpolate import RBFInterpolator
 from scipy.spatial import cKDTree
 from shapely.geometry import shape
 
-from commun import BRUTS, RECALES, REFERENCE, bande_alpha, lire_gris
+from commun import BRUTS, RECALES, REFERENCE, bande_alpha, lire_gris, points_manuels
 
 gdal.UseExceptions()
 
@@ -59,6 +59,7 @@ PORTEE_REPERE = 250.0         # au-delà, un secteur n'a pas de repère vérifi�
 PORTEE_INTERIEUR = 800.0      # ... sauf au cœur de la photo (pistes, prés, forêts sans repère net) :
 BORD_SUR = 800.0              # à plus de 800 m du bord, un secteur sans repère mais entouré de
                               # secteurs vérifiés à moins de 800 m est gardé
+ACCORD_MANUEL = 60.0          # m : un point automatique plus loin que ça des points manuels est faux
 PART_GARDEE_MIN = 0.10        # une photo dont il reste moins de 10 % est écartée
 PART_DECALEE_MAX = 0.30       # ... ou dont plus de 30 % des carrés contrôlés sont décalés
 
@@ -399,21 +400,37 @@ def recale(date, photo, orthos, sortie):
     # pas plus fin (sinon 6 à 9 fois plus de mémoire pour rien)
     echelle = max(1.0, scan.mpp / RES_FINE)
 
-    # 1. départ : emprise IGN
-    gcp_photo, gcp_geo = depart_emprise(photo, scan)
-    if gcp_photo is None:
-        rapport.update(statut="échec", raison="emprise IGN inutilisable")
-        return rapport
+    manuels = points_manuels(date, photo["id"])
+    if manuels:
+        # 1-2. départ : les points placés à la main (page placer.html)
+        gcp_photo = np.array([[p["u"] * W, p["v"] * H] for p in manuels], np.float64)
+        gcp_geo = np.array([[p["x"], p["y"]] for p in manuels], np.float64)
+        man_photo, man_geo = gcp_photo.copy(), gcp_geo.copy()
+        modele_manuel = RBFInterpolator(man_photo, man_geo, kernel="thin_plate_spline", smoothing=len(man_photo) * 0.5)
+        rapport["manuel"] = len(manuels)
+    else:
+        # 1. départ : emprise IGN
+        gcp_photo, gcp_geo = depart_emprise(photo, scan)
+        if gcp_photo is None:
+            rapport.update(statut="échec", raison="emprise IGN inutilisable")
+            return rapport
 
-    # 2. correction globale
-    score, unicite, nom, gcp_geo = correction_globale(scan, gcp_photo, gcp_geo, list(orthos.values()))
-    rapport["global"] = {"reference": nom, "correlation": round(float(score), 3),
-                         "unicite": round(float(unicite), 3)}
-    if gcp_geo is None:
-        rapport.update(statut="échec", raison="correction globale impossible")
-        return rapport
-    emprise = (gcp_geo[:, 0].min() - 200, gcp_geo[:, 1].min() - 200,
-               gcp_geo[:, 0].max() + 200, gcp_geo[:, 1].max() + 200)
+        # 2. correction globale
+        score, unicite, nom, gcp_geo = correction_globale(scan, gcp_photo, gcp_geo, list(orthos.values()))
+        rapport["global"] = {"reference": nom, "correlation": round(float(score), 3),
+                             "unicite": round(float(unicite), 3)}
+        if gcp_geo is None:
+            rapport.update(statut="échec", raison="correction globale impossible")
+            return rapport
+    if manuels:
+        # emprise de toute la photo (pas seulement des points) : coins par une transformation affine
+        A = np.column_stack([gcp_photo, np.ones(len(gcp_photo))])
+        coef = np.linalg.lstsq(A, gcp_geo, rcond=None)[0]
+        coins = np.array([[0, 0, 1], [W, 0, 1], [W, H, 1], [0, H, 1]], np.float64) @ coef
+    else:
+        coins = gcp_geo
+    emprise = (coins[:, 0].min() - 200, coins[:, 1].min() - 200,
+               coins[:, 0].max() + 200, coins[:, 1].max() + 200)
 
     # 3. passes fines, de 2,4 m à 0,6 m (ou à la finesse des photos si elle est moindre)
     rapport["passes"] = []
@@ -423,6 +440,10 @@ def recale(date, photo, orthos, sortie):
             p2, g2 = passe_fine(scan, gcp_photo, gcp_geo, orthos[nom], emprise, res, taille, recherche, tol)
             if len(p2) >= 40:
                 break
+        if manuels and len(p2):
+            # on écarte ce qui contredit les points placés à la main (fausses ressemblances)
+            accord = np.linalg.norm(modele_manuel(p2) - g2, axis=1) * COS_LAT < ACCORD_MANUEL
+            p2, g2 = p2[accord], g2[accord]
         rapport["passes"].append({"res": res, "reference": nom, "points": int(len(p2))})
         if len(p2) < 15:
             continue   # passe sans résultat : on garde le placement précédent
@@ -430,6 +451,18 @@ def recale(date, photo, orthos, sortie):
         # là où cette passe n'a rien trouvé (paysage changé), on garde les points précédents
         loin = cKDTree(p2).query(gcp_photo)[0] > 2500
         gcp_photo, gcp_geo = np.vstack([p2, gcp_photo[loin]]), np.vstack([g2, gcp_geo[loin]])
+
+    if manuels:
+        # les passes automatiques ne doivent pas contredire les points placés à la main :
+        # si, à l'endroit de ces points, elles s'en écartent de plus de 25 m, on ne garde
+        # que les points manuels (fausses ressemblances dans un paysage qui a changé)
+        rbf = RBFInterpolator(gcp_photo, gcp_geo, kernel="thin_plate_spline", smoothing=len(gcp_photo) * 0.02,
+                              neighbors=min(len(gcp_photo), 150))
+        ecart = np.median(np.linalg.norm(rbf(man_photo) - man_geo, axis=1)) * COS_LAT
+        rapport["ecart_points_manuels_m"] = round(float(ecart), 1)
+        if ecart > 25:
+            gcp_photo, gcp_geo = man_photo, man_geo
+            rapport["passes_ignorees"] = True
 
     # On limite le nombre de points de calage
     if len(gcp_photo) > 1500:
@@ -457,6 +490,9 @@ def recale(date, photo, orthos, sortie):
 
 def statut(rapport):
     """Verdict à partir des mesures de contrôle (réappliqué à chaque lancement)."""
+    if rapport.get("manuel"):
+        # photo placée à la main : gardée sauf si l'écart avec l'ortho 2022 est vraiment grand
+        return "ok" if rapport.get("mediane_m", 0) <= 2 * SEUIL_MEDIANE else "mal recalée"
     if "carres_controle" not in rapport:
         return rapport["statut"]   # échec avant le contrôle
     bon = (rapport.get("mediane_m", 99) <= SEUIL_MEDIANE and rapport.get("p90_m", 99) <= SEUIL_P90
