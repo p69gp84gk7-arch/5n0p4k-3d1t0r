@@ -18,7 +18,7 @@ from shapely import affinity
 from shapely.geometry import box, shape
 from shapely.ops import unary_union
 
-from commun import BRUTS, GEOPF, RECALES, TRAVAIL, telecharge, zone_merc
+from commun import BRUTS, GEOPF, ORDRE_COULEUR, RECALES, TRAVAIL, bande_alpha, telecharge, zone_merc
 
 gdal.UseExceptions()
 
@@ -56,6 +56,16 @@ def photos_par_date():
                 "couleur": p.get("couleur"), "orientation": q.get("orientation"),
                 "centre": [q["x"], q["y"]], "emprise": f["geometry"]})
     return dict(sorted(dates.items()))
+
+
+def meilleure_version(photos):
+    """Quand l'IGN a plusieurs versions des mêmes clichés (noir et blanc, couleur,
+    infrarouge), on garde la plus naturelle : couleur, puis noir et blanc, puis infrarouge."""
+    types = {p.get("couleur") for p in photos}
+    for t in ORDRE_COULEUR:
+        if t in types:
+            return [p for p in photos if p.get("couleur") == t]
+    return photos
 
 
 def choisir(photos):
@@ -103,7 +113,7 @@ def complete(date, toutes):
         if r.get("statut") == "ok":
             ds = gdal.Warp("", str(RECALES / date / (r["photo"] + ".tif")), format="MEM",
                            outputBounds=(x0, y0, x1, y1), width=w, height=h, resampleAlg="near")
-            utile = ds.GetRasterBand(2).ReadAsArray() > 0
+            utile = bande_alpha(ds).ReadAsArray() > 0
             secteurs = RECALES / date / (r["photo"] + "_secteurs.tif")
             if secteurs.exists():   # seulement les secteurs vérifiés
                 s = gdal.Warp("", str(secteurs), format="MEM", outputBounds=(x0, y0, x1, y1),
@@ -151,15 +161,18 @@ def main():
         return
     date = sys.argv[1]
     if len(sys.argv) > 2 and sys.argv[2] == "complete":
-        complete(date, dates[date])
+        complete(date, meilleure_version(dates[date]))
         return
-    choix, couvert = choisir(dates[date])
-    print(f"{date} : {len(choix)} photos retenues sur {len(dates[date])}, zone couverte à {couvert:.0%}")
+    version = meilleure_version(dates[date])
+    choix, couvert = choisir(version)
+    print(f"{date} : {len(choix)} photos retenues sur {len(version)} (version {version[0]['couleur']}), "
+          f"zone couverte à {couvert:.0%}")
     # on garde les photos déjà choisies lors d'un lancement précédent (compléments)
     fichier = BRUTS / date / "choix.json"
     if fichier.exists():
         ids = {p["id"] for p in choix}
-        choix += [p for p in json.loads(fichier.read_text()) if p["id"] not in ids]
+        choix += [p for p in json.loads(fichier.read_text())
+                  if p["id"] not in ids and p.get("couleur") == version[0]["couleur"]]
     telecharge_photos(date, choix)
     fichier.write_text(json.dumps(choix, indent=1))
 

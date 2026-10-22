@@ -27,7 +27,7 @@ from scipy.interpolate import RBFInterpolator
 from scipy.spatial import cKDTree
 from shapely.geometry import shape
 
-from commun import BRUTS, RECALES, REFERENCE
+from commun import BRUTS, RECALES, REFERENCE, bande_alpha, lire_gris
 
 gdal.UseExceptions()
 
@@ -55,7 +55,10 @@ RES_GROSSIER = 4.0
 SEUIL_GROSSIER = 8.0          # écart médian maximal (m)
 DECALAGE_MAX = 20.0           # un secteur décalé de plus de 20 m est retiré de la mosaïque
 MARGE_SECTEUR = 200.0         # ... avec 200 m autour
-PORTEE_REPERE = 250.0         # au-delà, un secteur n'a pas de repère vérifié tout près : non vérifié, retiré
+PORTEE_REPERE = 250.0         # au-delà, un secteur n'a pas de repère vérifié tout près : non vérifié, retiré...
+PORTEE_INTERIEUR = 800.0      # ... sauf au cœur de la photo (pistes, prés, forêts sans repère net) :
+BORD_SUR = 800.0              # à plus de 800 m du bord, un secteur sans repère mais entouré de
+                              # secteurs vérifiés à moins de 800 m est gardé
 PART_GARDEE_MIN = 0.10        # une photo dont il reste moins de 10 % est écartée
 PART_DECALEE_MAX = 0.30       # ... ou dont plus de 30 % des carrés contrôlés sont décalés
 
@@ -112,8 +115,7 @@ class Scan:
         f = int(2 ** max(0, min(5, np.floor(np.log2(res / self.mpp)))))
         if f not in self._cache:
             w, h = self.W // f, self.H // f
-            img = self.ds.GetRasterBand(1).ReadAsArray(buf_xsize=w, buf_ysize=h,
-                                                       resample_alg=gdal.GRIORA_Average)
+            img = lire_gris(self.ds, buf_xsize=w, buf_ysize=h, resample_alg=gdal.GRIORA_Average)
             self._cache[f] = (img, self.W / w)
         return self._cache[f]
 
@@ -307,8 +309,8 @@ def controle(sortie, ortho2022, res=RES_FINE):
     out = gdal.Open(str(sortie))
     gt = out.GetGeoTransform()
     w0, h0 = int(out.RasterXSize * gt[1] / res), int(out.RasterYSize * -gt[5] / res)
-    img = out.GetRasterBand(1).ReadAsArray(buf_xsize=w0, buf_ysize=h0, resample_alg=gdal.GRIORA_Average)
-    alpha = out.GetRasterBand(2).ReadAsArray(buf_xsize=w0, buf_ysize=h0) > 0
+    img = lire_gris(out, buf_xsize=w0, buf_ysize=h0, resample_alg=gdal.GRIORA_Average)
+    alpha = bande_alpha(out).ReadAsArray(buf_xsize=w0, buf_ysize=h0) > 0
     ox0, oy1 = gt[0], gt[3]
     ox1, oy0 = ox0 + out.RasterXSize * gt[1], oy1 + out.RasterYSize * gt[5]
     ref, ref_valide, org = ortho2022.lire(ox0, oy0, ox1, oy1, res)
@@ -343,8 +345,8 @@ def controle_grossier(out, ortho2022, chemin_secteurs):
     res = RES_GROSSIER
     gt = out.GetGeoTransform()
     w, h = int(out.RasterXSize * gt[1] / res), int(out.RasterYSize * -gt[5] / res)
-    img = out.GetRasterBand(1).ReadAsArray(buf_xsize=w, buf_ysize=h, resample_alg=gdal.GRIORA_Average)
-    alpha = out.GetRasterBand(out.RasterCount).ReadAsArray(buf_xsize=w, buf_ysize=h) > 0
+    img = lire_gris(out, buf_xsize=w, buf_ysize=h, resample_alg=gdal.GRIORA_Average)
+    alpha = bande_alpha(out).ReadAsArray(buf_xsize=w, buf_ysize=h) > 0
     ref, ref_valide, _ = ortho2022.lire(gt[0], gt[3] - h * res, gt[0] + w * res, gt[3], res)
     hh, ww = min(h, ref.shape[0]), min(w, ref.shape[1])
     # le carré de la photo doit être entier, mais la recherche peut sortir de la photo
@@ -366,6 +368,11 @@ def controle_grossier(out, ortho2022, chemin_secteurs):
     if bon.any():
         d_bon, _ = cKDTree(pts[bon]).query(grille)
         secteurs[d_bon * res <= PORTEE_REPERE] = 1
+        # au cœur de la photo, la déformation est douce : un secteur sans repère (pistes
+        # claires, prés, bâtiments changés) suit ses voisins vérifiés. Près du bord, non :
+        # c'est là que les photos se déforment (le lac de 1977, décalé de 160 m)
+        bord = cv2.distanceTransform(alpha.astype(np.uint8), cv2.DIST_L2, 5).ravel() * res
+        secteurs[(secteurs == 2) & (d_bon * res <= PORTEE_INTERIEUR) & (bord >= BORD_SUR)] = 1
     if mauvais.any():
         d_mauvais, _ = cKDTree(pts[mauvais]).query(grille)
         secteurs[d_mauvais * res < MARGE_SECTEUR] = 0
