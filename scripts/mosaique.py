@@ -43,7 +43,7 @@ class Photo:
         self.x0, self.y1 = gt[0], gt[3]
         self.w, self.h = self.ds.RasterXSize, self.ds.RasterYSize
         self.centre = centre
-        self.manuel = manuel             # placée à la main : prioritaire, et ses secteurs non vérifiés sont gardés
+        self.manuel = manuel             # placée à la main : prioritaire, et gardée entière
         # secteurs décalés à retirer (0 = décalé)
         self.secteurs = None
         chemin_secteurs = chemin.with_name(chemin.stem + "_secteurs.tif")
@@ -76,8 +76,9 @@ class Photo:
         g = self.s_gt
         ix = np.clip(((xs - g[0]) / g[1]).astype(int), 0, self.secteurs.shape[1] - 1)
         iy = np.clip(((ys - g[3]) / g[5]).astype(int), 0, self.secteurs.shape[0] - 1)
-        s = self.secteurs[iy[:, None], ix[None, :]]
-        return s != 0 if self.manuel else s == 1   # seuls les secteurs vérifiés (sauf photo placée à la main)
+        if self.manuel:   # photo placée à la main : gardée entière
+            return np.ones((len(ys), len(xs)), bool)
+        return self.secteurs[iy[:, None], ix[None, :]] == 1   # seuls les secteurs vérifiés
 
     def fenetre(self, bx0, by1, bw, bh):
         """Lit le morceau de la photo qui tombe dans le bloc (ou None)."""
@@ -146,7 +147,7 @@ def main():
                 d = np.hypot(xs[None, :] - p.centre[0], ys[:, None] - p.centre[1]).astype(np.float32)
                 d += 3 * np.clip(FONDU_BORD - f[4], 0, None)   # près de son bord, une photo cède la place
                 if p.manuel:
-                    d *= 0.5                                       # une photo placée à la main passe devant
+                    d -= 1e6                                       # une photo placée à la main passe devant
                 d[~f[1]] = np.inf
                 morceaux.append((f, d))
             if not morceaux:

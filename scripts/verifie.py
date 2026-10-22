@@ -117,11 +117,26 @@ def efface(mos, centres):
     ds = None
 
 
+def couvert_a_la_main(date, x, y):
+    """Le point (x, y) est-il couvert par une photo placée à la main ? Elle a été vérifiée
+    à l'œil : ce test automatique (trompé là où le paysage a changé) ne l'efface pas."""
+    rapports = json.loads((RECALES / date / "rapport.json").read_text())
+    for r in rapports.values():
+        if r.get("manuel") and r.get("statut") == "ok":
+            ds = gdal.Open(str(RECALES / date / (r["photo"] + ".tif")))
+            gt = ds.GetGeoTransform()
+            c, l = int((x - gt[0]) / gt[1]), int((y - gt[3]) / gt[5])
+            if 0 <= c < ds.RasterXSize and 0 <= l < ds.RasterYSize and \
+                    bande_alpha(ds).ReadAsArray(c, l, 1, 1)[0, 0] > 0:
+                return True
+    return False
+
+
 def main():
     date = sys.argv[1]
     mos = RECALES / date / "mosaique.tif"
     res, alpha = mesure(mos, REFERENCE / "ortho2022.tif")
-    mauvais = decales(res)
+    mauvais = [k for k in decales(res) if not couvert_a_la_main(date, res[k, 0], res[k, 1])]
     mesurables = int((res[:, 4] >= SCORE_MIN).sum()) if len(res) else 0
     efface(mos, [tuple(res[k, :2]) for k in mauvais])
     ds = gdal.Open(str(mos))
