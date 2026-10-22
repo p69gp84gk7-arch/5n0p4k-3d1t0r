@@ -457,21 +457,22 @@ def recale(date, photo, orthos, sortie):
         gcp_photo, gcp_geo = np.vstack([p2, gcp_photo[loin]]), np.vstack([g2, gcp_geo[loin]])
 
     if manuels:
-        # les passes automatiques ne doivent pas contredire les points placés à la main :
-        # si, à l'endroit de ces points, elles s'en écartent de plus de 25 m, on ne garde
-        # que les points manuels (fausses ressemblances dans un paysage qui a changé)
+        # les points placés à la main font foi (en 1993, l'automatique se trompait de 200 m
+        # à la station tout en passant ses propres contrôles) : on garde les points
+        # automatiques qui s'accordent avec eux, sauf tout près d'eux, et on ajoute les points manuels
         rbf = RBFInterpolator(gcp_photo, gcp_geo, kernel="thin_plate_spline", smoothing=len(gcp_photo) * 0.02,
                               neighbors=min(len(gcp_photo), 150))
-        ecart = np.median(np.linalg.norm(rbf(man_photo) - man_geo, axis=1)) * COS_LAT
-        rapport["ecart_points_manuels_m"] = round(float(ecart), 1)
-        if ecart > 25:
-            gcp_photo, gcp_geo = man_photo, man_geo
-            rapport["passes_ignorees"] = True
+        rapport["ecart_points_manuels_m"] = round(float(np.median(
+            np.linalg.norm(rbf(man_photo) - man_geo, axis=1)) * COS_LAT), 1)
+        loin = cKDTree(man_geo).query(gcp_geo)[0] * COS_LAT > 150
+        gcp_photo, gcp_geo = gcp_photo[loin], gcp_geo[loin]
 
     # On limite le nombre de points de calage
     if len(gcp_photo) > 1500:
         sel = np.random.default_rng(0).choice(len(gcp_photo), 1500, replace=False)
         gcp_photo, gcp_geo = gcp_photo[sel], gcp_geo[sel]
+    if manuels:
+        gcp_photo, gcp_geo = np.vstack([gcp_photo, man_photo]), np.vstack([gcp_geo, man_geo])
     rapport["points_calage"] = int(len(gcp_photo))
 
     # 3. GDAL : photo recadrée (sans le cadre) + points de calage -> thin plate spline
@@ -495,8 +496,9 @@ def recale(date, photo, orthos, sortie):
 def statut(rapport):
     """Verdict à partir des mesures de contrôle (réappliqué à chaque lancement)."""
     if rapport.get("manuel"):
-        # photo placée à la main : gardée sauf si l'écart avec l'ortho 2022 est vraiment grand
-        return "ok" if rapport.get("mediane_m", 0) <= 2 * SEUIL_MEDIANE else "mal recalée"
+        # photo placée à la main : vérifiée à l'œil par la personne qui l'a placée (les contrôles
+        # automatiques se trompent justement là où le paysage a changé)
+        return "ok"
     if "carres_controle" not in rapport:
         return rapport["statut"]   # échec avant le contrôle
     bon = (rapport.get("mediane_m", 99) <= SEUIL_MEDIANE and rapport.get("p90_m", 99) <= SEUIL_P90
