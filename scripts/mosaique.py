@@ -19,22 +19,25 @@ import sys
 import cv2
 import numpy as np
 from osgeo import gdal
+from scipy.spatial import cKDTree
 
-from commun import RECALES, bande_alpha, nb_couleurs, zone_merc
+from commun import RECALES, bande_alpha, nb_couleurs, points_manuels, zone_merc
 
 gdal.UseExceptions()
 
 RES = 0.6
+COS_LAT = 0.734          # 1 m Web Mercator = 0,734 m au sol à cette latitude
 BLOC = 2048
 FONDU_DETAIL = 40.0     # mètres Web Mercator
 FONDU_LUMIERE = 600.0
 FONDU_BORD = 120.0      # une photo s'estompe sur 120 m près de ses bords
 REDUC = 8               # résolution de calcul de la luminosité générale (8 x 0,6 m)
 SIGMA_LUMIERE = 30      # en pixels réduits (≈ 150 m)
+RAYON_MANUEL = 1500.0   # autour des points placés à la main, la photo passe devant et n'est pas effacée
 
 
 class Photo:
-    def __init__(self, chemin, centre, nc, manuel=False):
+    def __init__(self, chemin, centre, nc, manuels=None):
         self.ds = gdal.Open(str(chemin))
         self.nc = nc                     # bandes de la mosaïque (1 ou 3)
         self.bandes = [1, 2, 3] if nb_couleurs(self.ds) == 3 else [1] * nc
@@ -43,13 +46,21 @@ class Photo:
         self.x0, self.y1 = gt[0], gt[3]
         self.w, self.h = self.ds.RasterXSize, self.ds.RasterYSize
         self.centre = centre
-        self.manuel = manuel             # placée à la main : prioritaire, et gardée entière
+        self.manuel = bool(manuels)      # placée à la main : prioritaire près de ses points
         # secteurs décalés à retirer (0 = décalé)
         self.secteurs = None
         chemin_secteurs = chemin.with_name(chemin.stem + "_secteurs.tif")
         if chemin_secteurs.exists():
             s = gdal.Open(str(chemin_secteurs))
             self.secteurs, self.s_gt = s.GetRasterBand(1).ReadAsArray(), s.GetGeoTransform()
+        # près des points placés à la main (grille réduite) : gardé et prioritaire
+        self.proche = None
+        if manuels:
+            gx0 = self.x0 + (np.arange(self.w // REDUC) + 0.5) * RES * REDUC
+            gy0 = self.y1 - (np.arange(self.h // REDUC) + 0.5) * RES * REDUC
+            mx, my = np.meshgrid(gx0, gy0)
+            dist = cKDTree([[p["x"], p["y"]] for p in manuels]).query(np.column_stack([mx.ravel(), my.ravel()]))[0]
+            self.proche = (dist.reshape(mx.shape) * COS_LAT <= RAYON_MANUEL)
         # luminosité générale (moyenne locale, sans tenir compte des zones vides), par couleur
         a = (self.alpha.ReadAsArray(buf_xsize=self.w // REDUC, buf_ysize=self.h // REDUC,
                                     resample_alg=gdal.GRIORA_NearestNeighbour) > 0).astype(np.float32)
@@ -69,16 +80,23 @@ class Photo:
         self.bord = (cv2.distanceTransform((a > 0).astype(np.uint8), cv2.DIST_L2, 5)
                      * REDUC * RES).astype(np.float32)
 
+    def pres_des_points(self, xs, ys):
+        """Masque : à moins de RAYON_MANUEL d'un point placé à la main."""
+        if self.proche is None:
+            return np.zeros((len(ys), len(xs)), bool)
+        ix = np.clip(((xs - self.x0) / (RES * REDUC)).astype(int), 0, self.proche.shape[1] - 1)
+        iy = np.clip(((self.y1 - ys) / (RES * REDUC)).astype(int), 0, self.proche.shape[0] - 1)
+        return self.proche[iy[:, None], ix[None, :]]
+
     def garde(self, xs, ys):
-        """Masque des secteurs à garder, pour une grille (xs, ys) en mètres."""
+        """Masque des secteurs à garder, pour une grille (xs, ys) en mètres : secteurs
+        vérifiés, et tout ce qui est près des points placés à la main."""
         if self.secteurs is None:
             return np.ones((len(ys), len(xs)), bool)
         g = self.s_gt
         ix = np.clip(((xs - g[0]) / g[1]).astype(int), 0, self.secteurs.shape[1] - 1)
         iy = np.clip(((ys - g[3]) / g[5]).astype(int), 0, self.secteurs.shape[0] - 1)
-        if self.manuel:   # photo placée à la main : gardée entière
-            return np.ones((len(ys), len(xs)), bool)
-        return self.secteurs[iy[:, None], ix[None, :]] == 1   # seuls les secteurs vérifiés
+        return (self.secteurs[iy[:, None], ix[None, :]] == 1) | self.pres_des_points(xs, ys)
 
     def fenetre(self, bx0, by1, bw, bh):
         """Lit le morceau de la photo qui tombe dans le bloc (ou None)."""
@@ -117,7 +135,8 @@ def main():
     # en couleur si au moins une photo l'est (les photos en noir et blanc sont alors recopiées
     # sur les trois couleurs)
     nc = max([nb_couleurs(gdal.Open(str(dossier / (r["photo"] + ".tif")))) for r in ok] or [1])
-    photos = [Photo(dossier / (r["photo"] + ".tif"), r["centre"], nc, bool(r.get("manuel"))) for r in ok]
+    photos = [Photo(dossier / (r["photo"] + ".tif"), r["centre"], nc,
+                    points_manuels(date, r["photo"]) if r.get("manuel") else None) for r in ok]
 
     x0, y0, x1, y1 = zone_merc()
     x0, y1 = np.floor(x0 / RES) * RES, np.ceil(y1 / RES) * RES
@@ -146,8 +165,8 @@ def main():
                     continue
                 d = np.hypot(xs[None, :] - p.centre[0], ys[:, None] - p.centre[1]).astype(np.float32)
                 d += 3 * np.clip(FONDU_BORD - f[4], 0, None)   # près de son bord, une photo cède la place
-                if p.manuel:
-                    d -= 1e6                                       # une photo placée à la main passe devant
+                if p.manuel:   # près de ses points, une photo placée à la main passe devant
+                    d -= 1e6 * p.pres_des_points(xs, ys)
                 d[~f[1]] = np.inf
                 morceaux.append((f, d))
             if not morceaux:

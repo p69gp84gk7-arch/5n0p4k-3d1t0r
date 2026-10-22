@@ -24,7 +24,7 @@ import numpy as np
 from osgeo import gdal
 from scipy.spatial import cKDTree
 
-from commun import RECALES, REFERENCE, bande_alpha
+from commun import RECALES, REFERENCE, bande_alpha, points_manuels
 
 gdal.UseExceptions()
 
@@ -123,6 +123,9 @@ def couvert_a_la_main(date, x, y):
     rapports = json.loads((RECALES / date / "rapport.json").read_text())
     for r in rapports.values():
         if r.get("manuel") and r.get("statut") == "ok":
+            pts = points_manuels(date, r["photo"]) or []
+            if not pts or min(np.hypot(p["x"] - x, p["y"] - y) for p in pts) * 0.734 > 1500:
+                continue   # loin des points placés à la main : contrôlé comme les autres
             ds = gdal.Open(str(RECALES / date / (r["photo"] + ".tif")))
             gt = ds.GetGeoTransform()
             c, l = int((x - gt[0]) / gt[1]), int((y - gt[3]) / gt[5])
