@@ -55,8 +55,9 @@ RES_GROSSIER = 4.0
 SEUIL_GROSSIER = 8.0          # écart médian maximal (m)
 DECALAGE_MAX = 20.0           # un secteur décalé de plus de 20 m est retiré de la mosaïque
 MARGE_SECTEUR = 200.0         # ... avec 200 m autour
-PORTEE_REPERE = 160.0         # au-delà, un secteur n'a pas de repère vérifié tout près : non vérifié, retiré
-PART_GARDEE_MIN = 0.20        # une photo dont il reste moins de 20 % est écartée
+PORTEE_REPERE = 250.0         # au-delà, un secteur n'a pas de repère vérifié tout près : non vérifié, retiré
+PART_GARDEE_MIN = 0.10        # une photo dont il reste moins de 10 % est écartée
+PART_DECALEE_MAX = 0.30       # ... ou dont plus de 30 % des carrés contrôlés sont décalés
 
 
 def historique_pour(date):
@@ -454,7 +455,8 @@ def statut(rapport):
     bon = (rapport.get("mediane_m", 99) <= SEUIL_MEDIANE and rapport.get("p90_m", 99) <= SEUIL_P90
            and rapport["carres_controle"] >= MIN_CARRES and rapport["zones_controlees"] >= MIN_ZONES
            and rapport.get("grossier_m", 0) <= SEUIL_GROSSIER
-           and rapport.get("part_gardee", 1) >= PART_GARDEE_MIN)
+           and rapport.get("part_gardee", 1) >= PART_GARDEE_MIN
+           and rapport.get("grossier_part_decalee", 0) <= PART_DECALEE_MAX)
     return "ok" if bon else "mal recalée"
 
 

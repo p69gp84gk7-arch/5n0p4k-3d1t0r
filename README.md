@@ -99,7 +99,7 @@ Pour chaque photo :
    n'est pas publiée.
 6. **Contrôle secteur par secteur** : la photo est découpée en carrés de 250 m,
    comparés à l'ortho 2022 jusqu'au bord de la photo. Seuls les secteurs à
-   moins de 160 m d'un carré confirmé bien placé (écart < 20 m) vont dans la
+   moins de 250 m d'un carré confirmé bien placé (écart < 20 m) vont dans la
    mosaïque ; les autres restent vides.
 
 Puis, pour la date entière, une **vérification finale** compare la mosaïque
