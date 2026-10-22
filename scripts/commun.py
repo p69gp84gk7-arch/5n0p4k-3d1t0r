@@ -54,3 +54,31 @@ def telecharge(url, params=None, essais=5, **kw):
                 raise
         time.sleep(2 ** i)
     raise RuntimeError(f"Échec du téléchargement : {url}")
+
+
+# Photos en couleur : les scripts comparent en niveaux de gris, mais gardent la couleur
+# jusqu'aux tuiles. Une image recalée a 1 (gris) ou 3 (couleur) bandes, plus la transparence.
+ORDRE_COULEUR = ["C", "P", "IRC", "IR"]   # version préférée quand l'IGN en a plusieurs
+
+
+def nb_couleurs(ds):
+    """Nombre de bandes d'image (sans la transparence) : 1 ou 3."""
+    from osgeo import gdal
+    n = ds.RasterCount
+    if n > 1 and ds.GetRasterBand(n).GetColorInterpretation() == gdal.GCI_AlphaBand:
+        n -= 1
+    return 3 if n >= 3 else 1
+
+
+def lire_gris(ds, *args, **kw):
+    """Lit une image (ou un morceau) en niveaux de gris, qu'elle soit en couleur ou non."""
+    import numpy as np
+    if nb_couleurs(ds) == 1:
+        return ds.GetRasterBand(1).ReadAsArray(*args, **kw)
+    r, v, b = (ds.GetRasterBand(i).ReadAsArray(*args, **kw).astype(np.float32) for i in (1, 2, 3))
+    return (0.3 * r + 0.59 * v + 0.11 * b).astype(np.uint8)
+
+
+def bande_alpha(ds):
+    """La bande de transparence (la dernière)."""
+    return ds.GetRasterBand(ds.RasterCount)

@@ -22,7 +22,7 @@ from osgeo import gdal
 
 from shapely.geometry import shape
 
-from commun import BRUTS, DEPOT, RECALES, TUILES
+from commun import BRUTS, DEPOT, RECALES, TUILES, bande_alpha, lire_gris, nb_couleurs
 
 gdal.UseExceptions()
 
@@ -79,14 +79,16 @@ def main():
     ds = gdal.Open(str(mosaique))
     w = min(2000, ds.RasterXSize)
     h = int(w * ds.RasterYSize / ds.RasterXSize)
-    gris = ds.GetRasterBand(1).ReadAsArray(buf_xsize=w, buf_ysize=h)
-    utile = ds.GetRasterBand(2).ReadAsArray(buf_xsize=w, buf_ysize=h) > 0
+    gris = lire_gris(ds, buf_xsize=w, buf_ysize=h)
+    utile = bande_alpha(ds).ReadAsArray(buf_xsize=w, buf_ysize=h) > 0
     bas, haut = (float(v) for v in np.percentile(gris[utile], ETIREMENT))
+    couleur = nb_couleurs(ds) == 3
     ds = None
-    # le WebP veut du rouge-vert-bleu + transparence : le gris est recopié 3 fois
+    # le WebP veut du rouge-vert-bleu + transparence : en noir et blanc, le gris est recopié
+    # 3 fois ; en couleur, le même réglage est appliqué aux trois couleurs (teintes gardées)
     rgba = RECALES / date / "mosaique_rgba.vrt"
     etire = [bas, max(haut, bas + 1), 0, 255]
-    gdal.Translate(str(rgba), str(mosaique), format="VRT", bandList=[1, 1, 1, 2],
+    gdal.Translate(str(rgba), str(mosaique), format="VRT", bandList=[1, 2, 3, 4] if couleur else [1, 1, 1, 2],
                    scaleParams=[etire, etire, etire, [0, 255, 0, 255]],
                    exponents=[GAMMA, GAMMA, GAMMA, 1])
     gdal2tiles = shutil.which("gdal2tiles.py") or shutil.which("gdal2tiles")

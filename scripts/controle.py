@@ -19,7 +19,7 @@ import numpy as np
 from osgeo import gdal
 from PIL import Image, ImageDraw, ImageFont
 
-from commun import BRUTS, CONTROLE, GEOPF, RECALES, REFERENCE, zone_merc
+from commun import BRUTS, CONTROLE, GEOPF, RECALES, REFERENCE, lire_gris, zone_merc
 
 gdal.UseExceptions()
 
@@ -58,6 +58,10 @@ def lire(fichier, x0, y0, x1, y1, largeur_px, gris=True):
     if a.ndim == 3:
         if a.shape[0] == 2:          # gris + alpha
             a = np.where(a[1] > 0, a[0], 0)
+        elif a.shape[0] == 4 and gris:   # couleur + alpha
+            a = np.where(a[3] > 0, 0.3 * a[0] + 0.59 * a[1] + 0.11 * a[2], 0).astype(np.uint8)
+        elif a.shape[0] == 4:
+            a = np.moveaxis(np.where(a[3] > 0, a[:3], 0), 0, -1)
         elif gris:
             a = (0.3 * a[0] + 0.59 * a[1] + 0.11 * a[2]).astype(np.uint8)
         else:
@@ -111,7 +115,7 @@ def main():
     v = (L - 80 - (par_ligne - 1) * 8) // par_ligne
     for i, ph in enumerate(sorted(choix, key=lambda q: q["id"])):
         ds = gdal.Open(str(BRUTS / date / (ph["id"] + ".tif")))
-        a = ds.GetRasterBand(1).ReadAsArray(buf_xsize=v, buf_ysize=v)
+        a = lire_gris(ds, buf_xsize=v, buf_ysize=v)
         cx = 40 + (i % par_ligne) * (v + 8)
         cy = y + (i // par_ligne) * (v + 34)
         img.paste(Image.fromarray(a).convert("RGB"), (cx, cy))
@@ -126,7 +130,7 @@ def main():
            font=t, fill=TEXTE)
     y += 45
     w3 = (L - 80 - 2 * 20) // 3
-    m = lire(mosaique, x0, y0, x1, y1, w3)
+    m = lire(mosaique, x0, y0, x1, y1, w3, gris=False)
     o = lire(ortho, x0, y0, x1, y1, w3, gris=False)
     dm = damier(lire(mosaique, x0, y0, x1, y1, w3), lire(ortho, x0, y0, x1, y1, w3))
     for k, im in enumerate((m, o, dm)):

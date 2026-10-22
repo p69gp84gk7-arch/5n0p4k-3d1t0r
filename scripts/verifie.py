@@ -24,7 +24,7 @@ import numpy as np
 from osgeo import gdal
 from scipy.spatial import cKDTree
 
-from commun import RECALES, REFERENCE
+from commun import RECALES, REFERENCE, bande_alpha
 
 gdal.UseExceptions()
 
@@ -43,9 +43,10 @@ def lire(fichier, bornes, gris=True):
     ds = gdal.Warp("", str(fichier), format="MEM", outputBounds=bornes,
                    xRes=RES, yRes=RES, resampleAlg="average")
     a = ds.ReadAsArray().astype(np.float32)
-    if a.shape[0] == 2:
+    if a.shape[0] == 2:              # gris + transparence
         return a[0], a[1] > 0
-    return 0.3 * a[0] + 0.59 * a[1] + 0.11 * a[2], None
+    gris = 0.3 * a[0] + 0.59 * a[1] + 0.11 * a[2]
+    return gris, (a[3] > 0 if a.shape[0] == 4 else None)
 
 
 def detail(a):
@@ -102,7 +103,7 @@ def efface(mos, centres):
     """Rend transparents les carrés décalés (et leur marge) dans la mosaïque."""
     ds = gdal.Open(str(mos), gdal.GA_Update)
     gt = ds.GetGeoTransform()
-    bande = ds.GetRasterBand(2)
+    bande = bande_alpha(ds)
     e = CARRE / 2 + MARGE
     for x, y in centres:
         c0 = max(0, int((x - e - gt[0]) / gt[1]))
@@ -126,11 +127,11 @@ def main():
     ds = gdal.Open(str(mos))
     w = 1000
     h = int(w * ds.RasterYSize / ds.RasterXSize)
-    apres = ds.GetRasterBand(2).ReadAsArray(buf_xsize=w, buf_ysize=h) > 0
+    apres = bande_alpha(ds).ReadAsArray(buf_xsize=w, buf_ysize=h) > 0
     avant = cv2.resize(alpha.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
     ds = None
     bilan = {"carres": int(len(res)), "mesurables": mesurables, "decales": len(mauvais),
-             "part_retiree": round(float(1 - apres.sum() / max(1, avant.sum())), 3),
+             "part_retiree": round(max(0.0, float(1 - apres.sum() / max(1, avant.sum()))), 3),
              "liste": [{"x": round(float(res[k, 0])), "y": round(float(res[k, 1])),
                         "ecart_m": round(float(np.hypot(res[k, 2], res[k, 3]))),
                         "score": round(float(res[k, 4]), 2)} for k in mauvais]}
