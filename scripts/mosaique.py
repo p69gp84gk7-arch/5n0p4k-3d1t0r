@@ -5,7 +5,9 @@ En chaque point, on prend la photo dont le centre est le plus proche (c'est là
 qu'elle est la moins déformée), sauf :
 - sur le plateau de Superbagnères, où la photo dont le centre est le plus proche
   de la station passe devant partout (une seule photo, pas de raccord dans la station) ;
-- une photo placée à la main passe toujours devant les autres.
+- une photo placée à la main passe devant les autres dans la zone couverte par ses
+  points (enveloppe des points + 500 m) ; en dehors, elle ne sert qu'en dernier
+  recours (loin des points, rien ne garantit qu'elle soit bien placée).
 Les raccords sont fondus :
 - les détails sur une bande étroite (FONDU_DETAIL),
 - la luminosité et le contraste généraux sur une bande large (FONDU_LUMIERE),
@@ -36,6 +38,7 @@ REDUC = 8               # résolution de calcul de la luminosité générale (8 
 SIGMA_LUMIERE = 30      # en pixels réduits (≈ 150 m)
 PLATEAU = (59500, 5275000, 65500, 5278200)   # plateau de Superbagnères et station (m Web Mercator)
 STATION = (62700, 5276700)                   # centre de la station
+MARGE_MANUELLE = 500.0  # m au sol autour de l'enveloppe des points placés à la main
 
 
 class Photo:
@@ -48,7 +51,15 @@ class Photo:
         self.x0, self.y1 = gt[0], gt[3]
         self.w, self.h = self.ds.RasterXSize, self.ds.RasterYSize
         self.centre = centre
-        self.manuel = bool(manuels)      # placée à la main : passe devant les autres
+        self.manuel = bool(manuels)      # placée à la main : passe devant, près de ses points
+        self.zone_manuelle = None        # (grille réduite) zone couverte par les points manuels
+        if manuels:
+            from shapely.geometry import MultiPoint
+            zone = MultiPoint([(p["x"], p["y"]) for p in manuels]).convex_hull.buffer(MARGE_MANUELLE / 0.734)
+            masque = np.zeros((self.h // REDUC, self.w // REDUC), np.uint8)
+            pix = [[(x - self.x0) / (RES * REDUC), (self.y1 - y) / (RES * REDUC)] for x, y in zone.exterior.coords]
+            cv2.fillPoly(masque, [np.round(pix).astype(np.int32)], 1)
+            self.zone_manuelle = masque > 0
         # luminosité générale (moyenne locale, sans tenir compte des zones vides), par couleur
         a = (self.alpha.ReadAsArray(buf_xsize=self.w // REDUC, buf_ysize=self.h // REDUC,
                                     resample_alg=gdal.GRIORA_NearestNeighbour) > 0).astype(np.float32)
@@ -67,6 +78,14 @@ class Photo:
         # distance au bord de la partie utile (mètres)
         self.bord = (cv2.distanceTransform((a > 0).astype(np.uint8), cv2.DIST_L2, 5)
                      * REDUC * RES).astype(np.float32)
+
+    def pres_des_points(self, xs, ys):
+        """Masque : dans la zone couverte par les points placés à la main."""
+        if self.zone_manuelle is None:
+            return np.zeros((len(ys), len(xs)), bool)
+        ix = np.clip(((xs - self.x0) / (RES * REDUC)).astype(int), 0, self.zone_manuelle.shape[1] - 1)
+        iy = np.clip(((self.y1 - ys) / (RES * REDUC)).astype(int), 0, self.zone_manuelle.shape[0] - 1)
+        return self.zone_manuelle[iy[:, None], ix[None, :]]
 
     def garde(self, xs, ys):
         """Masque des parties à garder : tout (les photos acceptées sont gardées entières ;
@@ -142,10 +161,12 @@ def main():
                 # sur le plateau : la photo la mieux centrée sur la station passe devant partout
                 plateau = ((xs[None, :] >= PLATEAU[0]) & (xs[None, :] <= PLATEAU[2])
                            & (ys[:, None] >= PLATEAU[1]) & (ys[:, None] <= PLATEAU[3]))
-                d = np.where(plateau, np.hypot(p.centre[0] - STATION[0], p.centre[1] - STATION[1]), d)
-                d += 3 * np.clip(FONDU_BORD - f[4], 0, None)   # près de son bord, une photo cède la place
                 if p.manuel:
-                    d -= 1e6                                       # une photo placée à la main passe devant
+                    # devant toutes les autres près de ses points ; ailleurs, en dernier recours
+                    d = np.where(p.pres_des_points(xs, ys), d - 1e6, d + 1e6)
+                else:
+                    d = np.where(plateau, np.hypot(p.centre[0] - STATION[0], p.centre[1] - STATION[1]), d)
+                d += 3 * np.clip(FONDU_BORD - f[4], 0, None)   # près de son bord, une photo cède la place
                 d[~f[1]] = np.inf
                 morceaux.append((f, d))
             if not morceaux:
