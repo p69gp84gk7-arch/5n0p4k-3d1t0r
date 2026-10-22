@@ -94,7 +94,14 @@ def main():
     y += 60
     d.text((40, y), f"{len(choix)} photos IGN retenues · {len(ok)} bien recalées (publiées) · "
                     f"{len(mal)} écartées (mal recalées ou en échec)", font=p, fill=GRIS)
-    y += 50
+    y += 32
+    verif = dossier / "verification.json"
+    if verif.exists():
+        v = json.loads(verif.read_text())
+        d.text((40, y), f"Vérification finale de la mosaïque : {v['decales']} secteurs encore décalés de plus "
+                        f"de 60 m sur {v['mesurables']} mesurés, effacés ({v['part_retiree']:.0%} de la surface)",
+               font=p, fill=GRIS)
+    y += 40
 
     # --- AVANT : photos brutes ---
     d.text((40, y), "AVANT : photos brutes (non géoréférencées)", font=t, fill=TEXTE)

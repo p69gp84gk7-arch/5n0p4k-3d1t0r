@@ -1,5 +1,5 @@
 """Traite une date de A à Z : photos IGN -> recalage -> photos de complément ->
-mosaïque -> contrôle -> tuiles.
+mosaïque -> vérification finale -> contrôle -> tuiles.
 
 Usage :
     python3 scripts/ajoute_date.py liste          # dates disponibles à l'IGN sur la zone
@@ -34,6 +34,7 @@ def main():
     etape("photos.py", date, "complete")   # d'autres photos là où il reste des trous
     etape("recale.py", date)               # (seules les nouvelles sont traitées)
     etape("mosaique.py", date)
+    etape("verifie.py", date)              # efface les secteurs encore décalés
     etape("controle.py", date)
     etape("tuiles.py", date)
 
