@@ -18,7 +18,7 @@ from shapely import affinity
 from shapely.geometry import box, shape
 from shapely.ops import unary_union
 
-from commun import BRUTS, GEOPF, ORDRE_COULEUR, RECALES, TRAVAIL, bande_alpha, telecharge, zone_merc
+from commun import BRUTS, GEOPF, ORDRE_COULEUR, POINTS, RECALES, TRAVAIL, bande_alpha, telecharge, zone_merc
 
 gdal.UseExceptions()
 
@@ -173,6 +173,13 @@ def main():
         ids = {p["id"] for p in choix}
         choix += [p for p in json.loads(fichier.read_text())
                   if p["id"] not in ids and p.get("couleur") == version[0]["couleur"]]
+    # photos placées à la main (page placer.html) : toujours prises
+    ids = {p["id"] for p in choix}
+    for f in sorted((POINTS / date).glob("*.json")):
+        p = next((q for q in dates[date] if q["id"] == f.stem), None)
+        if p and p["id"] not in ids:
+            choix.append(p)
+            print("  placée à la main :", p["id"])
     telecharge_photos(date, choix)
     fichier.write_text(json.dumps(choix, indent=1))
 

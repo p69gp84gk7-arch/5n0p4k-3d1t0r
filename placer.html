@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Placer une photo</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#dfe6ec; --panel:#f7fafc; --ink:#14212c; --muted:#56687a;
+  --line:#b7c4cf; --accent:#1f6fd1; --accent-ink:#ffffff; --soft:#e8eef3;
+  --ok:#1d8a4e; --warn:#b86a00; --bad:#c23a2b; --pend:#e07b00;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1820; --panel:#15222d; --ink:#e7eef4; --muted:#93a6b7;
+    --line:#2f4252; --accent:#4b93ef; --accent-ink:#06121e; --soft:#1c2c39;
+    --ok:#4cc386; --warn:#f0a640; --bad:#f07466; --pend:#ffa040;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1820; --panel:#15222d; --ink:#e7eef4; --muted:#93a6b7;
+  --line:#2f4252; --accent:#4b93ef; --accent-ink:#06121e; --soft:#1c2c39;
+  --ok:#4cc386; --warn:#f0a640; --bad:#f07466; --pend:#ffa040;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 Barlow,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--accent)}
+.app{display:flex;flex-direction:column;height:100%}
+
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{margin:0;font:700 22px/1.1 "Barlow Condensed",sans-serif}
+header .sp{flex:1}
+.steps{display:flex;gap:6px;flex-wrap:wrap}
+.steps span{font:600 13px/1 Barlow,sans-serif;padding:6px 10px;border-radius:999px;background:var(--soft);color:var(--muted)}
+.steps span.on{background:var(--accent);color:var(--accent-ink)}
+.steps span.fait{color:var(--ok)}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:8px 12px;font-weight:600}
+.btn:hover{border-color:var(--accent)}
+.btn.prim{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.petit{padding:4px 8px;font-size:13px}
+
+.aide{background:var(--panel);border-bottom:1px solid var(--line);padding:4px 16px 12px;display:none}
+.aide.ouverte{display:block}
+.aide h2{font:700 18px/1.2 "Barlow Condensed",sans-serif;margin:10px 0 6px}
+.aide ol{margin:4px 0;padding-left:22px}
+.aide li{margin:3px 0}
+.aide .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:4px 24px}
+.rassure{background:var(--soft);border-left:4px solid var(--ok);padding:8px 12px;border-radius:4px;margin:8px 0}
+
+.consigne{padding:10px 16px;background:var(--soft);border-bottom:1px solid var(--line);font-weight:600;min-height:44px;display:flex;align-items:center;gap:10px}
+.consigne .pastille{flex:none;width:12px;height:12px;border-radius:50%;background:var(--accent)}
+.consigne.attente .pastille{background:var(--pend);animation:clign 1s infinite}
+@keyframes clign{50%{opacity:.25}}
+
+/* étape 1 : choix */
+.choix{flex:1;overflow:auto;padding:14px 16px}
+.choix .ligne{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.carte-photo{background:var(--panel);border:2px solid var(--line);border-radius:8px;padding:6px;text-align:left}
+.carte-photo:hover{border-color:var(--accent)}
+.carte-photo img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;display:block;background:var(--soft)}
+.carte-photo b{display:block;margin-top:4px}
+.badge{display:inline-block;font-size:12px;font-weight:600;padding:1px 6px;border-radius:4px;margin:2px 2px 0 0;background:var(--soft)}
+.badge.st{background:#d9ecff;color:#0b4a8f}.badge.lu{background:#ffe8cc;color:#8a4b00}
+.badge.ok{background:#d6f2e2;color:#0f6a39}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .badge.st{background:#123a5e;color:#cfe6ff}
+  :root:not([data-theme="light"]) .badge.lu{background:#4d3210;color:#ffe2bd}
+  :root:not([data-theme="light"]) .badge.ok{background:#14432a;color:#c8f2da}}
+
+/* étape 2 : placement */
+.travail{flex:1;display:none;min-height:0}
+.travail.actif{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr auto}
+.vue{position:relative;min-height:0;border-right:1px solid var(--line)}
+.vue .nom{position:absolute;left:10px;bottom:24px;z-index:500;background:rgba(10,18,26,.78);color:#fff;font:700 14px/1 "Barlow Condensed",sans-serif;padding:6px 9px;border-radius:4px;pointer-events:none}
+.vue .outils{position:absolute;right:10px;top:10px;z-index:500;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:70%}
+.vue .outils .btn{background:rgba(247,250,252,.95);color:#14212c;border-color:#b7c4cf}
+.carte{position:absolute;inset:0;background:#0b1117}
+.carte.cible{cursor:crosshair}
+.bas{grid-column:1 / -1;border-top:1px solid var(--line);background:var(--panel);padding:8px 16px 10px;max-height:26vh;overflow:auto}
+.bas .ligne{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.bas .sp{flex:1}
+table{border-collapse:collapse;width:100%;margin-top:6px;font-size:14px}
+th,td{padding:2px 8px;border-bottom:1px solid var(--line);text-align:left}
+td:last-child{text-align:right;white-space:nowrap}
+td.num{font-weight:700}
+.etat-ok{color:var(--ok)}.etat-moyen{color:var(--warn)}.etat-mauvais{color:var(--bad);font-weight:700}
+.jauge{display:flex;align-items:center;gap:8px;font-size:14px}
+.jauge input{width:120px}
+.repere{width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;border:2px solid #fff;background:var(--ok);color:#fff;
+  font:700 13px/22px Barlow,sans-serif;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.6)}
+.repere.attente{background:var(--pend)}
+.repere.mauvais{background:var(--bad)}
+.repere.choisi{outline:3px solid #ffd400}
+
+/* étape 4 : envoi */
+.envoi{display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:16px}
+.envoi.ouvert{display:flex}
+.boite{background:var(--panel);border-radius:12px;max-width:640px;width:100%;padding:16px 20px;box-shadow:0 10px 40px rgba(0,0,0,.4);max-height:90vh;overflow:auto}
+.boite h2{margin:0 0 6px;font:700 22px/1.1 "Barlow Condensed",sans-serif}
+.boite textarea{width:100%;height:120px;font:12px/1.3 ui-monospace,Consolas,monospace;border:1px solid var(--line);border-radius:6px;padding:8px;background:var(--soft)}
+.boite .ligne{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px}
+.copie{color:var(--ok);font-weight:700;display:none}
+
+@media (max-width:760px){
+  .travail.actif{grid-template-columns:1fr;grid-template-rows:42vh 42vh auto}
+  .vue{border-right:0;border-bottom:1px solid var(--line)}
+  body{overflow:auto}
+  .app{height:auto;min-height:100%}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Placer une photo à la main</h1>
+    <div class="steps" id="etapes">
+      <span data-e="1">1. Choisir la photo</span><span data-e="2">2. Placer les points</span>
+      <span data-e="3">3. Vérifier</span><span data-e="4">4. M’envoyer les points</span>
+    </div>
+    <div class="sp"></div>
+    <button class="btn" id="bAide" aria-expanded="true">Mode d’emploi</button>
+    <a class="btn" href="./" style="text-decoration:none">Retour au site</a>
+  </header>
+
+  <section class="aide ouverte" id="aide">
+    <div class="rassure"><b>Aucun risque :</b> cette page ne modifie rien, ni le site ni les photos. Tant que vous ne m’envoyez pas
+      les points (étape 4), il ne se passe rien. Votre travail est gardé dans ce navigateur : vous pouvez fermer la page et revenir.</div>
+    <div class="cols">
+      <div>
+        <h2>À quoi ça sert ?</h2>
+        Quand le placement automatique d’une photo ancienne est raté ou incomplet, vous pouvez la placer vous-même :
+        vous montrez une dizaine d’endroits sur la photo, puis les mêmes endroits sur la carte d’aujourd’hui.
+        Je m’occupe ensuite de la déformer pour qu’elle tombe juste.
+        <h2>Comment faire</h2>
+        <ol>
+          <li><b>Choisissez la date, puis la photo.</b> Les étiquettes « Station » et « Luchon » indiquent ce qu’elle montre. Prenez de préférence une photo qui montre toute la partie qui manque sur le site.</li>
+          <li><b>Cliquez un endroit précis sur la photo</b> (à gauche) : un point orange numéroté apparaît.</li>
+          <li><b>Cliquez le même endroit sur la carte</b> (à droite) : le point devient vert. Recommencez.</li>
+          <li>Dès 3 points, cochez <b>« Voir la photo posée sur la carte »</b> pour vérifier : routes et bâtiments doivent coïncider.</li>
+          <li>Quand c’est bon, cliquez <b>« Terminer et copier les points »</b> et collez le texte dans la conversation avec Claude.</li>
+        </ol>
+      </div>
+      <div>
+        <h2>Bien choisir ses points</h2>
+        <ul>
+          <li><b>Des choses qui n’ont pas bougé</b> depuis la photo : coin d’un vieux bâtiment, carrefour, pont, bord du lac, angle des thermes ou du casino, virage d’une route ancienne.</li>
+          <li><b>À éviter :</b> arbres, ombres, bords de neige, sommets (le relief les déplace), bâtiments construits après la photo.</li>
+          <li><b>Répartis partout</b> sur la photo (pas tous au centre), surtout autour de la station et de Luchon : <b>10 à 15 points</b> c’est bien.</li>
+          <li><b>Zoomez</b> avec la molette pour cliquer précisément. Un point mal placé ? <b>Faites-le glisser</b>, ou supprimez-le avec ✕.</li>
+          <li>Un point en <span class="etat-mauvais">rouge</span> ne s’accorde pas avec les autres : c’est sûrement une erreur de clic, vérifiez-le.</li>
+        </ul>
+        <h2>Raccourcis</h2>
+        <ul><li><b>Échap</b> : annuler le clic en attente.</li><li><b>Molette</b> : zoomer ; <b>clic maintenu</b> : déplacer la vue.</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="consigne" id="consigne"><span class="pastille"></span><span id="consigneTxt">Choisissez une date puis une photo.</span></div>
+
+  <section class="choix" id="choix">
+    <div class="ligne">
+      <label for="date"><b>Date :</b></label>
+      <select id="date" class="btn"></select>
+      <label><input type="checkbox" id="filtreStation" checked> seulement les photos qui montrent la station ou Luchon</label>
+    </div>
+    <div class="grille" id="grille"></div>
+  </section>
+
+  <section class="travail" id="travail">
+    <div class="vue">
+      <div class="carte cible" id="cPhoto"></div>
+      <span class="nom" id="nomPhoto">Photo</span>
+      <div class="outils">
+        <button class="btn petit" id="bTourneG" title="Tourner la photo d’un quart de tour à gauche">↺ Tourner</button>
+        <button class="btn petit" id="bTourneD" title="Tourner la photo d’un quart de tour à droite">↻ Tourner</button>
+      </div>
+    </div>
+    <div class="vue">
+      <div class="carte cible" id="cCarte"></div>
+      <span class="nom">Carte d’aujourd’hui (IGN)</span>
+      <div class="outils">
+        <button class="btn petit" id="bFond">Voir le plan IGN</button>
+        <button class="btn petit" id="bZone">Recentrer</button>
+      </div>
+    </div>
+    <div class="bas">
+      <div class="ligne">
+        <button class="btn" id="bRetour">← Changer de photo</button>
+        <button class="btn" id="bAnnule" disabled>Annuler le dernier clic</button>
+        <label class="jauge"><input type="checkbox" id="voir" disabled> Voir la photo posée sur la carte</label>
+        <label class="jauge">transparence <input type="range" id="opacite" min="0.1" max="1" step="0.05" value="0.6"></label>
+        <span class="sp"></span>
+        <span id="bilan"></span>
+        <button class="btn" id="bEfface" disabled>Tout effacer</button>
+        <button class="btn prim" id="bFini" disabled>Terminer et copier les points</button>
+      </div>
+      <table id="table" hidden>
+        <thead><tr><th>Point</th><th>Accord avec les autres points</th><th></th></tr></thead>
+        <tbody id="lignes"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<div class="envoi" id="envoi" role="dialog" aria-modal="true" aria-labelledby="envoiTitre">
+  <div class="boite">
+    <h2 id="envoiTitre">Dernière étape : m’envoyer les points</h2>
+    <p id="envoiAvis"></p>
+    <ol>
+      <li>Le texte ci-dessous est <b>déjà copié</b> <span class="copie" id="copieOk">✓ copié</span>. Sinon, cliquez « Copier à nouveau ».</li>
+      <li>Retournez dans la conversation avec Claude et <b>collez-le</b> (Ctrl + V), puis envoyez.</li>
+      <li>Je fais le recalage avec vos points et je vous montre le résultat avant toute publication.</li>
+    </ol>
+    <textarea id="texte" readonly></textarea>
+    <div class="ligne">
+      <button class="btn" id="bFerme">Revenir aux points</button>
+      <button class="btn prim" id="bCopie">Copier à nouveau</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const WMTS = (layer, fmt) =>
+  `https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${layer}&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=${fmt}`;
+const COS_LAT = Math.cos(42.78 * Math.PI / 180);   // mètres Web Mercator -> mètres au sol
+const lire = k => { try { return JSON.parse(localStorage.getItem(k)); } catch(e) { return null; } };
+const ecrire = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} };
+
+let PHOTOS = {}, photo = null, date = null;
+let rot = 0;                 // quarts de tour dans le sens des aiguilles d'une montre
+let points = [];             // {u, v, x, y} : u, v = position dans la photo brute (0 à 1) ; x, y = mètres Web Mercator
+let attente = null;          // point cliqué sur la photo, en attente de son équivalent sur la carte
+let choisi = -1;
+
+/* ---------- étapes et consignes ---------- */
+function etape(n){
+  document.querySelectorAll('#etapes span').forEach(s => {
+    s.classList.toggle('on', +s.dataset.e === n); s.classList.toggle('fait', +s.dataset.e < n);
+  });
+}
+function consigne(txt, enAttente){
+  $('consigneTxt').textContent = txt;
+  $('consigne').classList.toggle('attente', !!enAttente);
+}
+$('bAide').onclick = () => {
+  const o = $('aide').classList.toggle('ouverte');
+  $('bAide').setAttribute('aria-expanded', o);
+  ecrire('placer-aide', o);
+  setTimeout(() => { mPhoto && mPhoto.invalidateSize(); mCarte && mCarte.invalidateSize(); }, 50);
+};
+
+/* ---------- étape 1 : choix ---------- */
+const TYPES = {C:"Couleur", P:"Noir et blanc", IRC:"Infrarouge couleur", IR:"Infrarouge"};
+const cle = p => `placer:${date}:${p.id}`;
+function grille(){
+  const g = $('grille'); g.innerHTML = '';
+  const seul = $('filtreStation').checked;
+  const liste = (PHOTOS[date] || []).filter(p => !seul || p.couvre.length);
+  if(!liste.length){ g.innerHTML = '<p>Aucune photo pour ce choix.</p>'; return; }
+  liste.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'carte-photo';
+    const sauve = lire(cle(p));
+    b.innerHTML = `<img loading="lazy" alt="" src="placer/${p.apercu}">
+      <b>Photo n° ${p.numero}</b>
+      ${p.couvre.includes('station') ? '<span class="badge st">Station</span>' : ''}
+      ${p.couvre.includes('luchon') ? '<span class="badge lu">Luchon</span>' : ''}
+      <span class="badge">${TYPES[p.couleur] || p.couleur}</span>
+      ${sauve && sauve.points && sauve.points.length ? `<span class="badge ok">${sauve.points.length} points déjà placés</span>` : ''}`;
+    b.onclick = () => ouvre(p);
+    g.appendChild(b);
+  });
+}
+$('date').onchange = () => { date = $('date').value; ecrire('placer-date', date); grille(); };
+$('filtreStation').onchange = grille;
+
+/* ---------- étape 2 : les deux vues ---------- */
+let mPhoto = null, mCarte = null, imgCalque = null, fondPlan = null, fondOrtho = null, emprise = null;
+let marquesP = [], marquesC = [], dims = {w:1, h:1}, imgUrl = null;
+function cartes(){
+  if(mPhoto) return;
+  mPhoto = L.map('cPhoto', {crs: L.CRS.Simple, minZoom: -4, maxZoom: 4, zoomSnap: .25, attributionControl: false, doubleClickZoom: false});
+  mCarte = L.map('cCarte', {minZoom: 11, maxZoom: 19, zoomSnap: .25, doubleClickZoom: false, zoomAnimation: false});
+  mCarte.attributionControl.setPrefix(false).addAttribution('© IGN – Géoplateforme');
+  fondOrtho = L.tileLayer(WMTS('ORTHOIMAGERY.ORTHOPHOTOS', 'image/jpeg'), {maxNativeZoom: 19, maxZoom: 19}).addTo(mCarte);
+  fondPlan = L.tileLayer(WMTS('GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2', 'image/png'), {maxNativeZoom: 19, maxZoom: 19});
+  mPhoto.on('click', clicPhoto);
+  mCarte.on('click', clicCarte);
+  mCarte.on('moveend zoomend viewreset resize', poseCalque);
+}
+$('bFond').onclick = () => {
+  const plan = mCarte.hasLayer(fondPlan);
+  if(plan){ mCarte.removeLayer(fondPlan); fondOrtho.addTo(mCarte); $('bFond').textContent = 'Voir le plan IGN'; }
+  else { mCarte.removeLayer(fondOrtho); fondPlan.addTo(mCarte); $('bFond').textContent = 'Voir la photo aérienne'; }
+};
+$('bZone').onclick = () => emprise && mCarte.fitBounds(emprise.getBounds());
+
+// position dans la photo brute (u, v) <-> position affichée (photo tournée)
+function versAffiche(u, v){
+  return [[u, v], [1 - v, u], [1 - u, 1 - v], [v, 1 - u]][rot];
+}
+function versBrut(a, b){
+  return [[a, b], [b, 1 - a], [1 - a, 1 - b], [1 - b, a]][rot];
+}
+const dimsAffiche = () => rot % 2 ? {w: dims.h, h: dims.w} : {w: dims.w, h: dims.h};
+const latlngPhoto = (u, v) => { const [a, b] = versAffiche(u, v), d = dimsAffiche(); return L.latLng(-b * d.h, a * d.w); };
+const uvPhoto = ll => { const d = dimsAffiche(); return versBrut(ll.lng / d.w, -ll.lat / d.h); };
+const llCarte = (x, y) => L.CRS.EPSG3857.unproject(L.point(x, y));
+const xyCarte = ll => L.CRS.EPSG3857.project(ll);
+
+let calquePhoto = null;
+function affichePhoto(){
+  // dessine la photo tournée dans un canevas (pour la vue de gauche)
+  const im = new Image();
+  im.onload = () => {
+    dims = {w: im.naturalWidth, h: im.naturalHeight};
+    const d = dimsAffiche(), c = document.createElement('canvas');
+    c.width = d.w; c.height = d.h;
+    const g = c.getContext('2d');
+    g.translate(d.w / 2, d.h / 2); g.rotate(rot * Math.PI / 2); g.drawImage(im, -dims.w / 2, -dims.h / 2);
+    if(calquePhoto) mPhoto.removeLayer(calquePhoto);
+    const b = [[-d.h, 0], [0, d.w]];
+    calquePhoto = L.imageOverlay(c.toDataURL('image/jpeg', .9), b).addTo(mPhoto);
+    mPhoto.setMaxBounds(L.latLngBounds(b).pad(.3));
+    mPhoto.fitBounds(b);
+    dessine();
+  };
+  im.src = imgUrl;
+}
+function tourne(s){
+  rot = (rot + s + 4) % 4; sauve(); affichePhoto();
+}
+$('bTourneG').onclick = () => tourne(-1);
+$('bTourneD').onclick = () => tourne(1);
+
+function ouvre(p){
+  photo = p; cartes();
+  const sauve_ = lire(cle(p));
+  // orientation IGN : vers 180 la photo a le nord en haut ; sinon un quart de tour par 90°
+  rot = sauve_ && sauve_.rot != null ? sauve_.rot : (((Math.round((180 - (p.orientation ?? 180)) / 90)) % 4) + 4) % 4;
+  points = sauve_ && sauve_.points ? sauve_.points : [];
+  attente = null; choisi = -1;
+  imgUrl = 'placer/' + p.apercu;
+  $('choix').hidden = true; $('travail').classList.add('actif');
+  $('nomPhoto').textContent = `Photo n° ${p.numero} · ${date.split('-').reverse().join('/')}`;
+  setTimeout(() => {
+    mPhoto.invalidateSize(); mCarte.invalidateSize();
+    if(emprise) mCarte.removeLayer(emprise);
+    emprise = L.polygon(p.emprise.map(([x, y]) => llCarte(x, y)),
+      {color: '#ffd400', weight: 2, dashArray: '6 6', fill: false, interactive: false}).addTo(mCarte);
+    mCarte.fitBounds(emprise.getBounds());
+    affichePhoto();
+  }, 30);
+  etape(2);
+  $('voir').checked = false; retireCalque();
+  location.hash = `${date}/${p.numero}`;
+}
+$('bRetour').onclick = () => {
+  attente = null; $('travail').classList.remove('actif'); $('choix').hidden = false;
+  etape(1); consigne('Choisissez une date puis une photo.'); grille(); location.hash = '';
+};
+
+/* ---------- les clics ---------- */
+function clicPhoto(e){
+  const [u, v] = uvPhoto(e.latlng);
+  if(u < 0 || u > 1 || v < 0 || v > 1){ consigne('Cliquez sur la photo elle-même, pas à côté.', !!attente); return; }
+  attente = {u, v};
+  dessine();
+}
+function clicCarte(e){
+  if(!attente){ consigne('Commencez par cliquer un endroit sur la photo (à gauche), puis le même endroit ici.'); return; }
+  const p = xyCarte(e.latlng);
+  points.push({u: attente.u, v: attente.v, x: p.x, y: p.y});
+  attente = null; sauve(); dessine();
+}
+$('bAnnule').onclick = () => {
+  if(attente){ attente = null; }
+  else if(points.length){ points.pop(); sauve(); }
+  dessine();
+};
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && attente){ attente = null; dessine(); } });
+$('bEfface').onclick = () => {
+  if(!confirm(`Effacer les ${points.length} points de cette photo ? (vous ne pourrez pas revenir en arrière)`)) return;
+  points = []; attente = null; sauve(); dessine();
+};
+function sauve(){ if(photo) ecrire(cle(photo), {rot, points}); }
+
+/* ---------- accord entre les points (transformation affine, moindres carrés) ---------- */
+function resout(A, b){   // petit système linéaire (Gauss)
+  const n = A.length, M = A.map((r, i) => [...r, b[i]]);
+  for(let c = 0; c < n; c++){
+    let p = c; for(let r = c + 1; r < n; r++) if(Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    if(Math.abs(M[c][c]) < 1e-12) return null;
+    for(let r = 0; r < n; r++) if(r !== c){ const f = M[r][c] / M[c][c]; for(let k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+  }
+  return M.map((r, i) => r[n] / r[i]);
+}
+function affine(pts){   // (u, v) -> (x, y) : x = a u + b v + c
+  if(pts.length < 3) return null;
+  const sol = [];
+  for(const k of ['x', 'y']){
+    const A = [[0,0,0],[0,0,0],[0,0,0]], b = [0,0,0];
+    pts.forEach(p => { const r = [p.u, p.v, 1]; for(let i=0;i<3;i++){ b[i] += r[i]*p[k]; for(let j=0;j<3;j++) A[i][j] += r[i]*r[j]; } });
+    const s = resout(A, b); if(!s) return null; sol.push(s);
+  }
+  return (u, v) => [sol[0][0]*u + sol[0][1]*v + sol[0][2], sol[1][0]*u + sol[1][1]*v + sol[1][2]];
+}
+function ecarts(){
+  // écart de chaque point avec ce que disent les autres (le point lui-même mis de côté)
+  if(points.length < 5) return points.map(() => null);
+  return points.map((p, i) => {
+    const f = affine(points.filter((_, j) => j !== i));
+    if(!f) return null;
+    const [x, y] = f(p.u, p.v);
+    return Math.hypot(x - p.x, y - p.y) * COS_LAT;
+  });
+}
+function qualite(e, med){
+  if(e == null) return ['', 'à vérifier après 5 points'];
+  // le relief déplace les choses de quelques dizaines de mètres : c'est normal
+  if(e > Math.max(150, 4 * med)) return ['mauvais', `très différent des autres (${Math.round(e)} m) : sûrement une erreur de clic`];
+  if(e > Math.max(70, 2.5 * med)) return ['moyen', `un peu différent (${Math.round(e)} m) : vérifiez`];
+  return ['ok', `bon (${Math.round(e)} m, normal en montagne)`];
+}
+function repartition(){
+  // part de la photo couverte par les points (enveloppe des points) : il faut qu'ils soient bien répartis
+  if(points.length < 3) return 0;
+  const P = points.map(p => [p.u, p.v]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]);
+  const bas = [], haut = [];
+  for(const p of P){ while(bas.length >= 2 && cr(bas[bas.length-2], bas[bas.length-1], p) <= 0) bas.pop(); bas.push(p); }
+  for(const p of P.slice().reverse()){ while(haut.length >= 2 && cr(haut[haut.length-2], haut[haut.length-1], p) <= 0) haut.pop(); haut.push(p); }
+  const h = bas.slice(0, -1).concat(haut.slice(0, -1));
+  let a = 0; for(let i = 0; i < h.length; i++){ const [x1, y1] = h[i], [x2, y2] = h[(i+1) % h.length]; a += x1*y2 - x2*y1; }
+  return Math.abs(a) / 2;
+}
+
+/* ---------- dessin ---------- */
+const icone = (n, cls) => L.divIcon({className: '', html: `<div class="repere ${cls}">${n}</div>`, iconSize: [0, 0]});
+function dessine(){
+  marquesP.forEach(m => mPhoto.removeLayer(m)); marquesC.forEach(m => mCarte.removeLayer(m));
+  marquesP = []; marquesC = [];
+  const E = ecarts(), connus = E.filter(e => e != null).sort((a, b) => a - b);
+  const med = connus.length ? connus[Math.floor(connus.length / 2)] : 0;
+  const Q = E.map(e => qualite(e, med));
+  points.forEach((p, i) => {
+    const cls = (Q[i][0] === 'mauvais' ? 'mauvais' : '') + (i === choisi ? ' choisi' : '');
+    const mp = L.marker(latlngPhoto(p.u, p.v), {icon: icone(i + 1, cls), draggable: true, title: `Point ${i + 1}`}).addTo(mPhoto);
+    mp.on('dragend', ev => { const [u, v] = uvPhoto(ev.target.getLatLng()); Object.assign(p, {u, v}); sauve(); dessine(); });
+    mp.on('click', () => selection(i));
+    const mc = L.marker(llCarte(p.x, p.y), {icon: icone(i + 1, cls), draggable: true, title: `Point ${i + 1}`}).addTo(mCarte);
+    mc.on('dragend', ev => { const q = xyCarte(ev.target.getLatLng()); Object.assign(p, {x: q.x, y: q.y}); sauve(); dessine(); });
+    mc.on('click', () => selection(i));
+    marquesP.push(mp); marquesC.push(mc);
+  });
+  if(attente){
+    marquesP.push(L.marker(latlngPhoto(attente.u, attente.v), {icon: icone(points.length + 1, 'attente'), interactive: false}).addTo(mPhoto));
+  }
+  // tableau
+  const tb = $('lignes'); tb.innerHTML = '';
+  points.forEach((p, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="num">${i + 1}</td><td class="etat-${Q[i][0]}">${Q[i][1]}</td>
+      <td><button class="btn petit" data-voir="${i}">Voir</button> <button class="btn petit" data-suppr="${i}" title="Supprimer ce point">✕</button></td>`;
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll('[data-voir]').forEach(b => b.onclick = () => selection(+b.dataset.voir, true));
+  tb.querySelectorAll('[data-suppr]').forEach(b => b.onclick = () => {
+    if(!confirm(`Supprimer le point ${+b.dataset.suppr + 1} ?`)) return;
+    points.splice(+b.dataset.suppr, 1); choisi = -1; sauve(); dessine();
+  });
+  $('table').hidden = !points.length;
+  // boutons et consignes
+  $('bAnnule').disabled = !attente && !points.length;
+  $('bEfface').disabled = !points.length;
+  $('voir').disabled = points.length < 3;
+  if(points.length < 3){ $('voir').checked = false; }
+  const mauvais = Q.filter(q => q[0] === 'mauvais').length;
+  const rep = repartition();
+  $('bFini').disabled = points.length < 6;
+  $('bilan').textContent = `${points.length} point${points.length > 1 ? 's' : ''}` +
+    (points.length >= 6 ? (rep < .15 ? ' · trop regroupés' : ' · bien répartis') : ` · encore ${6 - points.length} au minimum`);
+  if(attente) consigne(`Point ${points.length + 1} : cliquez maintenant le même endroit sur la carte de droite (Échap pour annuler).`, true);
+  else if(!points.length) consigne('Cliquez un endroit bien reconnaissable sur la photo (à gauche). Zoomez avec la molette pour être précis.');
+  else if(mauvais) consigne(`Le point en rouge ne s’accorde pas avec les autres : faites-le glisser au bon endroit, ou supprimez-le.`);
+  else if(points.length < 6) consigne(`Bien ! Encore ${6 - points.length} point${6 - points.length > 1 ? 's' : ''} au minimum, répartis sur toute la photo.`);
+  else if(rep < .15) consigne('Les points sont trop regroupés : ajoutez-en vers les bords de la photo (en haut, en bas, à gauche, à droite).');
+  else if(points.length < 10) consigne('C’est utilisable. Ajoutez encore quelques points (10 à 15 c’est idéal), puis vérifiez avec « Voir la photo posée sur la carte ».');
+  else consigne('Très bien. Vérifiez avec « Voir la photo posée sur la carte », puis cliquez « Terminer et copier les points ».');
+  etape(points.length >= 6 ? 3 : 2);
+  poseCalque();
+}
+function selection(i, centre){
+  choisi = i; dessine();
+  if(centre){ const p = points[i]; mPhoto.panTo(latlngPhoto(p.u, p.v)); mCarte.panTo(llCarte(p.x, p.y)); }
+}
+
+/* ---------- la photo posée sur la carte (aperçu, transformation affine) ---------- */
+function retireCalque(){ if(imgCalque){ imgCalque.remove(); imgCalque = null; } }
+function poseCalque(){
+  if(!mCarte || !$('voir').checked || points.length < 3){ retireCalque(); return; }
+  const f = affine(points); if(!f){ retireCalque(); return; }
+  if(!imgCalque){
+    imgCalque = document.createElement('img');
+    imgCalque.src = imgUrl;
+    Object.assign(imgCalque.style, {position: 'absolute', left: 0, top: 0, transformOrigin: '0 0', pointerEvents: 'none', maxWidth: 'none'});
+    mCarte.getPanes().overlayPane.appendChild(imgCalque);
+  }
+  imgCalque.style.opacity = $('opacite').value;
+  const pt = (u, v) => { const [x, y] = f(u, v); return mCarte.latLngToLayerPoint(llCarte(x, y)); };
+  const o = pt(0, 0), a = pt(1, 0), b = pt(0, 1);
+  const W = dims.w, H = dims.h;
+  imgCalque.style.width = W + 'px'; imgCalque.style.height = H + 'px';
+  imgCalque.style.transform = `matrix(${(a.x - o.x) / W},${(a.y - o.y) / W},${(b.x - o.x) / H},${(b.y - o.y) / H},${o.x},${o.y})`;
+}
+$('voir').onchange = poseCalque;
+$('opacite').oninput = () => imgCalque && (imgCalque.style.opacity = $('opacite').value);
+
+/* ---------- étape 4 : envoi ---------- */
+async function copie(){
+  const t = $('texte');
+  try { await navigator.clipboard.writeText(t.value); }
+  catch(e){ t.select(); document.execCommand && document.execCommand('copy'); }
+  $('copieOk').style.display = 'inline';
+}
+$('bFini').onclick = () => {
+  const E = ecarts(), connus = E.filter(e => e != null).sort((a, b) => a - b);
+  const med = connus.length ? connus[Math.floor(connus.length / 2)] : 0;
+  const mauvais = E.filter(e => qualite(e, med)[0] === 'mauvais').length;
+  if(mauvais && !confirm(`${mauvais} point(s) en rouge semblent faux. Envoyer quand même ?`)) return;
+  const res = {
+    placement_manuel: 1, date, photo: photo.id, mission: photo.mission, rotation: rot * 90,
+    points: points.map(p => ({u: +p.u.toFixed(5), v: +p.v.toFixed(5), x: +p.x.toFixed(1), y: +p.y.toFixed(1)}))
+  };
+  $('texte').value = JSON.stringify(res);
+  $('envoiAvis').textContent = `Photo n° ${photo.numero} du ${date.split('-').reverse().join('/')} : ${points.length} points` +
+    (repartition() < .15 ? ' (un peu regroupés : le résultat sera moins bon loin des points).' : '.');
+  $('copieOk').style.display = 'none';
+  $('envoi').classList.add('ouvert'); etape(4); copie();
+};
+$('bCopie').onclick = copie;
+$('bFerme').onclick = () => { $('envoi').classList.remove('ouvert'); dessine(); };
+
+/* ---------- démarrage ---------- */
+(async function(){
+  if(lire('placer-aide') === false){ $('aide').classList.remove('ouverte'); $('bAide').setAttribute('aria-expanded', false); }
+  etape(1);
+  try { PHOTOS = await (await fetch('placer/photos.json', {cache: 'no-cache'})).json(); }
+  catch(e){ consigne('La liste des photos n’a pas pu être chargée. Réessayez dans un moment.'); return; }
+  const dates = Object.keys(PHOTOS).filter(d => PHOTOS[d].length).sort();
+  dates.forEach(d => $('date').add(new Option(`${d.slice(8)}/${d.slice(5, 7)}/${d.slice(0, 4)} · ${PHOTOS[d].length} photos`, d)));
+  const [hd, hn] = decodeURIComponent(location.hash.slice(1)).split('/');
+  date = dates.includes(hd) ? hd : (dates.includes(lire('placer-date')) ? lire('placer-date') : dates[0]);
+  $('date').value = date; grille();
+  const p = hn && (PHOTOS[date] || []).find(q => q.numero === hn);
+  if(p) ouvre(p);
+})();
+</script>
+</body>
+</html>

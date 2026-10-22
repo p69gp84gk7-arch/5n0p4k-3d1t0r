@@ -22,6 +22,7 @@ REFERENCE = TRAVAIL / "reference"  # ortho 2022 de référence
 RECALES = TRAVAIL / "recales"      # photos géoréférencées
 TUILES = DEPOT / "tiles"
 CONTROLE = DEPOT / "controle"
+POINTS = DEPOT / "placer" / "points"   # points placés à la main (page placer.html), un fichier par photo
 
 
 def merc(lon, lat):
@@ -77,6 +78,14 @@ def lire_gris(ds, *args, **kw):
         return ds.GetRasterBand(1).ReadAsArray(*args, **kw)
     r, v, b = (ds.GetRasterBand(i).ReadAsArray(*args, **kw).astype(np.float32) for i in (1, 2, 3))
     return (0.3 * r + 0.59 * v + 0.11 * b).astype(np.uint8)
+
+
+def points_manuels(date, photo_id):
+    """Points placés à la main pour cette photo (ou None) : [{u, v, x, y}, ...],
+    u et v étant la position dans la photo brute (de 0 à 1)."""
+    import json
+    f = POINTS / date / f"{photo_id}.json"
+    return json.loads(f.read_text())["points"] if f.exists() else None
 
 
 def bande_alpha(ds):
