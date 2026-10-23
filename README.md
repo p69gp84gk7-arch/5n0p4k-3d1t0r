@@ -98,14 +98,19 @@ Pour chaque photo :
    ces points sont bien répartis sur la photo. Sinon, elle est signalée et
    n'est pas publiée.
 6. **Contrôle secteur par secteur** : la photo est découpée en carrés de 250 m,
-   comparés à l'ortho 2022 jusqu'au bord de la photo. Seuls les secteurs à
-   moins de 250 m d'un carré confirmé bien placé (écart < 20 m) vont dans la
-   mosaïque ; les autres restent vides.
+   comparés à l'ortho 2022. Une photo dont trop de secteurs sont décalés est
+   écartée.
 
-Puis, pour la date entière, une **vérification finale** compare la mosaïque
-terminée à l'ortho 2022 : un secteur décalé de plus de 60 m (confirmé par ses
-voisins) est effacé. C'est un filet de sécurité indépendant du contrôle de
-chaque photo.
+Puis, pour la date entière, les photos acceptées sont assemblées **entières**,
+nord en haut, sans découpe : sur le plateau de Superbagnères, la photo la mieux
+centrée sur la station passe devant (pas de raccord dans la station) ; les photos
+placées à la main passent toujours en premier. Une **vérification finale**
+compare la mosaïque à l'ortho 2022 et encadre en rouge, sur l'image de contrôle,
+les secteurs qui semblent décalés de plus de 60 m (sans les effacer).
+
+Attention : là où le paysage a beaucoup changé (parkings, bâtiments neufs), le
+placement automatique peut se tromper de 100 à 200 m sans que ses contrôles le
+voient. Pour la station, le placement à la main est la méthode sûre.
 
 ## Placer une photo à la main
 
@@ -123,8 +128,8 @@ ou `placer.html`) :
 
 La page ne modifie rien par elle-même. Les points reçus sont enregistrés dans
 `placer/points/<date>/<photo>.json` ; au recalage suivant de cette date, la photo
-part de ces points (au lieu de l'emprise IGN), passe devant les autres dans la
-mosaïque, et ses secteurs sans repère vérifiable sont gardés. Les aperçus sont
+part de ces points (au lieu de l'emprise IGN) et passe devant les autres dans
+la mosaïque. Les aperçus sont
 refaits avec `python3 scripts/apercus.py`.
 
 ## Contenu du dépôt
