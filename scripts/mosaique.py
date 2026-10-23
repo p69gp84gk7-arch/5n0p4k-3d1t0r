@@ -7,6 +7,9 @@ Peu de photos, les meilleures, et une seule teinte :
    les photos placées à la main, puis celles choisies dans placer/priorites.json.
 2. Une seule photo par endroit : là où plusieurs photos se recouvrent, la mieux
    classée l'emporte ; seul un léger fondu adoucit le bord de chaque photo.
+   Là où le contrôle n'a pas vérifié qu'une photo est bien placée (carte
+   <photo>_secteurs.tif), une autre photo vérifiée passe devant ; sinon elle reste
+   affichée (rien n'est découpé). Le choix des photos en tient compte de la même façon.
 3. Une seule teinte : la luminosité et le contraste de chaque photo (par couleur)
    sont accordés sur ceux des photos déjà posées, là où elles se recouvrent.
 Une photo placée à la main ne passe devant les autres que dans la zone couverte par
@@ -52,6 +55,12 @@ class Photo:
         self.x0, self.y1 = gt[0], gt[3]
         self.w, self.h = self.ds.RasterXSize, self.ds.RasterYSize
         self.manuel = bool(manuels)
+        # secteurs non vérifiés par le contrôle (0 = décalé, 2 = sans repère) : moins prioritaires
+        self.secteurs = None
+        chemin_secteurs = chemin.with_name(chemin.stem + "_secteurs.tif")
+        if chemin_secteurs.exists() and not self.manuel:
+            s = gdal.Open(str(chemin_secteurs))
+            self.secteurs, self.s_gt = s.GetRasterBand(1).ReadAsArray(), s.GetGeoTransform()
         self.gain = np.ones(nc, np.float32)     # accord des teintes : valeur * gain + decalage
         self.decalage = np.zeros(nc, np.float32)
         a = self.alpha.ReadAsArray(buf_xsize=self.w // REDUC, buf_ysize=self.h // REDUC,
@@ -77,6 +86,17 @@ class Photo:
         img = np.stack([a[b - 1] for b in self.bandes])
         m = a[-1] > 0
         return img, m
+
+    def fiable(self, xs, ys):
+        """Masque : là où le contrôle a vérifié que la photo est bien placée (1) ; ni les
+        secteurs décalés (0) ni ceux sans repère vérifiable (2, souvent au bord, où la
+        photo peut être très mal placée : Luchon en 1996)."""
+        if self.secteurs is None:
+            return np.ones((len(ys), len(xs)), bool)
+        g = self.s_gt
+        ix = np.clip(((xs - g[0]) / g[1]).astype(int), 0, self.secteurs.shape[1] - 1)
+        iy = np.clip(((ys - g[3]) / g[5]).astype(int), 0, self.secteurs.shape[0] - 1)
+        return self.secteurs[iy[:, None], ix[None, :]] == 1
 
     def prioritaire(self, xs, ys):
         """Masque : là où la photo placée à la main passe devant (près de ses points)."""
@@ -179,7 +199,7 @@ def main():
     for a, b, c, d in LIEUX.values():
         cibles |= (gx[None, :] >= a) & (gx[None, :] <= c) & (gy[:, None] >= b) & (gy[:, None] <= d)
     images = {p.id: p.reduite(bornes, wr, hr) for p in photos}
-    masques = {p.id: images[p.id][1] for p in photos}
+    masques = {p.id: images[p.id][1] & p.fiable(gx, gy) for p in photos}   # bien placé seulement
     imposees = priorites(date)
     ordre, couverture = choisit(photos, masques, cibles, imposees)
     accorde_teintes(ordre, images)
@@ -201,9 +221,13 @@ def main():
         for k, ci in enumerate((gdal.GCI_RedBand, gdal.GCI_GreenBand, gdal.GCI_BlueBand)):
             out.GetRasterBand(k + 1).SetColorInterpretation(ci)
     out.GetRasterBand(nc + 1).SetColorInterpretation(gdal.GCI_AlphaBand)
-    # une photo placée à la main, hors de la zone de ses points, passe en dernier
-    couches = ([(p, True) for p in ordre if p.manuel] + [(p, False) for p in ordre if not p.manuel]
-               + [(p, False) for p in ordre if p.manuel])
+    # de la plus prioritaire à la moins prioritaire : photos placées à la main (près de leurs
+    # points), puis chaque photo là où elle est bien placée, puis là où elle semble décalée,
+    # et enfin les photos placées à la main loin de leurs points
+    couches = ([(p, "points") for p in ordre if p.manuel]
+               + [(p, "fiable") for p in ordre if not p.manuel]
+               + [(p, "decale") for p in ordre if not p.manuel]
+               + [(p, "loin") for p in ordre if p.manuel])
     for by in range(0, hauteur, BLOC):
         for bx in range(0, largeur, BLOC):
             bw, bh = min(BLOC, largeur - bx), min(BLOC, hauteur - by)
@@ -212,19 +236,24 @@ def main():
             ys = Y1 - (np.arange(bh) + 0.5) * RES
             res = np.zeros((nc, bh, bw), np.float32)
             couvert = np.zeros((bh, bw), np.float32)
-            for p, pres_des_points in reversed(couches):
+            for p, quoi in reversed(couches):
                 f = p.fenetre(X0, Y1, bw, bh)
                 if f is None or not f[1].any():
                     continue
                 img, alpha, bord = f
-                w = np.clip(bord / FONDU_BORD, 0, 1) * alpha
-                if p.manuel and pres_des_points:
-                    w *= p.prioritaire(xs, ys)
-                elif p.manuel:
-                    w *= ~p.prioritaire(xs, ys)
-                w = np.where(couvert > 0, w, alpha.astype(np.float32))   # pas de fondu dans le vide
+                if quoi == "points":
+                    m = p.prioritaire(xs, ys)
+                elif quoi == "loin":
+                    m = ~p.prioritaire(xs, ys)
+                elif quoi == "fiable":
+                    m = p.fiable(xs, ys)
+                else:
+                    m = ~p.fiable(xs, ys)
+                m = (alpha & m).astype(np.float32)
+                w = np.clip(bord / FONDU_BORD, 0, 1) * m
+                w = np.where(couvert > 0, w, m)   # pas de fondu dans le vide
                 res = res * (1 - w) + img * w
-                couvert = np.maximum(couvert, alpha.astype(np.float32) * (w > 0))
+                couvert = np.maximum(couvert, m)
             for k in range(nc):
                 out.GetRasterBand(k + 1).WriteArray(np.clip(res[k], 0, 255).astype(np.uint8), bx, by)
             out.GetRasterBand(nc + 1).WriteArray(((couvert > 0) * 255).astype(np.uint8), bx, by)
