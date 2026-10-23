@@ -182,6 +182,8 @@ def main():
     rapports = json.loads((dossier / "rapport.json").read_text())
     ok = [r for r in rapports.values() if r.get("statut") == "ok"]
     print(f"{len(ok)} photos « ok » sur {len(rapports)}")
+    # après un premier passage, seules les photos retenues sont gardées sur le disque
+    ok = [r for r in ok if (dossier / (r["photo"] + ".tif")).exists()]
     nc = max([nb_couleurs(gdal.Open(str(dossier / (r["photo"] + ".tif")))) for r in ok] or [1])
     photos = [Photo(dossier / (r["photo"] + ".tif"), r, nc,
                     points_manuels(date, r["photo"]) if r.get("manuel") else None) for r in ok]
