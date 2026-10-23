@@ -58,12 +58,25 @@ def photos_par_date():
     return dict(sorted(dates.items()))
 
 
+# station de Superbagnères et Luchon : la version choisie doit les couvrir
+LIEUX = [box(59500, 5275000, 65500, 5278200), box(65200, 5278600, 67200, 5281400)]
+
+
 def meilleure_version(photos):
-    """Quand l'IGN a plusieurs versions des mêmes clichés (noir et blanc, couleur,
-    infrarouge), on garde la plus naturelle : couleur, puis noir et blanc, puis infrarouge."""
-    types = {p.get("couleur") for p in photos}
-    for t in ORDRE_COULEUR:
-        if t in types:
+    """Quand l'IGN a plusieurs versions des mêmes clichés, on prend la couleur en priorité :
+    couleur, puis infrarouge couleur, puis noir et blanc, puis infrarouge. Une version
+    n'est retenue que si elle couvre presque autant la station et Luchon que la meilleure
+    (en 1980, l'infrarouge couleur ne couvre qu'une partie)."""
+    lieux = unary_union(LIEUX)
+    def couverture(t):
+        emp = unary_union([shape(p["emprise"]) for p in photos if p.get("couleur") == t])
+        return emp.intersection(lieux).area / lieux.area
+    types = [t for t in ORDRE_COULEUR if any(p.get("couleur") == t for p in photos)]
+    if not types:
+        return photos
+    meilleure = max(couverture(t) for t in types)
+    for t in types:
+        if couverture(t) >= 0.9 * meilleure:
             return [p for p in photos if p.get("couleur") == t]
     return photos
 

@@ -59,7 +59,7 @@ def telecharge(url, params=None, essais=5, **kw):
 
 # Photos en couleur : les scripts comparent en niveaux de gris, mais gardent la couleur
 # jusqu'aux tuiles. Une image recalée a 1 (gris) ou 3 (couleur) bandes, plus la transparence.
-ORDRE_COULEUR = ["C", "P", "IRC", "IR"]   # version préférée quand l'IGN en a plusieurs
+ORDRE_COULEUR = ["C", "IRC", "P", "IR"]   # version préférée quand l'IGN en a plusieurs : la couleur d'abord
 
 
 def nb_couleurs(ds):
