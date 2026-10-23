@@ -173,13 +173,18 @@ def main():
         ids = {p["id"] for p in choix}
         choix += [p for p in json.loads(fichier.read_text())
                   if p["id"] not in ids and p.get("couleur") == version[0]["couleur"]]
-    # photos placées à la main (page placer.html) : toujours prises
+    # photos placées à la main (page placer.html) ou choisies (placer/priorites.json) : toujours prises
     ids = {p["id"] for p in choix}
-    for f in sorted((POINTS / date).glob("*.json")):
-        p = next((q for q in dates[date] if q["id"] == f.stem), None)
+    voulues = [f.stem for f in sorted((POINTS / date).glob("*.json"))]
+    prio = POINTS.parent / "priorites.json"
+    numeros = json.loads(prio.read_text()).get(date, []) if prio.exists() else []
+    voulues += [p["id"] for p in version if p["id"].split("_")[-1] in numeros]
+    for pid in voulues:
+        p = next((q for q in dates[date] if q["id"] == pid), None)
         if p and p["id"] not in ids:
             choix.append(p)
-            print("  placée à la main :", p["id"])
+            ids.add(p["id"])
+            print("  placée à la main ou choisie :", p["id"])
     telecharge_photos(date, choix)
     fichier.write_text(json.dumps(choix, indent=1))
 
