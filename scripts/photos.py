@@ -117,13 +117,16 @@ def telecharge_photos(date, photos):
 def complete(date, toutes):
     """Après un premier recalage : choisit d'autres photos de la même date pour
     boucher les trous (zones non couvertes par une photo bien recalée)."""
+    if (RECALES / date / "mosaique.json").exists():
+        print(f"{date} : déjà assemblée une fois, pas de photos de complément")
+        return
     PAS = 20.0
     x0, y0, x1, y1 = zone_merc()
     w, h = int((x1 - x0) / PAS), int((y1 - y0) / PAS)
     couvert = np.zeros((h, w), bool)
     rapports = json.loads((RECALES / date / "rapport.json").read_text())
     for r in rapports.values():
-        if r.get("statut") == "ok":
+        if r.get("statut") == "ok" and (RECALES / date / (r["photo"] + ".tif")).exists():
             ds = gdal.Warp("", str(RECALES / date / (r["photo"] + ".tif")), format="MEM",
                            outputBounds=(x0, y0, x1, y1), width=w, height=h, resampleAlg="near")
             utile = bande_alpha(ds).ReadAsArray() > 0
