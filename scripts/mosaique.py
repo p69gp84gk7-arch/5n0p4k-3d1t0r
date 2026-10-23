@@ -1,20 +1,18 @@
 """Assemble les photos recalées d'une même date en une seule image (mosaïque).
 
-Les photos acceptées sont gardées entières (rien n'est découpé), nord en haut.
-En chaque point, on prend la photo dont le centre est le plus proche (c'est là
-qu'elle est la moins déformée), sauf :
-- sur le plateau de Superbagnères, où la photo dont le centre est le plus proche
-  de la station passe devant partout (une seule photo, pas de raccord dans la station) ;
-- une photo placée à la main passe devant les autres dans la zone couverte par ses
-  points (enveloppe des points + 500 m) ; en dehors, elle ne sert qu'en dernier
-  recours (loin des points, rien ne garantit qu'elle soit bien placée).
-Les raccords sont fondus :
-- les détails sur une bande étroite (FONDU_DETAIL),
-- la luminosité et le contraste généraux sur une bande large (FONDU_LUMIERE),
-  pour éviter les différences de teinte entre deux clichés voisins,
-- et chaque photo s'estompe aussi près de ses propres bords (FONDU_BORD).
-Seules les photos marquées « ok » par recale.py sont utilisées. Si les photos sont
-en couleur, la mosaïque l'est aussi (chaque couleur est fondue séparément).
+Peu de photos, les meilleures, et une seule teinte :
+1. Choix des photos : seules comptent la station de Superbagnères (tout le plateau)
+   et Luchon. On prend le plus petit nombre de photos qui les couvrent, en
+   préférant les plus détaillées (pixels les plus fins). Passent en premier :
+   les photos placées à la main, puis celles choisies dans placer/priorites.json.
+2. Une seule photo par endroit : là où plusieurs photos se recouvrent, la mieux
+   classée l'emporte ; seul un léger fondu adoucit le bord de chaque photo.
+3. Une seule teinte : la luminosité et le contraste de chaque photo (par couleur)
+   sont accordés sur ceux des photos déjà posées, là où elles se recouvrent.
+Une photo placée à la main ne passe devant les autres que dans la zone couverte par
+ses points (enveloppe + 500 m) : loin de ses points, rien ne garantit sa position.
+
+Le choix est noté dans recales/<date>/mosaique.json.
 
 Usage : python3 scripts/mosaique.py 1958-10-25
 """
@@ -25,99 +23,137 @@ import cv2
 import numpy as np
 from osgeo import gdal
 
-from commun import RECALES, bande_alpha, nb_couleurs, points_manuels, zone_merc
+from commun import DEPOT, RECALES, bande_alpha, nb_couleurs, points_manuels, zone_merc
 
 gdal.UseExceptions()
 
 RES = 0.6
 BLOC = 2048
-FONDU_DETAIL = 40.0     # mètres Web Mercator
-FONDU_LUMIERE = 600.0
 FONDU_BORD = 120.0      # une photo s'estompe sur 120 m près de ses bords
-REDUC = 8               # résolution de calcul de la luminosité générale (8 x 0,6 m)
-SIGMA_LUMIERE = 30      # en pixels réduits (≈ 150 m)
-PLATEAU = (59500, 5275000, 65500, 5278200)   # plateau de Superbagnères et station (m Web Mercator)
-STATION = (62700, 5276700)                   # centre de la station
-MARGE_MANUELLE = 500.0  # m au sol autour de l'enveloppe des points placés à la main
+REDUC = 8               # grille réduite (8 x 0,6 m) pour le choix et l'accord des teintes
+# Zones qui comptent (m Web Mercator)
+LIEUX = {"station": (59500, 5275000, 65500, 5278200),   # plateau de Superbagnères et station
+         "luchon": (65200, 5278600, 67200, 5281400)}
+COUVERTURE_VISEE = 0.98  # on arrête d'ajouter des photos quand les lieux sont couverts à 98 %
+GAIN_MIN = 0.01          # ... ou quand une photo n'apporte plus que 1 % des lieux
+MARGE_MANUELLE = 500.0   # m au sol autour de l'enveloppe des points placés à la main
 
 
 class Photo:
-    def __init__(self, chemin, centre, nc, manuels=None):
+    def __init__(self, chemin, rapport, nc, manuels=None):
+        self.id = rapport["photo"]
+        self.numero = self.id.split("_")[-1]
+        self.finesse = rapport.get("finesse_m") or 1.0
         self.ds = gdal.Open(str(chemin))
-        self.nc = nc                     # bandes de la mosaïque (1 ou 3)
+        self.nc = nc
         self.bandes = [1, 2, 3] if nb_couleurs(self.ds) == 3 else [1] * nc
         self.alpha = bande_alpha(self.ds)
         gt = self.ds.GetGeoTransform()
         self.x0, self.y1 = gt[0], gt[3]
         self.w, self.h = self.ds.RasterXSize, self.ds.RasterYSize
-        self.centre = centre
-        self.manuel = bool(manuels)      # placée à la main : passe devant, près de ses points
-        self.zone_manuelle = None        # (grille réduite) zone couverte par les points manuels
+        self.manuel = bool(manuels)
+        self.gain = np.ones(nc, np.float32)     # accord des teintes : valeur * gain + decalage
+        self.decalage = np.zeros(nc, np.float32)
+        a = self.alpha.ReadAsArray(buf_xsize=self.w // REDUC, buf_ysize=self.h // REDUC,
+                                   resample_alg=gdal.GRIORA_NearestNeighbour) > 0
+        # distance au bord de la partie utile (mètres), pour le fondu
+        self.bord = (cv2.distanceTransform(a.astype(np.uint8), cv2.DIST_L2, 5) * REDUC * RES).astype(np.float32)
+        # zone couverte par les points placés à la main (grille réduite)
+        self.zone_manuelle = None
         if manuels:
             from shapely.geometry import MultiPoint
             zone = MultiPoint([(p["x"], p["y"]) for p in manuels]).convex_hull.buffer(MARGE_MANUELLE / 0.734)
-            masque = np.zeros((self.h // REDUC, self.w // REDUC), np.uint8)
+            masque = np.zeros(a.shape, np.uint8)
             pix = [[(x - self.x0) / (RES * REDUC), (self.y1 - y) / (RES * REDUC)] for x, y in zone.exterior.coords]
             cv2.fillPoly(masque, [np.round(pix).astype(np.int32)], 1)
             self.zone_manuelle = masque > 0
-        # luminosité générale (moyenne locale, sans tenir compte des zones vides), par couleur
-        a = (self.alpha.ReadAsArray(buf_xsize=self.w // REDUC, buf_ysize=self.h // REDUC,
-                                    resample_alg=gdal.GRIORA_NearestNeighbour) > 0).astype(np.float32)
-        gx = self.x0 + (np.arange(a.shape[1]) + 0.5) * RES * REDUC
-        gy = self.y1 - (np.arange(a.shape[0]) + 0.5) * RES * REDUC
-        a *= self.garde(gx, gy)
-        den = np.maximum(cv2.GaussianBlur(a, (0, 0), SIGMA_LUMIERE), 1e-3)
-        self.lumiere, self.contraste = [], []
-        for b in self.bandes:
-            img = self.ds.GetRasterBand(b).ReadAsArray(buf_xsize=self.w // REDUC, buf_ysize=self.h // REDUC,
-                                                       resample_alg=gdal.GRIORA_Average).astype(np.float32)
-            lum = (cv2.GaussianBlur(img * a, (0, 0), SIGMA_LUMIERE) / den).astype(np.float32)
-            ecart2 = cv2.GaussianBlur(((img - lum) ** 2) * a, (0, 0), SIGMA_LUMIERE) / den
-            self.lumiere.append(lum)
-            self.contraste.append(np.sqrt(np.maximum(ecart2, 1.0)).astype(np.float32))
-        # distance au bord de la partie utile (mètres)
-        self.bord = (cv2.distanceTransform((a > 0).astype(np.uint8), cv2.DIST_L2, 5)
-                     * REDUC * RES).astype(np.float32)
 
-    def pres_des_points(self, xs, ys):
-        """Masque : dans la zone couverte par les points placés à la main."""
+    def reduite(self, bornes, w, h):
+        """La photo sur la grille réduite de la mosaïque : (image [nc, h, w], masque)."""
+        ds = gdal.Warp("", self.ds, format="MEM", outputBounds=bornes, width=w, height=h,
+                       resampleAlg="average", dstAlpha=False)
+        a = ds.ReadAsArray().astype(np.float32)
+        a = a[None] if a.ndim == 2 else a
+        img = np.stack([a[b - 1] for b in self.bandes])
+        m = a[-1] > 0
+        return img, m
+
+    def prioritaire(self, xs, ys):
+        """Masque : là où la photo placée à la main passe devant (près de ses points)."""
         if self.zone_manuelle is None:
-            return np.zeros((len(ys), len(xs)), bool)
+            return np.ones((len(ys), len(xs)), bool)
         ix = np.clip(((xs - self.x0) / (RES * REDUC)).astype(int), 0, self.zone_manuelle.shape[1] - 1)
         iy = np.clip(((self.y1 - ys) / (RES * REDUC)).astype(int), 0, self.zone_manuelle.shape[0] - 1)
         return self.zone_manuelle[iy[:, None], ix[None, :]]
 
-    def garde(self, xs, ys):
-        """Masque des parties à garder : tout (les photos acceptées sont gardées entières ;
-        les morceaux qui semblent décalés sont seulement signalés dans l'image de contrôle)."""
-        return np.ones((len(ys), len(xs)), bool)
-
     def fenetre(self, bx0, by1, bw, bh):
-        """Lit le morceau de la photo qui tombe dans le bloc (ou None)."""
+        """Le morceau de la photo qui tombe dans le bloc, teinte accordée (ou None)."""
         ox = int(round((bx0 - self.x0) / RES))
         oy = int(round((self.y1 - by1) / RES))
         x0, y0 = max(ox, 0), max(oy, 0)
         x1, y1 = min(ox + bw, self.w), min(oy + bh, self.h)
         if x1 <= x0 or y1 <= y0:
             return None
-        img, lum, con = (np.zeros((self.nc, bh, bw), np.float32) for _ in range(3))
+        img = np.zeros((self.nc, bh, bw), np.float32)
         alpha = np.zeros((bh, bw), bool)
         bord = np.zeros((bh, bw), np.float32)
         sl = (slice(y0 - oy, y1 - oy), slice(x0 - ox, x1 - ox))
         for k, b in enumerate(self.bandes):
-            img[k][sl] = self.ds.GetRasterBand(b).ReadAsArray(x0, y0, x1 - x0, y1 - y0)
+            img[k][sl] = self.ds.GetRasterBand(b).ReadAsArray(x0, y0, x1 - x0, y1 - y0) * self.gain[k] + self.decalage[k]
         alpha[sl] = self.alpha.ReadAsArray(x0, y0, x1 - x0, y1 - y0) > 0
-        alpha[sl] &= self.garde(self.x0 + (np.arange(x0, x1) + 0.5) * RES,
-                                self.y1 - (np.arange(y0, y1) + 0.5) * RES)
-        # luminosité, contraste et distance au bord, agrandis à la taille du morceau
         gx = (np.arange(x0, x1) + 0.5) / REDUC - 0.5
         gy = (np.arange(y0, y1) + 0.5) / REDUC - 0.5
         mx, my = np.meshgrid(gx.astype(np.float32), gy.astype(np.float32))
-        paires = [(lum[k], self.lumiere[k]) for k in range(self.nc)]
-        paires += [(con[k], self.contraste[k]) for k in range(self.nc)] + [(bord, self.bord)]
-        for dest, src in paires:
-            dest[sl] = cv2.remap(src, mx, my, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-        return img, alpha, lum, con, bord
+        bord[sl] = cv2.remap(self.bord, mx, my, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+        return img, alpha, bord
+
+
+def priorites(date):
+    """Numéros de photos choisis à la main pour cette date (placer/priorites.json)."""
+    f = DEPOT / "placer" / "priorites.json"
+    return [str(n) for n in json.loads(f.read_text()).get(date, [])] if f.exists() else []
+
+
+def choisit(photos, masques, cibles, imposees):
+    """Choix glouton : à chaque tour, la photo qui couvre le plus de lieux encore vides,
+    pondéré par sa finesse (plus de détails). Les photos imposées passent d'abord."""
+    reste = cibles.copy()
+    ordre = []
+    fin_min = min(p.finesse for p in photos)
+    for p in [p for p in photos if p.manuel] + [p for p in photos if p.numero in imposees and not p.manuel]:
+        ordre.append(p)
+        reste &= ~masques[p.id]
+    candidats = [p for p in photos if p not in ordre]
+    while candidats and reste.sum() > (1 - COUVERTURE_VISEE) * cibles.sum():
+        gains = [(masques[p.id] & reste).sum() / max(1, cibles.sum()) for p in candidats]
+        notes = [g * (fin_min / p.finesse) for g, p in zip(gains, candidats)]
+        i = int(np.argmax(notes))
+        if gains[i] < GAIN_MIN:
+            break
+        ordre.append(candidats.pop(i))
+        reste &= ~masques[ordre[-1].id]
+    return ordre, 1 - reste.sum() / max(1, cibles.sum())
+
+
+def accorde_teintes(ordre, images):
+    """Accorde chaque photo sur celles déjà posées, là où elles se recouvrent (moyenne et
+    écart-type par couleur) : une seule teinte pour toute l'année."""
+    pose, masque = None, None
+    for p in ordre:
+        img, m = images[p.id]
+        if pose is None:
+            pose, masque = img.copy(), m.copy()
+            continue
+        commun = m & masque
+        if commun.sum() > 500:
+            for k in range(p.nc):
+                a, b = img[k][commun], pose[k][commun]
+                p.gain[k] = np.clip(b.std() / max(a.std(), 1.0), 0.5, 2.0)
+                p.decalage[k] = b.mean() - p.gain[k] * a.mean()
+        corr = img * p.gain[:, None, None] + p.decalage[:, None, None]
+        neuf = m & ~masque
+        pose[:, neuf] = corr[:, neuf]
+        masque |= m
 
 
 def main():
@@ -126,15 +162,35 @@ def main():
     rapports = json.loads((dossier / "rapport.json").read_text())
     ok = [r for r in rapports.values() if r.get("statut") == "ok"]
     print(f"{len(ok)} photos « ok » sur {len(rapports)}")
-    # en couleur si au moins une photo l'est (les photos en noir et blanc sont alors recopiées
-    # sur les trois couleurs)
     nc = max([nb_couleurs(gdal.Open(str(dossier / (r["photo"] + ".tif")))) for r in ok] or [1])
-    photos = [Photo(dossier / (r["photo"] + ".tif"), r["centre"], nc,
+    photos = [Photo(dossier / (r["photo"] + ".tif"), r, nc,
                     points_manuels(date, r["photo"]) if r.get("manuel") else None) for r in ok]
 
     x0, y0, x1, y1 = zone_merc()
     x0, y1 = np.floor(x0 / RES) * RES, np.ceil(y1 / RES) * RES
     largeur, hauteur = int(np.ceil((x1 - x0) / RES)), int(np.ceil((y1 - y0) / RES))
+
+    # --- choix des photos et accord des teintes, sur une grille réduite ---
+    wr, hr = largeur // REDUC, hauteur // REDUC
+    bornes = (x0, y1 - hr * REDUC * RES, x0 + wr * REDUC * RES, y1)
+    gx = bornes[0] + (np.arange(wr) + 0.5) * REDUC * RES
+    gy = bornes[3] - (np.arange(hr) + 0.5) * REDUC * RES
+    cibles = np.zeros((hr, wr), bool)
+    for a, b, c, d in LIEUX.values():
+        cibles |= (gx[None, :] >= a) & (gx[None, :] <= c) & (gy[:, None] >= b) & (gy[:, None] <= d)
+    images = {p.id: p.reduite(bornes, wr, hr) for p in photos}
+    masques = {p.id: images[p.id][1] for p in photos}
+    imposees = priorites(date)
+    ordre, couverture = choisit(photos, masques, cibles, imposees)
+    accorde_teintes(ordre, images)
+    print(f"{len(ordre)} photos retenues (station et Luchon couverts à {couverture:.0%}) :",
+          ", ".join(p.numero + (" (à la main)" if p.manuel else " (choisie)" if p.numero in imposees else "")
+                    for p in ordre))
+    (dossier / "mosaique.json").write_text(json.dumps({
+        "photos": [p.numero for p in ordre], "a_la_main": [p.numero for p in ordre if p.manuel],
+        "imposees": [n for n in imposees], "couverture_lieux": round(float(couverture), 3)}, indent=1))
+
+    # --- assemblage : de la dernière photo à la première, chacune posée par-dessus ---
     sortie = dossier / "mosaique.tif"
     out = gdal.GetDriverByName("GTiff").Create(
         str(sortie), largeur, hauteur, nc + 1, gdal.GDT_Byte,
@@ -145,51 +201,33 @@ def main():
         for k, ci in enumerate((gdal.GCI_RedBand, gdal.GCI_GreenBand, gdal.GCI_BlueBand)):
             out.GetRasterBand(k + 1).SetColorInterpretation(ci)
     out.GetRasterBand(nc + 1).SetColorInterpretation(gdal.GCI_AlphaBand)
-
+    # une photo placée à la main, hors de la zone de ses points, passe en dernier
+    couches = ([(p, True) for p in ordre if p.manuel] + [(p, False) for p in ordre if not p.manuel]
+               + [(p, False) for p in ordre if p.manuel])
     for by in range(0, hauteur, BLOC):
         for bx in range(0, largeur, BLOC):
             bw, bh = min(BLOC, largeur - bx), min(BLOC, hauteur - by)
             X0, Y1 = x0 + bx * RES, y1 - by * RES
             xs = X0 + (np.arange(bw) + 0.5) * RES
             ys = Y1 - (np.arange(bh) + 0.5) * RES
-            morceaux = []
-            for p in photos:
+            res = np.zeros((nc, bh, bw), np.float32)
+            couvert = np.zeros((bh, bw), np.float32)
+            for p, pres_des_points in reversed(couches):
                 f = p.fenetre(X0, Y1, bw, bh)
                 if f is None or not f[1].any():
                     continue
-                d = np.hypot(xs[None, :] - p.centre[0], ys[:, None] - p.centre[1]).astype(np.float32)
-                # sur le plateau : la photo la mieux centrée sur la station passe devant partout
-                plateau = ((xs[None, :] >= PLATEAU[0]) & (xs[None, :] <= PLATEAU[2])
-                           & (ys[:, None] >= PLATEAU[1]) & (ys[:, None] <= PLATEAU[3]))
-                if p.manuel:
-                    # devant toutes les autres près de ses points ; ailleurs, en dernier recours
-                    d = np.where(p.pres_des_points(xs, ys), d - 1e6, d + 1e6)
-                else:
-                    d = np.where(plateau, np.hypot(p.centre[0] - STATION[0], p.centre[1] - STATION[1]), d)
-                d += 3 * np.clip(FONDU_BORD - f[4], 0, None)   # près de son bord, une photo cède la place
-                d[~f[1]] = np.inf
-                morceaux.append((f, d))
-            if not morceaux:
-                continue
-            dmin = np.min([d for _, d in morceaux], axis=0)
-            num_d, num_l, num_c = (np.zeros((nc, bh, bw), np.float32) for _ in range(3))
-            den_d, den_l = (np.zeros((bh, bw), np.float32) for _ in range(2))
-            for (img, alpha, lum, con, bord), d in morceaux:
-                estompe = np.clip(bord / FONDU_BORD, 0.01, 1) * alpha
-                wd = np.clip((dmin + FONDU_DETAIL - d) / FONDU_DETAIL, 0, 1) * estompe
-                wl = np.clip((dmin + FONDU_LUMIERE - d) / FONDU_LUMIERE, 0, 1) * estompe
-                num_d += wd * (img - lum) / np.maximum(con, 1.0)   # détails à contraste égalisé
-                den_d += wd
-                num_l += wl * lum
-                num_c += wl * con
-                den_l += wl
-            valide = (den_d > 0) & (den_l > 0)
+                img, alpha, bord = f
+                w = np.clip(bord / FONDU_BORD, 0, 1) * alpha
+                if p.manuel and pres_des_points:
+                    w *= p.prioritaire(xs, ys)
+                elif p.manuel:
+                    w *= ~p.prioritaire(xs, ys)
+                w = np.where(couvert > 0, w, alpha.astype(np.float32))   # pas de fondu dans le vide
+                res = res * (1 - w) + img * w
+                couvert = np.maximum(couvert, alpha.astype(np.float32) * (w > 0))
             for k in range(nc):
-                res = np.zeros((bh, bw), np.float32)
-                res[valide] = (num_d[k][valide] / den_d[valide] * (num_c[k][valide] / den_l[valide])
-                               + num_l[k][valide] / den_l[valide])
-                out.GetRasterBand(k + 1).WriteArray(np.clip(res, 0, 255).astype(np.uint8), bx, by)
-            out.GetRasterBand(nc + 1).WriteArray((valide * 255).astype(np.uint8), bx, by)
+                out.GetRasterBand(k + 1).WriteArray(np.clip(res[k], 0, 255).astype(np.uint8), bx, by)
+            out.GetRasterBand(nc + 1).WriteArray(((couvert > 0) * 255).astype(np.uint8), bx, by)
         print(f"  ligne {by // BLOC + 1}/{(hauteur + BLOC - 1) // BLOC}", flush=True)
     out.BuildOverviews("AVERAGE", [2, 4, 8, 16, 32])
     out = None

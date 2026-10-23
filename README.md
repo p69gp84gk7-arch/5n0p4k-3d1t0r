@@ -101,12 +101,15 @@ Pour chaque photo :
    comparés à l'ortho 2022. Une photo dont trop de secteurs sont décalés est
    écartée.
 
-Puis, pour la date entière, les photos acceptées sont assemblées **entières**,
-nord en haut, sans découpe : sur le plateau de Superbagnères, la photo la mieux
-centrée sur la station passe devant (pas de raccord dans la station) ; les photos
-placées à la main passent toujours en premier. Une **vérification finale**
-compare la mosaïque à l'ortho 2022 et encadre en rouge, sur l'image de contrôle,
-les secteurs qui semblent décalés de plus de 60 m (sans les effacer).
+Puis, pour la date entière, on assemble **peu de photos, les meilleures** : le
+plus petit nombre de photos qui couvrent toute la station de Superbagnères et
+Luchon, en préférant les plus détaillées. Là où elles se recouvrent, la mieux
+classée l'emporte (une seule photo par endroit, juste un fondu au bord), et leurs
+teintes sont accordées entre elles. Passent en premier : les photos placées à la
+main (près de leurs points), puis celles choisies dans `placer/priorites.json`
+(par exemple `{"1996-07-19": ["1587"]}`). Ailleurs, le site montre la carte IGN.
+Une **vérification finale** encadre en rouge, sur l'image de contrôle, les
+secteurs qui semblent décalés de plus de 60 m.
 
 Attention : là où le paysage a beaucoup changé (parkings, bâtiments neufs), le
 placement automatique peut se tromper de 100 à 200 m sans que ses contrôles le
