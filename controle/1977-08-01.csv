@@ -1,44 +1,39 @@
 photo,verdict,ecart_median_m,ecart_90pc_m,points_controle,zones_controlees,telechargement_ign
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7810,ok,1.29,4.04,649,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7810.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7811,ok,1.21,3.54,709,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7811.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7812,ok,2.91,8.28,47,6,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7812.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7814,ok,1.08,6.08,71,6,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7814.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7815,mal recalée,3.58,8.56,14,6,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7815.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7816,mal recalée,3.68,8.7,34,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7816.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7817,ok,1.41,5.2,236,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7817.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7818,mal recalée,4.1,9.11,70,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7818.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7852,ok,1.87,5.49,263,6,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7852.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7854,mal recalée,4.3,8.44,19,6,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7854.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7855,mal recalée,,,1,0,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7855.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7856,mal recalée,5.27,10.12,16,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7856.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7857,mal recalée,3.89,6.72,20,6,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7857.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7858,ok,3.18,7.49,60,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7858.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7859,ok,2.86,5.31,33,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7859.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7860,mal recalée,,,6,0,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7860.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7904,mal recalée,4.38,7.67,61,6,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7904.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7905,mal recalée,4.51,7.56,78,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7905.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7906,ok,2.26,5.41,214,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7906.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7908,ok,3.22,6.77,170,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7908.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7909,mal recalée,3.83,8.89,36,6,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7909.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7911,ok,2.35,5.52,93,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7911.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7912,ok,2.73,6.36,100,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7912.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7913,ok,2.11,6.42,100,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7913.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7914,ok,2.22,6.84,27,4,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7914.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7917,ok,0.89,1.87,737,9,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7917.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7919,ok,1.6,4.36,251,9,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7919.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7955,ok,1.54,4.16,968,9,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7955.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7956,ok,1.03,3.1,1405,9,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7956.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7958,ok,1.83,3.88,403,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7958.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7959,mal recalée,2.57,4.24,10,4,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7959.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7960,ok,2.5,5.43,147,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7960.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7961,ok,2.43,6.05,193,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7961.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7962,ok,2.39,6.01,96,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7962.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7965,ok,2.2,7.92,52,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7965.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7966,mal recalée,1.86,6.71,57,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7966.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7967,ok,1.06,4.91,309,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7967.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7969,ok,1.7,7.42,518,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7969.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7970,ok,1.67,3.5,484,9,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7970.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7971,ok,2.1,5.58,280,9,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7971.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7972,ok,2.19,4.91,623,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7972.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7974,ok,2.12,4.56,621,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7974.tif
-IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7989,ok,1.66,3.63,749,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7989.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7810,ok,1.2,3.57,680,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7810.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7811,ok,1.31,3.68,768,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7811.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7812,ok,2.46,7.4,51,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7812.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7814,ok,1.06,4.6,83,5,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7814.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7815,mal recalée,4.54,7.4,11,5,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7815.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7816,mal recalée,3.52,7.97,27,5,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7816.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7817,ok,1.3,3.5,273,9,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7817.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7818,mal recalée,1.9,8.13,56,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7818.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7852,ok,1.73,5.99,297,6,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7852.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7854,mal recalée,4.53,11.36,20,4,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7854.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7855,mal recalée,,,0,0,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7855.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7856,mal recalée,3.47,6.46,11,5,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7856.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7857,mal recalée,4.22,7.43,27,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7857.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7858,ok,2.83,6.19,63,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7858.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7859,ok,3.0,7.17,49,9,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7859.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7860,mal recalée,3.0,6.85,13,4,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7860.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7904,mal recalée,4.34,8.53,85,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7904.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7905,mal recalée,3.92,8.91,85,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7905.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7908,ok,3.24,6.32,175,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7908.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7909,mal recalée,4.58,7.1,46,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7909.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7911,ok,2.35,4.88,81,4,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7911.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7912,mal recalée,2.75,6.01,104,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7912.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7913,ok,2.22,5.64,112,6,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7913.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7914,mal recalée,4.78,10.09,20,5,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7914.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7917,ok,0.89,1.79,707,9,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7917.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7919,ok,0.95,2.84,433,9,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7919.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7955,ok,1.71,4.83,982,9,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7955.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7956,ok,1.04,3.27,1367,9,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7956.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7958,ok,1.82,4.56,398,9,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7958.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7959,mal recalée,6.88,10.71,19,5,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7959.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7960,ok,2.71,6.21,145,6,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7960.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7961,ok,2.13,6.31,166,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7961.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7965,ok,1.81,7.33,63,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7965.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7967,ok,1.02,3.23,295,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7967.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7969,ok,1.58,3.17,495,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7969.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7971,ok,2.33,4.51,289,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7971.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7974,ok,2.23,4.44,644,7,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7974.tif
+IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7989,ok,1.57,3.68,722,8,https://data.geopf.fr/telechargement/download/pva/1847-0091/IGNF_PVA_1-0__1977-08__C1847-0091_1977_CDP8321_7989.tif
