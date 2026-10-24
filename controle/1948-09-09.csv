@@ -1,13 +1,11 @@
 photo,verdict,ecart_median_m,ecart_90pc_m,points_controle,zones_controlees,telechargement_ign
-IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0028,mal recalée,9.97,18.0,15,5,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0028.tif
-IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0029,mal recalée,2.27,6.83,96,7,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0029.tif
-IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0030,mal recalée,2.44,10.2,404,9,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0030.tif
-IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0031,ok,2.06,5.92,568,9,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0031.tif
-IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0032,mal recalée,10.52,17.73,26,7,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0032.tif
-IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0033,mal recalée,,,4,0,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0033.tif
-IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0061,mal recalée,,,9,0,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0061.tif
-IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0062,mal recalée,15.22,23.24,26,5,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0062.tif
-IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0063,ok,1.67,7.62,648,9,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0063.tif
-IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0064,ok,1.01,4.05,1786,8,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0064.tif
-IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0065,ok,1.06,4.83,1404,8,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0065.tif
-IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0066,mal recalée,2.35,11.82,332,9,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0066.tif
+IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0028,mal recalée,5.2,12.98,53,7,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0028.tif
+IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0029,ok,3.83,9.51,147,7,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0029.tif
+IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0030,mal recalée,2.68,10.79,464,9,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0030.tif
+IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0031,ok,2.24,5.59,746,9,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0031.tif
+IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0032,ok,2.73,8.92,672,9,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0032.tif
+IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0062,ok,2.17,9.26,720,9,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0062.tif
+IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0063,ok,1.9,6.19,629,8,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0063.tif
+IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0064,ok,1.01,4.75,1691,9,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0064.tif
+IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0065,ok,1.12,4.77,1578,9,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0065.tif
+IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0066,mal recalée,3.3,12.02,218,9,https://data.geopf.fr/telechargement/download/pva/1847-0011/IGNF_PVA_1-0__1948-09-09__C1847-0011_1948_F1847-1848_0066.tif
