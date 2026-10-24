@@ -65,18 +65,22 @@ LIEUX = [box(59500, 5275000, 65500, 5278200), box(65200, 5278600, 67200, 5281400
 def meilleure_version(photos):
     """Quand l'IGN a plusieurs versions des mêmes clichés, on prend la couleur en priorité :
     couleur, puis infrarouge couleur, puis noir et blanc, puis infrarouge. Une version
-    n'est retenue que si elle couvre presque autant la station et Luchon que la meilleure
-    (en 1980, l'infrarouge couleur ne couvre qu'une partie)."""
+    n'est retenue que si elle couvre presque autant la station et Luchon que la meilleure,
+    et si ses photos sont presque aussi détaillées (en 1980, l'infrarouge couleur couvre
+    4 fois plus de terrain par photo : 2 fois moins de détails, et aucune ne se recale)."""
     lieux = unary_union(LIEUX)
     def couverture(t):
         emp = unary_union([shape(p["emprise"]) for p in photos if p.get("couleur") == t])
         return emp.intersection(lieux).area / lieux.area
+    def surface(t):   # terrain couvert par une photo (médiane) : plus il est grand, moins de détails
+        return float(np.median([shape(p["emprise"]).area for p in photos if p.get("couleur") == t]))
     types = [t for t in ORDRE_COULEUR if any(p.get("couleur") == t for p in photos)]
     if not types:
         return photos
     meilleure = max(couverture(t) for t in types)
+    plus_fine = min(surface(t) for t in types)
     for t in types:
-        if couverture(t) >= 0.9 * meilleure:
+        if couverture(t) >= 0.9 * meilleure and surface(t) <= 2 * plus_fine:
             return [p for p in photos if p.get("couleur") == t]
     return photos
 
