@@ -148,25 +148,36 @@ def priorites(date):
     return [str(n) for n in json.loads(f.read_text()).get(date, [])] if f.exists() else []
 
 
-def choisit(photos, masques, cibles, imposees):
+def choisit(photos, masques, entiers, cibles, imposees):
     """Choix glouton : à chaque tour, la photo qui couvre le plus de lieux encore vides,
-    pondéré par sa finesse (plus de détails). Les photos imposées passent d'abord."""
+    pondéré par sa finesse (plus de détails). Les photos imposées passent d'abord.
+    On couvre d'abord avec les parties vérifiées (masques), puis on bouche les trous
+    qui restent avec les photos entières (entiers) : la station doit être complète."""
     reste = cibles.copy()
     ordre = []
     fin_min = min(p.finesse for p in photos)
     for p in [p for p in photos if p.manuel] + [p for p in photos if p.numero in imposees and not p.manuel]:
         ordre.append(p)
         reste &= ~masques[p.id]
-    candidats = [p for p in photos if p not in ordre]
-    while candidats and reste.sum() > (1 - COUVERTURE_VISEE) * cibles.sum():
-        gains = [(masques[p.id] & reste).sum() / max(1, cibles.sum()) for p in candidats]
-        notes = [g * (fin_min / p.finesse) for g, p in zip(gains, candidats)]
-        i = int(np.argmax(notes))
-        if gains[i] < GAIN_MIN:
-            break
-        ordre.append(candidats.pop(i))
-        reste &= ~masques[ordre[-1].id]
-    return ordre, 1 - reste.sum() / max(1, cibles.sum())
+
+    def ajoute(m):
+        nonlocal reste
+        candidats = [p for p in photos if p not in ordre]
+        while candidats and reste.sum() > (1 - COUVERTURE_VISEE) * cibles.sum():
+            gains = [(m[p.id] & reste).sum() / max(1, cibles.sum()) for p in candidats]
+            notes = [g * (fin_min / p.finesse) for g, p in zip(gains, candidats)]
+            i = int(np.argmax(notes))
+            if gains[i] < GAIN_MIN:
+                break
+            ordre.append(candidats.pop(i))
+            reste &= ~m[ordre[-1].id]
+
+    ajoute(masques)
+    verifiee = 1 - reste.sum() / max(1, cibles.sum())
+    for p in ordre:          # les photos déjà prises bouchent aussi avec leurs parties non vérifiées
+        reste &= ~entiers[p.id]
+    ajoute(entiers)
+    return ordre, 1 - reste.sum() / max(1, cibles.sum()), verifiee
 
 
 def accorde_teintes(ordre, images, ref):
@@ -236,7 +247,8 @@ def main():
     images = {p.id: p.reduite(bornes, wr, hr) for p in photos}
     masques = {p.id: images[p.id][1] & p.fiable(gx, gy) for p in photos}   # bien placé seulement
     imposees = priorites(date)
-    ordre, couverture = choisit(photos, masques, cibles, imposees)
+    entiers = {p.id: images[p.id][1] for p in photos}
+    ordre, couverture, verifiee = choisit(photos, masques, entiers, cibles, imposees)
     o = gdal.Warp("", str(REFERENCE / "ortho2022.tif"), format="MEM", outputBounds=bornes,
                   width=wr, height=hr, resampleAlg="average").ReadAsArray().astype(np.float32)
     accorde_teintes(ordre, images, 0.3 * o[0] + 0.59 * o[1] + 0.11 * o[2])
@@ -245,7 +257,8 @@ def main():
                     for p in ordre))
     (dossier / "mosaique.json").write_text(json.dumps({
         "photos": [p.numero for p in ordre], "a_la_main": [p.numero for p in ordre if p.manuel],
-        "imposees": [n for n in imposees], "couverture_lieux": round(float(couverture), 3)}, indent=1))
+        "imposees": [n for n in imposees], "couverture_lieux": round(float(couverture), 3),
+        "couverture_verifiee": round(float(verifiee), 3)}, indent=1))
 
     # --- assemblage : de la dernière photo à la première, chacune posée par-dessus ---
     sortie = dossier / "mosaique.tif"
