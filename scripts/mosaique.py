@@ -11,7 +11,9 @@ Peu de photos, les meilleures, et une seule teinte :
    <photo>_secteurs.tif), une autre photo vérifiée passe devant ; sinon elle reste
    affichée (rien n'est découpé). Le choix des photos en tient compte de la même façon.
 3. Une seule teinte : la luminosité et le contraste de chaque photo (par couleur)
-   sont accordés sur ceux des photos déjà posées, là où elles se recouvrent.
+   sont accordés sur ceux des photos déjà posées, là où elles se recouvrent. Si le
+   recouvrement est trop petit (une mince bande au bord, trompeuse : 1977), la photo
+   est accordée en passant par l'ortho 2022, commune à toutes les photos.
 Une photo placée à la main ne passe devant les autres que dans la zone couverte par
 ses points (enveloppe + 500 m) : loin de ses points, rien ne garantit sa position.
 
@@ -26,7 +28,7 @@ import cv2
 import numpy as np
 from osgeo import gdal
 
-from commun import DEPOT, RECALES, bande_alpha, nb_couleurs, points_manuels, zone_merc
+from commun import DEPOT, RECALES, REFERENCE, bande_alpha, nb_couleurs, points_manuels, zone_merc
 
 gdal.UseExceptions()
 
@@ -40,6 +42,7 @@ LIEUX = {"station": (59500, 5275000, 65500, 5278200),   # plateau de Superbagnè
 COUVERTURE_VISEE = 0.98  # on arrête d'ajouter des photos quand les lieux sont couverts à 98 %
 GAIN_MIN = 0.01          # ... ou quand une photo n'apporte plus que 1 % des lieux
 MARGE_MANUELLE = 500.0   # m au sol autour de l'enveloppe des points placés à la main
+RECOUVREMENT_MIN = 0.10  # part d'une photo déjà couverte pour accorder sa teinte sur ses voisines
 
 
 class Photo:
@@ -90,7 +93,7 @@ class Photo:
     def fiable(self, xs, ys):
         """Masque : là où le contrôle a vérifié que la photo est bien placée (1) ; ni les
         secteurs décalés (0) ni ceux sans repère vérifiable (2, souvent au bord, où la
-        photo peut être très mal placée : Luchon en 1996)."""
+        photo peut être très mal placée : Luchon en 1996). Version nette (choix des photos)."""
         if self.secteurs is None:
             return np.ones((len(ys), len(xs)), bool)
         g = self.s_gt
@@ -98,13 +101,17 @@ class Photo:
         iy = np.clip(((ys - g[3]) / g[5]).astype(int), 0, self.secteurs.shape[0] - 1)
         return self.secteurs[iy[:, None], ix[None, :]] == 1
 
-    def prioritaire(self, xs, ys):
-        """Masque : là où la photo placée à la main passe devant (près de ses points)."""
-        if self.zone_manuelle is None:
-            return np.ones((len(ys), len(xs)), bool)
-        ix = np.clip(((xs - self.x0) / (RES * REDUC)).astype(int), 0, self.zone_manuelle.shape[1] - 1)
-        iy = np.clip(((self.y1 - ys) / (RES * REDUC)).astype(int), 0, self.zone_manuelle.shape[0] - 1)
-        return self.zone_manuelle[iy[:, None], ix[None, :]]
+    def _doux(self, masque):
+        """Version adoucie d'un masque de la grille réduite (fondu de FONDU_BORD)."""
+        return cv2.GaussianBlur(masque.astype(np.float32), (0, 0), FONDU_BORD / (RES * REDUC) / 2)
+
+    def masques_doux(self):
+        """Prépare, sur la grille réduite de la photo, les masques adoucis « bien placé » et
+        « près des points placés à la main » : les raccords entre photos sont fondus."""
+        gx0 = self.x0 + (np.arange(self.bord.shape[1]) + 0.5) * RES * REDUC
+        gy0 = self.y1 - (np.arange(self.bord.shape[0]) + 0.5) * RES * REDUC
+        self.fiable_doux = self._doux(self.fiable(gx0, gy0))
+        self.zone_doux = self._doux(self.zone_manuelle) if self.zone_manuelle is not None else None
 
     def fenetre(self, bx0, by1, bw, bh):
         """Le morceau de la photo qui tombe dans le bloc, teinte accordée (ou None)."""
@@ -116,7 +123,7 @@ class Photo:
             return None
         img = np.zeros((self.nc, bh, bw), np.float32)
         alpha = np.zeros((bh, bw), bool)
-        bord = np.zeros((bh, bw), np.float32)
+        bord, fiable, zone = (np.zeros((bh, bw), np.float32) for _ in range(3))
         sl = (slice(y0 - oy, y1 - oy), slice(x0 - ox, x1 - ox))
         for k, b in enumerate(self.bandes):
             img[k][sl] = self.ds.GetRasterBand(b).ReadAsArray(x0, y0, x1 - x0, y1 - y0) * self.gain[k] + self.decalage[k]
@@ -125,7 +132,10 @@ class Photo:
         gy = (np.arange(y0, y1) + 0.5) / REDUC - 0.5
         mx, my = np.meshgrid(gx.astype(np.float32), gy.astype(np.float32))
         bord[sl] = cv2.remap(self.bord, mx, my, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-        return img, alpha, bord
+        fiable[sl] = cv2.remap(self.fiable_doux, mx, my, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+        if self.zone_doux is not None:
+            zone[sl] = cv2.remap(self.zone_doux, mx, my, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+        return img, alpha, bord, fiable, zone
 
 
 def priorites(date):
@@ -155,21 +165,33 @@ def choisit(photos, masques, cibles, imposees):
     return ordre, 1 - reste.sum() / max(1, cibles.sum())
 
 
-def accorde_teintes(ordre, images):
+def accorde_teintes(ordre, images, ref):
     """Accorde chaque photo sur celles déjà posées, là où elles se recouvrent (moyenne et
-    écart-type par couleur) : une seule teinte pour toute l'année."""
-    pose, masque = None, None
+    écart-type par couleur) : une seule teinte pour toute l'année. Quand le recouvrement
+    est trop petit, on passe par l'ortho 2022 (ref, en gris) : la photo y est ramenée,
+    puis ramenée de l'ortho vers la teinte de la première photo."""
+    def vers_ref(v, r):
+        a = r.std() / max(v.std(), 1.0)
+        return a, r.mean() - a * v.mean()
+
+    pose, masque, premier = None, None, None
     for p in ordre:
         img, m = images[p.id]
         if pose is None:
-            pose, masque = img.copy(), m.copy()
+            pose, masque, premier = img.copy(), m.copy(), (img, m)
             continue
         commun = m & masque
-        if commun.sum() > 500:
+        if commun.sum() >= RECOUVREMENT_MIN * m.sum():
             for k in range(p.nc):
                 a, b = img[k][commun], pose[k][commun]
                 p.gain[k] = np.clip(b.std() / max(a.std(), 1.0), 0.5, 2.0)
                 p.decalage[k] = b.mean() - p.gain[k] * a.mean()
+        else:
+            for k in range(p.nc):
+                a1, b1 = vers_ref(premier[0][k][premier[1]], ref[premier[1]])
+                ap, bp = vers_ref(img[k][m], ref[m])
+                p.gain[k] = np.clip(ap / a1, 0.5, 2.0)
+                p.decalage[k] = (bp - b1) / a1
         corr = img * p.gain[:, None, None] + p.decalage[:, None, None]
         neuf = m & ~masque
         pose[:, neuf] = corr[:, neuf]
@@ -204,7 +226,9 @@ def main():
     masques = {p.id: images[p.id][1] & p.fiable(gx, gy) for p in photos}   # bien placé seulement
     imposees = priorites(date)
     ordre, couverture = choisit(photos, masques, cibles, imposees)
-    accorde_teintes(ordre, images)
+    o = gdal.Warp("", str(REFERENCE / "ortho2022.tif"), format="MEM", outputBounds=bornes,
+                  width=wr, height=hr, resampleAlg="average").ReadAsArray().astype(np.float32)
+    accorde_teintes(ordre, images, 0.3 * o[0] + 0.59 * o[1] + 0.11 * o[2])
     print(f"{len(ordre)} photos retenues (station et Luchon couverts à {couverture:.0%}) :",
           ", ".join(p.numero + (" (à la main)" if p.manuel else " (choisie)" if p.numero in imposees else "")
                     for p in ordre))
@@ -226,6 +250,8 @@ def main():
     # de la plus prioritaire à la moins prioritaire : photos placées à la main (près de leurs
     # points), puis chaque photo là où elle est bien placée, puis là où elle semble décalée,
     # et enfin les photos placées à la main loin de leurs points
+    for p in ordre:
+        p.masques_doux()
     couches = ([(p, "points") for p in ordre if p.manuel]
                + [(p, "fiable") for p in ordre if not p.manuel]
                + [(p, "decale") for p in ordre if not p.manuel]
@@ -236,29 +262,25 @@ def main():
             X0, Y1 = x0 + bx * RES, y1 - by * RES
             xs = X0 + (np.arange(bw) + 0.5) * RES
             ys = Y1 - (np.arange(bh) + 0.5) * RES
+            # chaque couche est posée par-dessus les précédentes avec un poids (fondu aux bords
+            # et aux raccords) ; « couvert » cumule ces poids, et on divise à la fin : une photo
+            # seule reste entière jusqu'à son bord, sans assombrissement
             res = np.zeros((nc, bh, bw), np.float32)
             couvert = np.zeros((bh, bw), np.float32)
             for p, quoi in reversed(couches):
                 f = p.fenetre(X0, Y1, bw, bh)
                 if f is None or not f[1].any():
                     continue
-                img, alpha, bord = f
-                if quoi == "points":
-                    m = p.prioritaire(xs, ys)
-                elif quoi == "loin":
-                    m = ~p.prioritaire(xs, ys)
-                elif quoi == "fiable":
-                    m = p.fiable(xs, ys)
-                else:
-                    m = ~p.fiable(xs, ys)
-                m = (alpha & m).astype(np.float32)
-                w = np.clip(bord / FONDU_BORD, 0, 1) * m
-                w = np.where(couvert > 0, w, m)   # pas de fondu dans le vide
+                img, alpha, bord, fiable, zone = f
+                m = {"points": zone, "loin": 1 - zone, "fiable": fiable, "decale": 1 - fiable}[quoi]
+                w = np.clip(bord / FONDU_BORD, 0.02, 1) * alpha * m
                 res = res * (1 - w) + img * w
-                couvert = np.maximum(couvert, m)
+                couvert = couvert * (1 - w) + w
+            visible = couvert > 0.005
+            res[:, visible] /= couvert[visible]
             for k in range(nc):
                 out.GetRasterBand(k + 1).WriteArray(np.clip(res[k], 0, 255).astype(np.uint8), bx, by)
-            out.GetRasterBand(nc + 1).WriteArray(((couvert > 0) * 255).astype(np.uint8), bx, by)
+            out.GetRasterBand(nc + 1).WriteArray((visible * 255).astype(np.uint8), bx, by)
         print(f"  ligne {by // BLOC + 1}/{(hauteur + BLOC - 1) // BLOC}", flush=True)
     out.BuildOverviews("AVERAGE", [2, 4, 8, 16, 32])
     out = None
