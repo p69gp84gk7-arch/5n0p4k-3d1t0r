@@ -14,6 +14,8 @@ Peu de photos, les meilleures, et une seule teinte :
    sont accordés sur ceux des photos déjà posées, là où elles se recouvrent. Si le
    recouvrement est trop petit (une mince bande au bord, trompeuse : 1977), la photo
    est accordée en passant par l'ortho 2022, commune à toutes les photos.
+   Enfin, une année pâle ou délavée (1989) est contrastée : du plus sombre au plus
+   clair, elle occupe toute la gamme de gris (même réglage pour toutes ses photos).
 Une photo placée à la main ne passe devant les autres que dans la zone couverte par
 ses points (enveloppe + 500 m) : loin de ses points, rien ne garantit sa position.
 
@@ -43,6 +45,8 @@ COUVERTURE_VISEE = 0.98  # on arrête d'ajouter des photos quand les lieux sont 
 GAIN_MIN = 0.01          # ... ou quand une photo n'apporte plus que 1 % des lieux
 MARGE_MANUELLE = 500.0   # m au sol autour de l'enveloppe des points placés à la main
 RECOUVREMENT_MIN = 0.10  # part d'une photo déjà couverte pour accorder sa teinte sur ses voisines
+GAMME = (20, 235)        # valeurs visées pour le 1 % le plus sombre et le 1 % le plus clair
+CONTRASTE_MAX = 2.5      # renforcement maximal du contraste d'une année
 
 
 class Photo:
@@ -196,6 +200,13 @@ def accorde_teintes(ordre, images, ref):
         neuf = m & ~masque
         pose[:, neuf] = corr[:, neuf]
         masque |= m
+    # contraste de l'année : seulement renforcé, jamais réduit
+    bas, haut = np.percentile(pose.mean(axis=0)[masque], [1, 99])
+    g = min(CONTRASTE_MAX, (GAMME[1] - GAMME[0]) / max(haut - bas, 1.0))
+    if g > 1.05:
+        for p in ordre:
+            p.gain *= g
+            p.decalage = p.decalage * g + GAMME[0] - bas * g
 
 
 def main():
