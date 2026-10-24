@@ -11,7 +11,9 @@ Peu de photos, les meilleures, et une seule teinte :
    <photo>_secteurs.tif), une autre photo vérifiée passe devant ; sinon elle reste
    affichée (rien n'est découpé). Le choix des photos en tient compte de la même façon.
 3. Une seule teinte : la luminosité et le contraste de chaque photo (par couleur)
-   sont accordés sur ceux des photos déjà posées, là où elles se recouvrent.
+   sont accordés sur ceux des photos déjà posées, là où elles se recouvrent. Si le
+   recouvrement est trop petit (une mince bande au bord, trompeuse : 1977), la photo
+   est accordée en passant par l'ortho 2022, commune à toutes les photos.
 Une photo placée à la main ne passe devant les autres que dans la zone couverte par
 ses points (enveloppe + 500 m) : loin de ses points, rien ne garantit sa position.
 
@@ -26,7 +28,7 @@ import cv2
 import numpy as np
 from osgeo import gdal
 
-from commun import DEPOT, RECALES, bande_alpha, nb_couleurs, points_manuels, zone_merc
+from commun import DEPOT, RECALES, REFERENCE, bande_alpha, nb_couleurs, points_manuels, zone_merc
 
 gdal.UseExceptions()
 
@@ -40,6 +42,7 @@ LIEUX = {"station": (59500, 5275000, 65500, 5278200),   # plateau de Superbagnè
 COUVERTURE_VISEE = 0.98  # on arrête d'ajouter des photos quand les lieux sont couverts à 98 %
 GAIN_MIN = 0.01          # ... ou quand une photo n'apporte plus que 1 % des lieux
 MARGE_MANUELLE = 500.0   # m au sol autour de l'enveloppe des points placés à la main
+RECOUVREMENT_MIN = 0.10  # part d'une photo déjà couverte pour accorder sa teinte sur ses voisines
 
 
 class Photo:
@@ -162,21 +165,33 @@ def choisit(photos, masques, cibles, imposees):
     return ordre, 1 - reste.sum() / max(1, cibles.sum())
 
 
-def accorde_teintes(ordre, images):
+def accorde_teintes(ordre, images, ref):
     """Accorde chaque photo sur celles déjà posées, là où elles se recouvrent (moyenne et
-    écart-type par couleur) : une seule teinte pour toute l'année."""
-    pose, masque = None, None
+    écart-type par couleur) : une seule teinte pour toute l'année. Quand le recouvrement
+    est trop petit, on passe par l'ortho 2022 (ref, en gris) : la photo y est ramenée,
+    puis ramenée de l'ortho vers la teinte de la première photo."""
+    def vers_ref(v, r):
+        a = r.std() / max(v.std(), 1.0)
+        return a, r.mean() - a * v.mean()
+
+    pose, masque, premier = None, None, None
     for p in ordre:
         img, m = images[p.id]
         if pose is None:
-            pose, masque = img.copy(), m.copy()
+            pose, masque, premier = img.copy(), m.copy(), (img, m)
             continue
         commun = m & masque
-        if commun.sum() > 500:
+        if commun.sum() >= RECOUVREMENT_MIN * m.sum():
             for k in range(p.nc):
                 a, b = img[k][commun], pose[k][commun]
                 p.gain[k] = np.clip(b.std() / max(a.std(), 1.0), 0.5, 2.0)
                 p.decalage[k] = b.mean() - p.gain[k] * a.mean()
+        else:
+            for k in range(p.nc):
+                a1, b1 = vers_ref(premier[0][k][premier[1]], ref[premier[1]])
+                ap, bp = vers_ref(img[k][m], ref[m])
+                p.gain[k] = np.clip(ap / a1, 0.5, 2.0)
+                p.decalage[k] = (bp - b1) / a1
         corr = img * p.gain[:, None, None] + p.decalage[:, None, None]
         neuf = m & ~masque
         pose[:, neuf] = corr[:, neuf]
@@ -211,7 +226,9 @@ def main():
     masques = {p.id: images[p.id][1] & p.fiable(gx, gy) for p in photos}   # bien placé seulement
     imposees = priorites(date)
     ordre, couverture = choisit(photos, masques, cibles, imposees)
-    accorde_teintes(ordre, images)
+    o = gdal.Warp("", str(REFERENCE / "ortho2022.tif"), format="MEM", outputBounds=bornes,
+                  width=wr, height=hr, resampleAlg="average").ReadAsArray().astype(np.float32)
+    accorde_teintes(ordre, images, 0.3 * o[0] + 0.59 * o[1] + 0.11 * o[2])
     print(f"{len(ordre)} photos retenues (station et Luchon couverts à {couverture:.0%}) :",
           ", ".join(p.numero + (" (à la main)" if p.manuel else " (choisie)" if p.numero in imposees else "")
                     for p in ordre))
