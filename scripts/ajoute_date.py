@@ -7,6 +7,7 @@ Usage :
 
 Regardez ensuite l'image controle/<date>.jpg avant de publier.
 """
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -17,6 +18,12 @@ ICI = Path(__file__).resolve().parent
 def etape(script, *args):
     print(f"\n=== {script} {' '.join(args)} ===", flush=True)
     subprocess.run([sys.executable, str(ICI / script), *args], check=True)
+
+
+def infrarouge(date):
+    """La date a-t-elle des photos infrarouges noir et blanc ?"""
+    from commun import BRUTS
+    return any(p.get("couleur") == "IR" for p in json.loads((BRUTS / date / "choix.json").read_text()))
 
 
 def main():
@@ -30,6 +37,8 @@ def main():
         periode = "1950-1965" if annee <= 1965 else "1965-1980" if annee <= 1980 else "1980-1995"
         etape("reference.py", periode)
     etape("photos.py", date)
+    if infrarouge(date):
+        etape("reference.py", "irc")            # ortho 2022 infrarouge (une seule fois)
     etape("recale.py", date)
     etape("photos.py", date, "complete")   # d'autres photos là où il reste des trous
     etape("recale.py", date)               # (seules les nouvelles sont traitées)

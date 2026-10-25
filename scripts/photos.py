@@ -66,22 +66,27 @@ def meilleure_version(photos):
     """Quand l'IGN a plusieurs versions des mêmes clichés, on prend la couleur en priorité :
     couleur, puis infrarouge couleur, puis noir et blanc, puis infrarouge. Une version
     n'est retenue que si elle couvre presque autant la station et Luchon que la meilleure,
-    et si ses photos sont presque aussi détaillées (en 1980, l'infrarouge couleur couvre
-    4 fois plus de terrain par photo : 2 fois moins de détails, et aucune ne se recale)."""
+    avec des photos presque aussi détaillées que les plus fines : un vol pris de beaucoup
+    plus haut (2 fois moins de détails) est laissé de côté (en 1980, l'infrarouge couleur
+    et un des deux vols noir et blanc couvrent 4 fois plus de terrain par photo, et
+    aucune de leurs photos ne se recale)."""
     lieux = unary_union(LIEUX)
-    def couverture(t):
-        emp = unary_union([shape(p["emprise"]) for p in photos if p.get("couleur") == t])
-        return emp.intersection(lieux).area / lieux.area
-    def surface(t):   # terrain couvert par une photo (médiane) : plus il est grand, moins de détails
-        return float(np.median([shape(p["emprise"]).area for p in photos if p.get("couleur") == t]))
-    types = [t for t in ORDRE_COULEUR if any(p.get("couleur") == t for p in photos)]
+    def couverture(ph):
+        return unary_union([shape(p["emprise"]) for p in ph]).intersection(lieux).area / lieux.area
+    vols = {}
+    for p in photos:
+        vols.setdefault((p.get("couleur"), p["mission"]), []).append(p)
+    surface = {v: float(np.median([shape(p["emprise"]).area for p in ph])) for v, ph in vols.items()}
+    plus_fine = min(surface.values())
+    fins = {v: ph for v, ph in vols.items() if surface[v] <= 2 * plus_fine}
+    types = [t for t in ORDRE_COULEUR if any(c == t for c, _ in vols)]
     if not types:
         return photos
-    meilleure = max(couverture(t) for t in types)
-    plus_fine = min(surface(t) for t in types)
+    meilleure = max(couverture([p for (c, _), ph in vols.items() if c == t for p in ph]) for t in types)
     for t in types:
-        if couverture(t) >= 0.9 * meilleure and surface(t) <= 2 * plus_fine:
-            return [p for p in photos if p.get("couleur") == t]
+        ph = [p for (c, _), q in fins.items() if c == t for p in q]
+        if ph and couverture(ph) >= 0.9 * meilleure:
+            return ph
     return photos
 
 
@@ -167,6 +172,23 @@ def complete(date, toutes):
     (BRUTS / date / "choix.json").write_text(json.dumps(choix + ajout, indent=1))
 
 
+def avec_meme_vol(dates, date):
+    """Les photos de la date, plus celles du même vol (même mission) rangées à une autre
+    date de la même année ou presque : en 1980, le vol 1848-0051 a commencé en juillet
+    1979, et c'est la partie de 1979 qui couvre Luchon et le haut de la station."""
+    from datetime import date as jour
+    j = jour.fromisoformat(date)
+    missions = {p["mission"] for p in dates[date]}
+    photos, ids = list(dates[date]), {p["id"] for p in dates[date]}
+    for autre, ph in dates.items():
+        if autre != date and abs((jour.fromisoformat(autre) - j).days) <= 450:
+            for p in ph:
+                if p["mission"] in missions and p["id"] not in ids:
+                    photos.append(p)
+                    ids.add(p["id"])
+    return photos
+
+
 def main():
     TRAVAIL.mkdir(parents=True, exist_ok=True)
     cache = TRAVAIL / "photos_par_date.json"
@@ -180,10 +202,11 @@ def main():
             print(d, len(ph), "photos", ph[0]["couleur"], ph[0]["mission"])
         return
     date = sys.argv[1]
+    toutes = avec_meme_vol(dates, date)
     if len(sys.argv) > 2 and sys.argv[2] == "complete":
-        complete(date, meilleure_version(dates[date]))
+        complete(date, meilleure_version(toutes))
         return
-    version = meilleure_version(dates[date])
+    version = meilleure_version(toutes)
     choix, couvert = choisir(version)
     print(f"{date} : {len(choix)} photos retenues sur {len(version)} (version {version[0]['couleur']}), "
           f"zone couverte à {couvert:.0%}")
@@ -200,7 +223,7 @@ def main():
     numeros = json.loads(prio.read_text()).get(date, []) if prio.exists() else []
     voulues += [p["id"] for p in version if p["id"].split("_")[-1] in numeros]
     for pid in voulues:
-        p = next((q for q in dates[date] if q["id"] == pid), None)
+        p = next((q for q in toutes if q["id"] == pid), None)
         if p and p["id"] not in ids:
             choix.append(p)
             ids.add(p["id"])
