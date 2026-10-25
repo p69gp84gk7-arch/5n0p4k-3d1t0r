@@ -3,6 +3,7 @@
 Usage :
     python3 scripts/reference.py                  # ortho 2022 (référence principale)
     python3 scripts/reference.py 1950-1965        # ortho historique IGN (aide au placement grossier)
+    python3 scripts/reference.py irc              # ortho 2022 infrarouge (pour les photos infrarouges)
 """
 import io
 import sys
@@ -24,7 +25,13 @@ BLOC = 2048        # le WMS accepte au plus 5010 px ; plus petit = moins de coup
 
 def main():
     REFERENCE.mkdir(parents=True, exist_ok=True)
-    if len(sys.argv) > 1:
+    irc = len(sys.argv) > 1 and sys.argv[1] == "irc"
+    if irc:
+        # ortho 2022 en infrarouge couleur : on n'en garde que l'infrarouge (le rouge de
+        # l'image), recopié dans les 3 bandes. Sur une photo infrarouge noir et blanc,
+        # l'herbe et les arbres sont clairs : ils ne ressemblent qu'à cette bande-là.
+        couche, fmt, sortie = "ORTHOIMAGERY.ORTHOPHOTOS.IRC.2022", "image/jpeg", REFERENCE / "ortho2022irc.tif"
+    elif len(sys.argv) > 1:
         periode = sys.argv[1]
         couche, fmt, sortie = f"ORTHOIMAGERY.ORTHOPHOTOS.{periode}", "image/png", REFERENCE / f"histo{periode}.tif"
     else:
@@ -77,7 +84,7 @@ def main():
                     if essai == 4:
                         raise
             for b in range(3):
-                ds.GetRasterBand(b + 1).WriteArray(img[:, :, b], px, py)
+                ds.GetRasterBand(b + 1).WriteArray(img[:, :, 0 if irc else b], px, py)
             print(f"  bloc {n} ({px},{py})", flush=True)
     ds.BuildOverviews("AVERAGE", [2, 4, 8, 16, 32])
     ds = ancien = None

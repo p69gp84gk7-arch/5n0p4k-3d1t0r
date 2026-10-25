@@ -516,6 +516,8 @@ def traite(args):
     orthos = {"2022": Ortho("ortho2022")}
     if historique_pour(date):
         orthos = {"histo": Ortho("histo" + historique_pour(date)), **orthos}
+    if p.get("couleur") == "IR":   # infrarouge noir et blanc : seule l'ortho infrarouge lui ressemble
+        orthos = {"2022": Ortho("ortho2022irc")}
     try:
         r = recale(date, p, orthos, dossier / (p["id"] + ".tif"))
     except Exception as e:   # une photo ratée ne doit pas arrêter les autres
