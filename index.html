@@ -32,7 +32,7 @@ body{background:var(--bg);color:var(--ink);font-family:Barlow,"Segoe UI",system-
 .app{position:relative;height:100%;display:flex;flex-direction:column}
 
 /* --- carte --- */
-.view{position:relative;flex:1;overflow:hidden;touch-action:none;cursor:grab;background:#0b1117}
+.view{position:relative;flex:1;overflow:hidden;touch-action:none;cursor:grab;background:#0b1117;isolation:isolate}
 .view.dragging{cursor:grabbing}
 .layer{position:absolute;inset:0;overflow:hidden}
 .stage{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
@@ -58,6 +58,13 @@ body{background:var(--bg);color:var(--ink);font-family:Barlow,"Segoe UI",system-
 .title h1{margin:0;font:700 22px/1.05 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.01em}
 .title p{margin:4px 0 0;font-size:13px;line-height:1.35;color:var(--muted)}
 .title p.lien a{color:var(--accent);font-weight:600}
+.title h1{padding-right:30px}
+.reduire{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:6px;border:1px solid var(--line);
+  background:transparent;color:var(--ink);font:600 16px/1 Barlow,sans-serif;cursor:pointer;display:grid;place-items:center}
+/* fenêtre réduite : il ne reste qu'un bouton rond « i » */
+.title.reduit{padding:0;border-radius:50%}
+.title.reduit h1,.title.reduit p{display:none}
+.title.reduit .reduire{position:static;width:40px;height:40px;border:0;border-radius:50%;font:700 18px/1 Georgia,serif}
 
 /* zoom */
 .zoom{position:absolute;right:12px;bottom:12px;z-index:6;display:flex;flex-direction:column;gap:6px}
@@ -67,6 +74,27 @@ body{background:var(--bg);color:var(--ink);font-family:Barlow,"Segoe UI",system-
 /* --- frise --- */
 .bar{position:relative;z-index:7;background:var(--panel);border-top:1px solid var(--line);padding:12px 16px 14px;
   display:grid;grid-template-columns:auto 1fr auto;gap:6px 22px;align-items:center}
+/* année + boutons précédente / suivante */
+.choix{display:flex;align-items:center;gap:10px}
+.fleche{width:44px;height:44px;flex:none;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--ink);
+  font:600 26px/1 Barlow,sans-serif;cursor:pointer;display:grid;place-items:center;padding:0 0 3px}
+.fleche:disabled{opacity:.3;cursor:default}
+.fleche:focus-visible,.replier:focus-visible,.reduire:focus-visible,.carrousel button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+/* poignée pour rétracter la barre */
+.replier{position:absolute;left:50%;top:-28px;transform:translateX(-50%);width:64px;height:28px;border:1px solid var(--line);border-bottom:0;
+  border-radius:10px 10px 0 0;background:var(--panel);color:var(--ink);font:600 16px/1 Barlow,sans-serif;cursor:pointer;display:grid;place-items:center}
+.bar.repliee{padding-top:8px;padding-bottom:8px}
+.bar.repliee .timeline,.bar.repliee .side,.bar.repliee .carrousel,.bar.repliee .year small{display:none}
+.bar.repliee .year{font-size:34px}
+/* carrousel des dates (téléphone) */
+.carrousel{display:none;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding:2px calc(50% - 33px) 4px;
+  -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.carrousel::-webkit-scrollbar{display:none}
+.carrousel button{flex:none;scroll-snap-align:center;min-width:66px;padding:8px 10px 7px;border-radius:8px;border:1px solid var(--line);
+  background:transparent;color:var(--ink);font:700 19px/1 "Barlow Condensed",sans-serif;cursor:pointer;text-align:center}
+.carrousel button small{display:block;font:500 11px/1.2 Barlow,sans-serif;color:var(--muted);margin-top:3px;white-space:nowrap}
+.carrousel button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.carrousel button.on small{color:var(--accent-ink)}
 .year{font:700 54px/0.9 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:-.01em;min-width:4.3ch;font-variant-numeric:tabular-nums}
 .year small{display:block;font:500 13px/1.3 Barlow,sans-serif;color:var(--muted);letter-spacing:0;margin-top:4px;max-width:20ch}
 .timeline{position:relative;padding:4px 0 26px}
@@ -92,8 +120,13 @@ body{background:var(--bg);color:var(--ink);font-family:Barlow,"Segoe UI",system-
 .credit{position:absolute;right:62px;bottom:12px;z-index:6;font-size:11px;color:#fff;text-shadow:0 1px 2px #000}
 
 @media (max-width:720px){
-  .bar{grid-template-columns:auto 1fr;padding:10px 12px 12px}
-  .side{grid-column:1 / -1;flex-direction:row;justify-content:space-between;align-items:center;flex-wrap:wrap}
+  .bar{grid-template-columns:1fr;padding:10px 12px 12px;gap:10px}
+  .choix{justify-content:space-between}
+  .choix .year{text-align:center;flex:1}
+  .year small{margin-left:auto;margin-right:auto}
+  .timeline{display:none}
+  .carrousel{display:flex}
+  .side{flex-direction:row;justify-content:space-between;align-items:center;flex-wrap:wrap}
   .year{font-size:40px}
   .year small{font-size:12px}
   .ticks button{font-size:11px}
@@ -126,7 +159,8 @@ body{background:var(--bg);color:var(--ink);font-family:Barlow,"Segoe UI",system-
     <div class="curtain" id="curtain"><button class="grip" id="grip" aria-label="Déplacer le rideau de comparaison">⇆</button></div>
     <span class="tag left" id="tagLeft"></span>
     <span class="tag right"><select id="ref" aria-label="Année affichée à droite du rideau"></select></span>
-    <div class="title">
+    <div class="title" id="titre">
+      <button class="reduire" id="reduireTitre" aria-expanded="true" aria-label="Réduire cette fenêtre">–</button>
       <h1>Superbagnères, remonter le temps</h1>
       <p>Faites glisser le curseur pour remonter des années 50 jusqu’à 2025. Zoomez pour voir le détail : les images se chargent au fur et à mesure.</p>
       <p class="lien">Une année incomplète ou mal placée ? <a href="placer.html">Placer une photo à la main</a></p>
@@ -138,8 +172,14 @@ body{background:var(--bg);color:var(--ink);font-family:Barlow,"Segoe UI",system-
     </div>
     <div class="zlevel" id="zlevel"></div>
   </div>
-  <div class="bar">
-    <div class="year" id="year" aria-live="polite">2025<small>Satellite</small></div>
+  <div class="bar" id="bar">
+    <button class="replier" id="replier" aria-expanded="true" aria-label="Rétracter la barre des dates">⌄</button>
+    <div class="choix">
+      <button class="fleche" id="prev" aria-label="Date précédente">‹</button>
+      <div class="year" id="year" aria-live="polite">2025<small>Satellite</small></div>
+      <button class="fleche" id="next" aria-label="Date suivante">›</button>
+    </div>
+    <div class="carrousel" id="carrousel" role="group" aria-label="Choisir une date"></div>
     <div class="timeline">
       <input type="range" id="slider" min="0" max="10" step="1" value="10" aria-label="Année affichée">
       <div class="ticks" id="ticks"></div>
@@ -228,7 +268,25 @@ function buildTicks(){
     b.onclick=()=>{ stopPlay(); slider.value=i; render(); };
     ticks.appendChild(b);
   });
+  // carrousel du téléphone : une étiquette par date, on touche pour choisir
+  const car=$('carrousel'); car.innerHTML='';
+  LAYERS.forEach((l,i)=>{
+    const b=document.createElement('button');
+    b.innerHTML = (l.k==="2025s" ? "2025" : l.y) + '<small>' + (l.k==="2025a" ? "avion" : l.k==="2025s" ? "satellite"
+      : l.tuiles ? "photos IGN" : l.d.toLowerCase()) + '</small>';
+    b.dataset.i=i;
+    b.onclick=()=>{ stopPlay(); slider.value=i; render(); showScale(); };
+    car.appendChild(b);
+  });
 }
+/* date précédente / suivante (boutons ‹ ›, flèches du clavier) */
+function aller(d){
+  stopPlay();
+  slider.value=Math.min(+slider.max, Math.max(0, Math.round(+slider.value)+d));
+  render(); showScale();
+}
+$('prev').onclick=()=>aller(-1);
+$('next').onclick=()=>aller(1);
 
 /* fondu entre les années : au choix (case à cocher), retenu par le navigateur */
 let fondu=false;
@@ -258,6 +316,11 @@ function render(){
   yearEl.querySelector('small').textContent = Ly.d;
   $('tagLeft').textContent = Ly.y + (Ly.k==="2025a" ? " · avion" : "");
   ticks.querySelectorAll('button').forEach(b=>b.classList.toggle('on', +b.dataset.i===n));
+  $('prev').disabled = n<=0; $('next').disabled = n>=LAST;
+  const car=$('carrousel'), on=car.querySelector(`button[data-i="${n}"]`);
+  car.querySelectorAll('button').forEach(b=>b.classList.toggle('on', b===on));
+  if(on && car.offsetParent) car.scrollTo({left: on.offsetLeft - (car.clientWidth - on.offsetWidth)/2,
+    behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
 }
 slider.addEventListener('input', ()=>{ stopPlay(); render(); });
 
@@ -373,9 +436,34 @@ $('play').onclick=()=>{
 /* flèches du clavier = années */
 document.addEventListener('keydown',e=>{
   if(e.target===slider||e.target===grip||e.target.tagName==='SELECT') return;
-  if(e.key==='ArrowLeft'){stopPlay();slider.value=Math.max(0,Math.round(+slider.value)-1);render();}
-  if(e.key==='ArrowRight'){stopPlay();slider.value=Math.min(+slider.max,Math.round(+slider.value)+1);render();}
+  if(e.key==='ArrowLeft') aller(-1);
+  if(e.key==='ArrowRight') aller(1);
 });
+
+/* ---------- barre des dates rétractable, fenêtre du titre réductible ----------
+   le choix est retenu par le navigateur ; sur téléphone, la fenêtre du titre
+   commence réduite pour laisser la place à la carte */
+const lire = (cle, defaut) => { try{ const v=localStorage.getItem(cle); return v===null ? defaut : v==='1'; }catch(e){ return defaut; } };
+const ecrire = (cle, v) => { try{ localStorage.setItem(cle, v?'1':'0'); }catch(e){} };
+function replier(r){
+  $('bar').classList.toggle('repliee', r);
+  $('replier').textContent = r ? '⌃' : '⌄';
+  $('replier').setAttribute('aria-expanded', !r);
+  $('replier').setAttribute('aria-label', r ? 'Déplier la barre des dates' : 'Rétracter la barre des dates');
+  ecrire('barreRepliee', r);
+  map.invalidateSize(); clip(); render();
+}
+$('replier').onclick=()=>replier(!$('bar').classList.contains('repliee'));
+function reduireTitre(r){
+  $('titre').classList.toggle('reduit', r);
+  $('reduireTitre').textContent = r ? 'i' : '–';
+  $('reduireTitre').setAttribute('aria-expanded', !r);
+  $('reduireTitre').setAttribute('aria-label', r ? 'Afficher les informations' : 'Réduire cette fenêtre');
+  ecrire('titreReduit', r);
+}
+$('reduireTitre').onclick=()=>reduireTitre(!$('titre').classList.contains('reduit'));
+L.DomEvent.disableClickPropagation($('titre'));
+reduireTitre(lire('titreReduit', matchMedia('(max-width:720px)').matches));
 
 async function demarrer(){
   try{
@@ -399,7 +487,7 @@ async function demarrer(){
   N = LAYERS.length; LAST = N-1;
   past = LAYERS.map((l,j) => L.tileLayer(url(l), opts(l,'past')).setZIndex(j));
   slider.max = LAST; slider.step = fondu ? '0.01' : '1'; slider.value = LAST;
-  buildRef(); buildTicks(); render(); clip(); showScale();
+  buildRef(); buildTicks(); replier(lire('barreRepliee', false)); clip(); showScale();
 }
 demarrer();
 

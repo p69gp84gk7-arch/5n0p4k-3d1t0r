@@ -4,6 +4,11 @@ Une carte pour voir la station de Superbagnères et la ville de Luchon (Pyréné
 changer au fil des années : faites glisser le curseur des années, ou comparez
 deux années de votre choix avec le rideau (2025 par défaut).
 
+Sur téléphone, les dates défilent dans un carrousel : on touche une date pour
+l'afficher. Partout, les boutons ‹ et › passent à la date précédente ou suivante.
+La barre des dates se rétracte avec la petite poignée au-dessus d'elle, et la
+fenêtre en haut à gauche se réduit en un bouton « i ». Le site retient ces choix.
+
 **Le site :** https://p69gp84gk7-arch.github.io/5n0p4k-3d1t0r/
 
 ## D'où viennent les images ?
