@@ -7,8 +7,9 @@ d'au moins 45 cm, sinon 17 (au-delà, l'appli agrandit le niveau 17 : même rend
 3 fois moins de place).
 
 Le contraste est réglé automatiquement : les 1 % de pixels les plus sombres
-deviennent noirs et les 1 % les plus clairs blancs, et les tons moyens sont un peu
-éclaircis (certains scans sont très sombres).
+deviennent noirs et les 1 % les plus clairs blancs ; puis les tons moyens sont
+éclaircis ou assombris pour que le gris médian tombe au milieu (MILIEU) : ni trop
+clair (1995, 1980 : prairies et neige très blanches), ni trop sombre (vieux scans).
 
 Usage : python3 scripts/tuiles.py 1958-10-25
 """
@@ -30,7 +31,8 @@ ZOOM_MIN = 13
 FINESSE_ZOOM_18 = 0.45   # m Web Mercator par pixel de photo
 QUALITE = 70
 ETIREMENT = (1, 99)   # percentiles ramenés au noir et au blanc
-GAMMA = 0.8           # < 1 : éclaircit un peu les tons moyens (forêts très sombres)
+MILIEU = 120          # valeur visée pour le gris médian (sur 255)
+GAMMA_LIMITES = (0.6, 1.8)   # correction des tons moyens : < 1 éclaircit, > 1 assombrit
 MOIS = ["janv.", "févr.", "mars", "avril", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
 
 
@@ -82,15 +84,18 @@ def main():
     gris = lire_gris(ds, buf_xsize=w, buf_ysize=h)
     utile = bande_alpha(ds).ReadAsArray(buf_xsize=w, buf_ysize=h) > 0
     bas, haut = (float(v) for v in np.percentile(gris[utile], ETIREMENT))
+    haut = max(haut, bas + 1)
+    median = float(np.clip((np.median(gris[utile]) - bas) / (haut - bas), 0.05, 0.95))
+    gamma = float(np.clip(np.log(MILIEU / 255) / np.log(median), *GAMMA_LIMITES))
     couleur = nb_couleurs(ds) == 3
     ds = None
     # le WebP veut du rouge-vert-bleu + transparence : en noir et blanc, le gris est recopié
     # 3 fois ; en couleur, le même réglage est appliqué aux trois couleurs (teintes gardées)
     rgba = RECALES / date / "mosaique_rgba.vrt"
-    etire = [bas, max(haut, bas + 1), 0, 255]
+    etire = [bas, haut, 0, 255]
     gdal.Translate(str(rgba), str(mosaique), format="VRT", bandList=[1, 2, 3, 4] if couleur else [1, 1, 1, 2],
                    scaleParams=[etire, etire, etire, [0, 255, 0, 255]],
-                   exponents=[GAMMA, GAMMA, GAMMA, 1])
+                   exponents=[gamma, gamma, gamma, 1])
     gdal2tiles = shutil.which("gdal2tiles.py") or shutil.which("gdal2tiles")
     zmax = zoom_max(date)
     subprocess.run([sys.executable, gdal2tiles, "--xyz", "-z", f"{ZOOM_MIN}-{zmax}", "-r", "average",
@@ -102,7 +107,7 @@ def main():
     (sortie / "info.json").write_text(json.dumps(info(date, zmax), ensure_ascii=False) + "\n")
     ajoute_a_la_liste(date)
     print(f"{date} : {taille(sortie) / 1e6:.1f} Mo de tuiles, zooms {ZOOM_MIN} à {zmax} "
-          f"(contraste : {bas:.0f}-{haut:.0f} -> 0-255)")
+          f"(contraste : {bas:.0f}-{haut:.0f} -> 0-255, tons moyens {gamma:.2f})")
     print(f"Total du dossier tiles/ : {taille(TUILES) / 1e6:.1f} Mo")
 
 
