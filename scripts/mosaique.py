@@ -11,9 +11,7 @@ Peu de photos, les meilleures, et une seule teinte :
    <photo>_secteurs.tif), une autre photo vérifiée passe devant ; sinon elle reste
    affichée (rien n'est découpé). Le choix des photos en tient compte de la même façon.
 3. Une seule teinte : la luminosité et le contraste de chaque photo (par couleur)
-   sont accordés sur ceux des photos déjà posées, là où elles se recouvrent. Si le
-   recouvrement est trop petit (une mince bande au bord, trompeuse : 1977), la photo
-   est accordée en passant par l'ortho 2022, commune à toutes les photos.
+   sont accordés en passant par l'ortho 2022, commune à toutes les photos.
    Enfin, une année pâle ou délavée (1989) est contrastée : du plus sombre au plus
    clair, elle occupe toute la gamme de gris (même réglage pour toutes ses photos).
 Une photo placée à la main ne passe devant les autres que dans la zone couverte par
@@ -44,7 +42,6 @@ LIEUX = {"station": (59500, 5275000, 65500, 5278200),   # plateau de Superbagnè
 COUVERTURE_VISEE = 0.98  # on arrête d'ajouter des photos quand les lieux sont couverts à 98 %
 GAIN_MIN = 0.01          # ... ou quand une photo n'apporte plus que 1 % des lieux
 MARGE_MANUELLE = 500.0   # m au sol autour de l'enveloppe des points placés à la main
-RECOUVREMENT_MIN = 0.10  # part d'une photo déjà couverte pour accorder sa teinte sur ses voisines
 GAMME = (20, 235)        # valeurs visées pour le 1 % le plus sombre et le 1 % le plus clair
 CONTRASTE_MAX = 2.5      # renforcement maximal du contraste d'une année
 
@@ -181,29 +178,22 @@ def choisit(photos, masques, entiers, cibles, imposees):
 
 
 def accorde_teintes(ordre, images, ref):
-    """Accorde chaque photo sur celles déjà posées, là où elles se recouvrent (moyenne et
-    écart-type par couleur) : une seule teinte pour toute l'année. Quand le recouvrement
-    est trop petit, on passe par l'ortho 2022 (ref, en gris) : la photo y est ramenée,
-    puis ramenée de l'ortho vers la teinte de la première photo."""
+    """Une seule teinte pour toute l'année : chaque photo est ramenée (moyenne et
+    écart-type, par couleur) sur l'ortho 2022 (ref, en gris) là où elle la couvre, puis de
+    l'ortho vers la teinte de la première photo. L'ortho couvre toute la zone : aucune
+    erreur ne s'accumule d'une photo à l'autre (en 1977, accorder chaque photo sur ses
+    voisines, par de minces bandes communes, donnait des blocs très clairs ou très sombres)."""
     def vers_ref(v, r):
         a = r.std() / max(v.std(), 1.0)
         return a, r.mean() - a * v.mean()
 
-    pose, masque, premier = None, None, None
-    for p in ordre:
+    img1, m1 = images[ordre[0].id]
+    pose, masque = np.zeros_like(img1), np.zeros_like(m1)
+    for i, p in enumerate(ordre):
         img, m = images[p.id]
-        if pose is None:
-            pose, masque, premier = img.copy(), m.copy(), (img, m)
-            continue
-        commun = m & masque
-        if commun.sum() >= RECOUVREMENT_MIN * m.sum():
+        if i:
             for k in range(p.nc):
-                a, b = img[k][commun], pose[k][commun]
-                p.gain[k] = np.clip(b.std() / max(a.std(), 1.0), 0.5, 2.0)
-                p.decalage[k] = b.mean() - p.gain[k] * a.mean()
-        else:
-            for k in range(p.nc):
-                a1, b1 = vers_ref(premier[0][k][premier[1]], ref[premier[1]])
+                a1, b1 = vers_ref(img1[k][m1], ref[m1])
                 ap, bp = vers_ref(img[k][m], ref[m])
                 p.gain[k] = np.clip(ap / a1, 0.5, 2.0)
                 p.decalage[k] = (bp - b1) / a1

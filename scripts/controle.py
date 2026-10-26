@@ -19,9 +19,12 @@ import numpy as np
 from osgeo import gdal
 from PIL import Image, ImageDraw, ImageFont
 
-from commun import BRUTS, CONTROLE, GEOPF, RECALES, REFERENCE, lire_gris, zone_merc
+from commun import BRUTS, CONTROLE, GEOPF, RECALES, REFERENCE, TRAVAIL, lire_gris, zone_merc
 
 gdal.UseExceptions()
+for _cle, _val in {"GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR", "GDAL_HTTP_MAX_RETRY": "10",
+                   "GDAL_HTTP_RETRY_DELAY": "2", "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif"}.items():
+    gdal.SetConfigOption(_cle, _val)
 
 # Repères stables (mètres Web Mercator), choisis sur l'ortho 2022
 REPERES = {
@@ -84,7 +87,12 @@ def main():
     annee = date[:4]
     dossier = RECALES / date
     rapports = json.loads((dossier / "rapport.json").read_text())
-    choix = json.loads((BRUTS / date / "choix.json").read_text())
+    fichier = BRUTS / date / "choix.json"
+    if fichier.exists():
+        choix = json.loads(fichier.read_text())
+    else:   # photos brutes déjà effacées : la liste vient du catalogue, les images de l'IGN
+        catalogue = json.loads((TRAVAIL / "photos_par_date.json").read_text())
+        choix = list({p["id"]: p for v in catalogue.values() for p in v if p["id"] in rapports}.values())
     mosaique = dossier / "mosaique.tif"
     ortho = REFERENCE / "ortho2022.tif"
     x0, y0, x1, y1 = zone_merc()
@@ -117,7 +125,9 @@ def main():
     par_ligne = 12
     v = (L - 80 - (par_ligne - 1) * 8) // par_ligne
     for i, ph in enumerate(sorted(choix, key=lambda q: q["id"])):
-        ds = gdal.Open(str(BRUTS / date / (ph["id"] + ".tif")))
+        brut = BRUTS / date / (ph["id"] + ".tif")
+        ds = gdal.Open(str(brut) if brut.exists() else
+                       f"/vsicurl/{GEOPF}/chunk/telechargement/download/pva/{ph['mission']}/{ph['id']}.tif")
         a = lire_gris(ds, buf_xsize=v, buf_ysize=v)
         cx = 40 + (i % par_ligne) * (v + 8)
         cy = y + (i // par_ligne) * (v + 34)
